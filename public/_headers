@@ -1,0 +1,7 @@
+/openapi.json
+  Access-Control-Allow-Origin: *
+  X-Content-Type-Options: nosniff
+/llms.txt
+  Access-Control-Allow-Origin: *
+/llms-full.txt
+  Access-Control-Allow-Origin: *

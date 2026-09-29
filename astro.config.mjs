@@ -1,0 +1,76 @@
+import { defineConfig } from "astro/config";
+import starlight from "@astrojs/starlight";
+
+export default defineConfig({
+  site: "https://docs.haneoka.org",
+  legacy: { collections: true },
+  integrations: [
+    starlight({
+      title: "Haneoka API",
+      description:
+        "Public API documentation for haneoka.org resource servers and community services.",
+      favicon: "/favicon.svg",
+      customCss: ["./src/styles/md3.css"],
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/haneoka-gakuen/haneoka",
+        },
+      ],
+      locales: {
+        root: { label: "English", lang: "en" },
+        "zh-cn": { label: "简体中文", lang: "zh-CN" },
+      },
+      defaultLocale: "root",
+      sidebar: [
+        {
+          label: "Start here",
+          translations: { "zh-CN": "开始使用" },
+          items: ["quickstart", "conventions", "errors"],
+        },
+        {
+          label: "Resource servers",
+          translations: { "zh-CN": "资源服务器" },
+          items: [
+            "servers/releases",
+            "servers/catalog",
+            "servers/media",
+            "servers/game-client",
+            "servers/sources",
+          ],
+        },
+        {
+          label: "Sonolus",
+          translations: { "zh-CN": "Sonolus" },
+          items: ["sonolus"],
+        },
+        {
+          label: "Community",
+          translations: { "zh-CN": "社区" },
+          items: [
+            "community",
+            "community/profiles",
+            "community/posts",
+            "community/uploads",
+          ],
+        },
+        {
+          label: "Authentication",
+          translations: { "zh-CN": "身份验证" },
+          items: ["auth"],
+        },
+        {
+          label: "Provider APIs",
+          translations: { "zh-CN": "提供商 API" },
+          items: ["providers/bestdori"],
+        },
+        {
+          label: "Reference",
+          translations: { "zh-CN": "参考" },
+          items: ["reference/openapi", "reference/schemas"],
+        },
+      ],
+    }),
+  ],
+});

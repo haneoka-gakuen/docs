@@ -1,0 +1,9 @@
+packages: []
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
+  "@haneoka/design-tokens@https://codeload.github.com/haneoka-gakuen/design-tokens/tar.gz/7a7d83edc24bc9bb55a9d35526b4f7b61d31d643": true

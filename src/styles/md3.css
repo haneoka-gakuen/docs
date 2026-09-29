@@ -1,0 +1,291 @@
+@import "@haneoka/design-tokens/tokens.css";
+@import "@fontsource-variable/roboto";
+@import "@fontsource-variable/roboto-mono";
+@import "@fontsource-variable/noto-sans";
+@import "@fontsource-variable/noto-sans-sc";
+@import "@fontsource-variable/noto-sans-jp";
+@import "@fontsource-variable/noto-sans-kr";
+@import "@fontsource-variable/noto-sans-tc";
+
+/*
+ * Starlight uses a small set of semantic custom properties for its shell. Keep
+ * those properties as aliases of the shared MD3 roles so the docs use the same
+ * scheme as the rest of haneoka.org in both theme modes.
+ */
+:root {
+  --app-font: var(--md-ref-typeface-plain);
+  --sl-font: var(--app-font);
+  --sl-font-mono: "Roboto Mono Variable", var(--md-ref-typeface-code);
+
+  /* Color roles. */
+  --sl-color-accent-low: var(--md-sys-color-primary-container);
+  --sl-color-accent: var(--md-sys-color-primary);
+  --sl-color-accent-high: var(--md-sys-color-on-primary-container);
+  --sl-color-text: var(--md-sys-color-on-surface-variant);
+  --sl-color-text-accent: var(--md-sys-color-primary);
+  --sl-color-text-invert: var(--md-sys-color-on-primary);
+  --sl-color-white: var(--md-sys-color-on-surface);
+  --sl-color-gray-1: var(--md-sys-color-on-surface);
+  --sl-color-gray-2: var(--md-sys-color-on-surface-variant);
+  --sl-color-gray-3: var(--md-sys-color-outline);
+  --sl-color-gray-4: var(--md-sys-color-outline-variant);
+  --sl-color-gray-5: var(--md-sys-color-outline-variant);
+  --sl-color-gray-6: var(--md-sys-color-surface-container);
+  --sl-color-gray-7: var(--md-sys-color-surface-container-low);
+  --sl-color-black: var(--md-sys-color-surface);
+  --sl-color-bg: var(--md-sys-color-surface);
+  --sl-color-bg-nav: var(--md-sys-color-surface-container);
+  --sl-color-bg-sidebar: var(--md-sys-color-surface-container-low);
+  --sl-color-bg-inline-code: var(--md-sys-color-surface-container-high);
+  --sl-color-bg-accent: var(--md-sys-color-primary);
+  --sl-color-hairline-light: var(--md-sys-color-outline-variant);
+  --sl-color-hairline: var(--md-sys-color-outline-variant);
+  --sl-color-hairline-shade: var(--md-sys-color-outline);
+  --sl-color-backdrop-overlay: color-mix(
+    in srgb,
+    var(--md-sys-color-scrim) 66%,
+    transparent
+  );
+
+  /* MD3 semantic status colors mapped to Starlight’s aside and badge roles. */
+  --sl-color-blue-low: var(--md-sys-color-tertiary-container);
+  --sl-color-blue: var(--md-sys-color-tertiary);
+  --sl-color-blue-high: var(--md-sys-color-on-tertiary-container);
+  --sl-color-purple-low: var(--md-sys-color-primary-container);
+  --sl-color-purple: var(--md-sys-color-primary);
+  --sl-color-purple-high: var(--md-sys-color-on-primary-container);
+  --sl-color-orange-low: var(--md-sys-color-secondary-container);
+  --sl-color-orange: var(--md-sys-color-secondary);
+  --sl-color-orange-high: var(--md-sys-color-on-secondary-container);
+  --sl-color-green-low: var(--md-sys-color-tertiary-container);
+  --sl-color-green: var(--md-sys-color-tertiary);
+  --sl-color-green-high: var(--md-sys-color-on-tertiary-container);
+  --sl-color-red-low: var(--md-sys-color-error-container);
+  --sl-color-red: var(--md-sys-color-error);
+  --sl-color-red-high: var(--md-sys-color-on-error-container);
+
+  /* Type roles. */
+  --sl-text-2xs: var(--md-sys-typescale-label-small-size);
+  --sl-text-xs: var(--md-sys-typescale-label-medium-size);
+  --sl-text-sm: var(--md-sys-typescale-body-medium-size);
+  --sl-text-base: var(--md-sys-typescale-body-large-size);
+  --sl-text-lg: var(--md-sys-typescale-title-large-size);
+  --sl-text-xl: var(--md-sys-typescale-headline-small-size);
+  --sl-text-2xl: var(--md-sys-typescale-headline-small-size);
+  --sl-text-3xl: var(--md-sys-typescale-headline-medium-size);
+  --sl-text-4xl: var(--md-sys-typescale-headline-large-size);
+  --sl-text-5xl: var(--md-sys-typescale-display-small-size);
+  --sl-text-6xl: var(--md-sys-typescale-display-large-size);
+  --sl-text-body: var(--md-sys-typescale-body-large-size);
+  --sl-text-body-sm: var(--md-sys-typescale-body-medium-size);
+  --sl-text-code: var(--md-sys-typescale-body-medium-size);
+  --sl-text-code-sm: var(--md-sys-typescale-label-medium-size);
+  --sl-text-h1: var(--md-sys-typescale-display-small-size);
+  --sl-text-h2: var(--md-sys-typescale-headline-large-size);
+  --sl-text-h3: var(--md-sys-typescale-headline-medium-size);
+  --sl-text-h4: var(--md-sys-typescale-headline-small-size);
+  --sl-text-h5: var(--md-sys-typescale-title-large-size);
+  --sl-line-height: var(--md-sys-typescale-body-large-line-height);
+  --sl-line-height-headings: 1.25;
+
+  /* Layout, shape, and elevation roles. */
+  --sl-nav-height: var(--md-comp-top-app-bar-height);
+  --sl-nav-pad-x: var(--md-sys-spacing-4);
+  --sl-nav-pad-y: var(--md-sys-spacing-2);
+  --sl-mobile-toc-height: var(--md-comp-control-height-touch);
+  --sl-sidebar-width: var(--md-comp-navigation-drawer-width);
+  --sl-sidebar-pad-x: var(--md-sys-spacing-4);
+  --sl-content-pad-x: var(--md-comp-page-inline-space);
+  --sl-content-width: 78rem;
+  --sl-content-gap-y: var(--md-sys-spacing-4);
+  --sl-main-pad: 0 0 var(--md-sys-spacing-8) 0;
+  --sl-menu-button-size: var(--md-comp-control-height-touch);
+  --sl-nav-gap: var(--md-sys-spacing-4);
+  --sl-outline-offset-inside: calc(-1 * var(--md-focus-ring-outward-offset));
+  --sl-shadow-sm: var(--md-sys-elevation-level1);
+  --sl-shadow-md: var(--md-sys-elevation-level2);
+  --sl-shadow-lg: var(--md-sys-elevation-level4);
+  --sl-doc-shape-control: var(--md-sys-shape-corner-full);
+  --sl-doc-shape-card: var(--md-sys-shape-corner-large);
+  --sl-doc-shape-code: var(--md-sys-shape-corner-small);
+  --sl-doc-shape-panel: var(--md-sys-shape-corner-medium);
+  --sl-doc-motion-duration: var(--md-sys-motion-duration-short4);
+  --sl-doc-motion-easing: var(--md-sys-motion-easing-standard);
+}
+
+/* Starlight’s locale attribute lives on the root element. Use the matching
+ * Fontsource family when a locale needs a script-specific fallback. */
+html[lang="zh-CN"] {
+  --app-font:
+    "Roboto Variable", "Noto Sans SC Variable", "Noto Sans Variable", sans-serif;
+  --md-ref-typeface-brand: var(--app-font);
+  --md-ref-typeface-plain: var(--app-font);
+}
+
+html[lang="zh-TW"],
+html[lang="zh-Hant"] {
+  --app-font:
+    "Roboto Variable", "Noto Sans TC Variable", "Noto Sans Variable", sans-serif;
+  --md-ref-typeface-brand: var(--app-font);
+  --md-ref-typeface-plain: var(--app-font);
+}
+
+html[lang="ja"] {
+  --app-font:
+    "Roboto Variable", "Noto Sans JP Variable", "Noto Sans Variable", sans-serif;
+  --md-ref-typeface-brand: var(--app-font);
+  --md-ref-typeface-plain: var(--app-font);
+}
+
+html[lang="ko"] {
+  --app-font:
+    "Roboto Variable", "Noto Sans KR Variable", "Noto Sans Variable", sans-serif;
+  --md-ref-typeface-brand: var(--app-font);
+  --md-ref-typeface-plain: var(--app-font);
+}
+
+/* Preserve Starlight’s light/dark selector contract while consuming the
+ * token package’s generated scheme. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--app-font);
+}
+
+/* Keyboard focus uses one shared MD3 ring. The selector is limited to
+ * interactive elements so prose, code, tables, and navigation layout retain
+ * Starlight’s own structure. */
+:where(a, button, select, summary, [tabindex]):focus-visible {
+  outline: var(--md-focus-ring-width) solid var(--md-focus-ring-color);
+  outline-offset: var(--md-focus-ring-outward-offset);
+}
+
+/* Component-level shapes keep the document readable while giving controls a
+ * consistent MD3 surface treatment. */
+.sl-link-button,
+site-search button[data-open-modal],
+starlight-theme-select select,
+starlight-lang-select select {
+  border-radius: var(--sl-doc-shape-control);
+}
+
+.sl-link-card,
+.pagination-links a,
+.starlight-aside,
+starlight-tabs [role="tablist"] {
+  border-radius: var(--sl-doc-shape-panel);
+}
+
+.card {
+  border-radius: var(--sl-doc-shape-card);
+}
+
+.sl-markdown-content :is(pre, table) {
+  border-radius: var(--sl-doc-shape-code);
+}
+
+.sl-markdown-content code:not(pre code) {
+  border-radius: var(--md-sys-shape-corner-extra-small);
+}
+
+.sl-markdown-content code,
+.sl-markdown-content pre code,
+kbd {
+  font-family: var(--sl-font-mono);
+}
+
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover,
+.sidebar-content a[aria-current="page"]:focus {
+  min-height: var(--md-comp-control-height);
+  border-radius: var(--md-sys-shape-corner-medium);
+  color: var(--md-sys-color-on-secondary-container);
+  background-color: var(--md-sys-color-secondary-container);
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6),
+.site-title,
+.card .title,
+.sl-link-card .title {
+  font-family: var(--md-ref-typeface-brand);
+}
+
+.sl-markdown-content h1 {
+  font-weight: var(--md-sys-typescale-display-small-weight);
+}
+
+.sl-markdown-content h2 {
+  font-weight: var(--md-sys-typescale-headline-large-weight);
+}
+
+.sl-markdown-content h3 {
+  font-weight: var(--md-sys-typescale-headline-medium-weight);
+}
+
+.sl-markdown-content h4 {
+  font-weight: var(--md-sys-typescale-headline-small-weight);
+}
+
+.sl-markdown-content :is(h5, h6) {
+  font-weight: var(--md-sys-typescale-title-large-weight);
+}
+
+/* Touch targets remain usable in the compact mobile shell. */
+site-search button[data-open-modal],
+starlight-theme-select select,
+starlight-lang-select select,
+starlight-menu-button button {
+  min-width: var(--md-comp-control-height-touch);
+  min-height: var(--md-comp-control-height-touch);
+}
+
+@media (max-width: 49.99rem) {
+  .sidebar-content a,
+  .sidebar-content summary,
+  .sidebar-content .mobile-preferences a {
+    min-height: var(--md-comp-control-height-touch);
+  }
+
+  .sidebar-content a,
+  .sidebar-content summary {
+    display: flex;
+    align-items: center;
+  }
+
+  .sidebar-content a[aria-current="page"],
+  .sidebar-content a[aria-current="page"]:hover,
+  .sidebar-content a[aria-current="page"]:focus {
+    min-height: var(--md-comp-control-height-touch);
+    border-radius: var(--md-sys-shape-corner-full);
+  }
+
+  .sidebar-content {
+    padding-inline: var(--md-sys-spacing-4);
+  }
+}
+
+/* Starlight has a few component-local transitions. Alias those transitions to
+ * MD3 motion and remove them when the user requests reduced motion. */
+.sidebar-content .caret,
+.sl-markdown-content summary::before,
+starlight-tabs [role="tab"],
+mobile-starlight-toc .toggle {
+  transition-duration: var(--sl-doc-motion-duration);
+  transition-timing-function: var(--sl-doc-motion-easing);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-content .caret,
+  .sl-markdown-content summary::before,
+  starlight-tabs [role="tab"],
+  mobile-starlight-toc .toggle {
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
+}

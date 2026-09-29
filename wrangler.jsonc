@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "haneoka-docs",
+  "account_id": "0095917ca8180fcd95ed1f3f11ecf881",
+  "compatibility_date": "2026-09-30",
+  "workers_dev": false,
+  "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "docs.haneoka.org", "custom_domain": true }]
+}
