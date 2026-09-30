@@ -1,19 +1,21 @@
 ---
 title: Sonolus API
-description: 将 Sonolus 客户端连接到公开的 Haneoka level 和 playlist 服务。
+description: 在 Sonolus 中打开 Haneoka，获取谱面、歌单与演出资源。
 ---
 
-该服务实现由当前 Our Notes release set 支持的 Sonolus server document 以及 level/playlist 路由。所有路由都是公开读取。请发送 `Accept: application/json`，并保留 `Sonolus-Version` 响应 header。
+在 Sonolus 中添加服务器 **`https://haneoka.org`**，也可以[直接在客户端打开](https://open.sonolus.com/haneoka.org)。客户端请求接口时会自行追加 `/sonolus`。条目中的 `source` 同样使用这一服务器地址。
 
-## Server info
+服务提供 Our Notes 与 GBP 谱面、按歌曲整理的歌单、音符皮肤、背景、音效、原生粒子特效及演奏引擎。公开接口支持 `GET` 和 `HEAD`，JSON 响应带有 `Sonolus-Version` 标头。
+
+## 服务器信息
 
 ```http
 GET /sonolus/info
 ```
 
-返回标准 Sonolus server info document。`GET /sonolus` 会以 `308` 重定向到 `/sonolus/`；在 Sonolus 注册中应使用带结尾斜杠的 server URL。
+响应提供标题、入口分区、设置与横幅。资源描述中会给出下载地址，直接使用返回的地址读取文件即可。
 
-## Level routes
+## 谱面
 
 ```http
 GET /sonolus/levels/info
@@ -22,11 +24,25 @@ GET /sonolus/levels/{levelName}
 GET /sonolus/levels/{levelName}/data/{sha1}
 ```
 
-List page 从零开始，页面大小为 20。`levelName` 是 list 或 info document 返回的准确名称。Data hash 是来自 level `data` 对象的 40 个字符小写 SHA-1 值。Data 响应是二进制（通常为 `application/gzip`），可以作为不可变内容缓存。
+列表每页 20 个条目，页码从零开始。关卡名称标明本站、游戏服务器、歌曲与难度：
 
-`/sonolus/levels/info?type=random` 和 `/sonolus/levels/list?type=random` 返回随机 level projection。随机响应为 `no-store`；不要将它们作为稳定 catalog index。
+```text
+#haneoka-jp-100109-expert
+#haneoka-intl-100109-expert
+#haneoka-gbp-1234-expert
+```
 
-## Playlist routes
+请求时使用列表返回的完整名称。游戏数据更新后，名称保持稳定。将名称作为 URL 路径段时，需要进行编码：`#` 应写成 `%23`。
+
+```http
+GET /sonolus/levels/%23haneoka-jp-100109-expert
+```
+
+每个关卡提供引擎、演出资源、封面、音频与谱面数据。`data` 对象包含压缩谱面的地址和 40 位 SHA-1 摘要；直接读取这个地址即可。摘要用于标识内容，文件可长期缓存。
+
+在 `/sonolus/levels/info` 或 `/sonolus/levels/list` 后添加 `?type=random`，可以获取随机谱面。
+
+## 歌曲歌单
 
 ```http
 GET /sonolus/playlists/info
@@ -34,39 +50,41 @@ GET /sonolus/playlists/list?page=0
 GET /sonolus/playlists/{playlistName}
 ```
 
-Our Notes playlist 使用从 source song identity 生成的名称。请将名称视为服务返回的不透明值。Playlist item 包含自身的 level item，包括每个 level 的 `data` descriptor。
+歌单按歌曲整理各个难度，并提供完整关卡条目。`#haneoka-jp-100109`、`#haneoka-gbp-1234` 等名称保留来源信息。歌单名称的 URL 编码方式与关卡相同。
 
-## 本地化
+## 演出资源
 
-静态 Sonolus JSON document 接受：
-
-```text
-?localization=ja
-?localization=en
-?localization=zh-TW
-?localization=zh-CN
-?localization=ko
+```http
+GET /sonolus/skins/list
+GET /sonolus/backgrounds/list
+GET /sonolus/effects/list
+GET /sonolus/particles/list
+GET /sonolus/engines/list
 ```
 
-服务器会本地化已知 Sonolus labels，并使响应 validator 与本地化 body 保持一致。如果没有提供 localization，服务返回默认 document language。Repository 和 binary data 路由会忽略 localization。
+这些列表提供可选条目和文件地址。音符皮肤与粒子特效的缩略图展示实际资源；纹理、音频和引擎数据均通过返回的资源地址下载。
 
-## Session header
+## 客户端语言
 
-为了兼容客户端，`Sonolus-Session` 可作为 CORS request header 接受。公开 Haneoka 服务不会在这些读取路由上使用它进行账户身份验证。不要向 Sonolus endpoint 发送账户 cookies 或私有凭据。
+显示文本可以使用 Sonolus 1.1.3 及以上版本支持的 `##LOCALIZE`：
 
-## Bestdori projection
+```text
+##LOCALIZE:{"en":"Song","ja":"曲","zhs":"歌曲","zht":"歌曲","ko":"노래"}
+```
 
-Sonolus catalog 可以切换到转换后的 Bestdori source：
+客户端按当前语言选择文本，收藏中的条目也可随语言切换。缺少对应翻译时，采用对象中的第一个语言。其他工具展示这些字段时，可解析 `##LOCALIZE:` 后面的 JSON，选择所需语言并使用同样的回退顺序。简体中文键为 `zhs`，繁体中文键为 `zht`。
+
+`localization` 参数可指定服务器标签优先采用的回退语言。条目名称、`source`、资源地址与摘要保持原值。
+
+## GBP 曲库
 
 ```http
 GET /sonolus/levels/list?source=bestdori&page=0
 GET /sonolus/playlists/list?source=bestdori&page=0
 ```
 
-Bestdori level data ID 由 provider 作用域决定，应从返回的 item 中读取。需要 source catalog JSON 而不是 Sonolus document 时，可以使用单独的 [Bestdori API](../providers/bestdori/)。
+这个来源参数选择 GBP 曲库，返回的关卡和歌单名称使用 `#haneoka-gbp-` 前缀。需要歌曲、角色等资料来制作其他界面时，可读取[GBP 资料接口](../providers/bestdori/)。
 
-## 失败行为
+## 响应状态
 
-未知 Sonolus document 返回带有 `{ "message": "Not found" }` 的 `404`。Catalog projection 失败返回带有 `{ "message": "Service unavailable" }` 的 `503`。Sonolus 路由使用此 message envelope。
-
-Sonolus surface 提供 level 和 playlist data。
+不存在的名称返回 `404`，正文为 `{ "message": "Not found" }`。暂时无法读取曲库时返回 `503`，正文为 `{ "message": "Service unavailable" }`。这些公开读取接口无需账号会话；`Sonolus-Session` 可作为协议标头发送。
