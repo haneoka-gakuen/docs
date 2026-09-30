@@ -1,7 +1,9 @@
 ---
 title: Source metadata
-description: Read the published source tree and source DTOs for a release.
+description: Inspect published source metadata for archives and build tooling.
 ---
+
+Source records are an advanced, release-scoped view of the published game data. Ordinary applications can stay on the current resource aliases and the media paths returned by their DTOs.
 
 ## Source tree
 

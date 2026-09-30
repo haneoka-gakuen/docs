@@ -1,59 +1,65 @@
 ---
 title: Servers and releases
-description: Discover active resource servers and pin immutable releases.
+description: Select an active server and pin an immutable release for reproducible builds.
 ---
 
-## List active servers
+This page covers the advanced server-scoped contract. Everyday consumers can use `/api/v1/songs` and the other direct aliases, which read current data from `intl` by default.
+
+## List active server slugs
 
 ```http
 GET /api/v1/releases
 HEAD /api/v1/releases
 ```
 
-No authentication is required. The response is ordered by region, display name, and slug:
+The historical route name is retained for compatibility. Its response lists active server slugs and display metadata:
 
 ```json
 {
   "releases": [
     { "id": "intl", "displayName": "Global", "region": "global" },
-    { "id": "jp", "displayName": "Japan", "region": "jp" }
+    { "id": "intl-cbt", "displayName": "Global CBT", "region": "global" },
+    { "id": "jp", "displayName": "Japan", "region": "jp" },
+    { "id": "jp-cbt", "displayName": "Japan CBT", "region": "jp" }
   ]
 }
 ```
 
-The supported `region` values are `global`, `jp`, `kr`, `tw`, `cn`, and `en`. `id` is a server slug and is the `{server}` path parameter for all server-scoped APIs. The registry includes active servers only.
+In this response, `id` is a server slug. It is the value used by `?server=` and by the `{server}` path segment in explicit server-scoped routes. The list changes when deployments add or retire a server.
 
-## Inspect the current release
+## Read the current release manifest
 
 ```http
 GET /api/v1/servers/{server}/release
-HEAD /api/v1/servers/{server}/release
 GET /api/v1/servers/{server}/release?projection=identity
 ```
 
-The default response is the published release manifest. Its shape is release-specific and is the source of truth for the catalog manifest, source index, game-client manifest, and content inventory. Use the identity projection when a small, stable descriptor is enough:
+The full manifest describes the release's catalog, source tree, game-client inventory, and files. `projection=identity` returns a compact descriptor for tooling that needs to record the selected release:
 
 ```json
 {
   "schema": "haneoka-resource-release-identity-v1",
   "server": "intl",
-  "releaseId": "r-679793a903cd5cd2838a",
-  "sourceId": "v25-c0b6a1541e45-9e9e2f64c6da-medea1e907f55-ncd8654cc"
+  "releaseId": "r-0123456789abcdef0123",
+  "sourceId": "source-snapshot-id"
 }
 ```
 
-`releaseId` matches `r-` followed by 20 lowercase hexadecimal characters. Use the value returned by the response or release pointer for subsequent pinned requests; do not construct or guess release IDs.
+`releaseId` is an opaque value returned by the service. It is never constructed by a client.
 
-## Pin a request
+## Pin an explicit request
 
-Every server-scoped catalog path accepts:
+Every server-scoped catalog, source, and release route accepts the release query:
 
-```text
-?release=r-0123456789abcdef0123
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/servers/intl/songs/100001?release=r-0123456789abcdef0123'
 ```
 
-The release descriptor is immutable. A missing identity descriptor returns `404 release_identity_missing`; an invalid descriptor returns `502 release_identity_invalid`. Unpinned requests use the current release pointer and return `503 release_unavailable` when no release is published.
+The response includes `X-Haneoka-Release-Id` and `X-Haneoka-Source-Id`. Store those headers with the downloaded data when an archive needs an audit trail. A bad release returns `404 release_not_found`; an unpinned request uses the server's current pointer.
 
-## Release headers
+Release media and game-client files are also selected by the active server pointer. Content-addressed artifact routes use the source ID explicitly. See [Media and files](./media/), [Game-client delivery](./game-client/), and [Source trees](./sources/).
 
-Successful server-scoped responses include `X-Haneoka-Release-Id` and `X-Haneoka-Source-Id`. Keep these headers with cached or indexed data.
+## When to use this page
+
+Pin a release when a build must reproduce a previous output, when a crawler stores a complete snapshot, or when you need the release's storage descriptors. A web app showing current songs, events, or stories can stay on the direct aliases and let each request follow the current catalog.

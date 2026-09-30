@@ -1,12 +1,12 @@
 ---
 title: Haneoka API
-description: Public HTTP APIs for haneoka.org resource servers, Sonolus, and community services.
+description: Read current songs, events, stories, characters, media, and community data from haneoka.org.
 template: splash
 hero:
   title: Haneoka API
-  tagline: Stable public contracts for resource archives and community integrations.
+  tagline: Current game data in direct, readable HTTP requests.
   actions:
-    - text: Start with a request
+    - text: Make a request
       link: /quickstart/
       icon: right-arrow
     - text: OpenAPI
@@ -15,27 +15,49 @@ hero:
       variant: minimal
 ---
 
-The public API is served from `https://haneoka.org`. Resource data is addressed by an active server slug and can be pinned to an immutable release. Catalog documents, media, game-client files, Sonolus projections, Bestdori projections, and community endpoints are separate surfaces with different caching and authentication rules.
+Haneoka serves the published game catalog and community services at `https://haneoka.org`. Start with a resource name such as `songs`, `events`, `characters`, or `stories`:
 
-## Choose an API surface
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
+curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
+```
 
-| You need | Start here |
+The direct resource API uses the current catalog for the `intl` server by default. Add `?server=jp` (or another active server slug) when you need a regional catalog. These aliases and the explicit `/api/v1/servers/{server}/{resource}` routes use the same catalog handler, so a client can begin with a short URL and move to the advanced form when it needs release pinning or storage-level traversal.
+
+## Pick a starting point
+
+| What you are building | Read this |
 | --- | --- |
-| Discover active resource servers | [`GET /api/v1/releases`](./servers/releases/) |
-| Read a release catalog | [Catalog API](./servers/catalog/) |
-| Resolve catalog media | [Media and files](./servers/media/) |
-| Download game-client manifests or bundles | [Game-client API](./servers/game-client/) |
-| Integrate a Sonolus server | [Sonolus](./sonolus/) |
-| Read or write community content | [Community API](./community/) |
-| Sign in or manage an account | [Authentication](./auth/) |
-| Use the transformed Garupa provider | [Bestdori](./providers/bestdori/) |
+| Browse songs, bands, cards, stories, or events | [Catalog data](./servers/catalog/) |
+| Download an image, audio file, video, or chart referenced by a DTO | [Media and files](./servers/media/) |
+| Build a Sonolus server or playlist | [Sonolus](./sonolus/) |
+| Use Bestdori-shaped Garupa data | [Bestdori provider](./providers/bestdori/) |
+| Read or publish posts and comments | [Community](./community/) |
+| Sign in and manage a profile | [Authentication](./auth/) |
+| Reproduce a historical catalog or inspect storage | [Advanced server contracts](./servers/releases/) |
 
-The complete machine-readable contract is [`openapi.json`](/openapi.json) in this repository. It covers the stable JSON and file endpoints documented here, including provider-shaped and binary responses with their route grammar and response media types.
+## What responses look like
 
-## Current public surface
+Catalog indexes are JSON objects keyed by entity ID. The value keeps the source DTO fields; there is no universal `title` or `id` field. A song index entry currently includes fields such as `musicId`, localized `musicTitle`, `bandId`, `difficulty`, and media paths:
 
-The public read surface includes release discovery, release-backed catalogs and files, Sonolus documents and data, Bestdori projections, and community reads. Account, profile, upload, and interaction routes are available where the request includes the required browser session.
+```json
+{
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "bandName": ["MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!"],
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3"
+  }
+}
+```
 
-## Language versions
+The complete field set belongs to the resource DTO and can grow with the source data. Preserve fields you do not use so clients continue to work as the catalog gains information. Media paths are origin-relative; resolve them against `https://haneoka.org`.
 
-English is the canonical documentation locale. The [简体中文版本](/zh-cn/) follows the same route and schema coverage.
+## Public and signed-in surfaces
+
+Catalog, media, Sonolus, and Bestdori reads are public. Community writes, account profile changes, preferences, uploads, and Better Auth operations use a browser session and same-origin requests. [Conventions](./conventions/) describes caching, headers, URL encoding, and current-data behavior; [Errors and retries](./errors/) explains status handling.
+
+The [OpenAPI document](/openapi.json) contains the machine-readable route and schema contract.

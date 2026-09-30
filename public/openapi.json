@@ -13,6 +13,10 @@
   ],
   "tags": [
     {
+      "name": "Latest resource API",
+      "description": "Current catalog aliases with intl as the default server and an optional server query."
+    },
+    {
       "name": "Resource servers",
       "description": "Release discovery, immutable release selection, catalog documents, and release-backed files."
     },
@@ -2539,6 +2543,873 @@
         "operationId": "getcatalog-relationHead",
         "tags": [
           "Resource servers"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogRelationResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/{resource}": {
+      "parameters": [
+        {
+          "name": "resource",
+          "in": "path",
+          "required": true,
+          "description": "Resource name declared in the selected catalog manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "server",
+          "in": "query",
+          "required": false,
+          "description": "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "description": "Repeat for an entity batch.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+          },
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "get": {
+        "summary": "Read the current resource index or an entity batch",
+        "operationId": "getLatestResource",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogResourceIndexOrBatch"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read the current resource index or an entity batch",
+        "operationId": "getLatestResourceHead",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogResourceIndexOrBatch"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/{resource}/{id}": {
+      "parameters": [
+        {
+          "name": "resource",
+          "in": "path",
+          "required": true,
+          "description": "Resource name declared in the selected catalog manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "server",
+          "in": "query",
+          "required": false,
+          "description": "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Entity key returned by the resource index.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read one current resource entity",
+        "operationId": "getLatestEntity",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntity"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read one current resource entity",
+        "operationId": "getLatestEntityHead",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntity"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/{resource}/views/{view}": {
+      "parameters": [
+        {
+          "name": "resource",
+          "in": "path",
+          "required": true,
+          "description": "Resource name declared in the selected catalog manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "server",
+          "in": "query",
+          "required": false,
+          "description": "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "view",
+          "in": "path",
+          "required": true,
+          "description": "View name declared in the resource manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "query",
+          "required": false,
+          "description": "Repeat for a view entity batch.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+          },
+          "style": "form",
+          "explode": true
+        }
+      ],
+      "get": {
+        "summary": "Read a current resource view or view batch",
+        "operationId": "getLatestView",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogViewDocumentOrBatch"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read a current resource view or view batch",
+        "operationId": "getLatestViewHead",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogViewDocumentOrBatch"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/{resource}/views/{view}/{id}": {
+      "parameters": [
+        {
+          "name": "resource",
+          "in": "path",
+          "required": true,
+          "description": "Resource name declared in the selected catalog manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "server",
+          "in": "query",
+          "required": false,
+          "description": "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "view",
+          "in": "path",
+          "required": true,
+          "description": "View name declared in the resource manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "View entity key returned by the view index.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read one current view entity",
+        "operationId": "getLatestViewEntity",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntity"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read one current view entity",
+        "operationId": "getLatestViewEntityHead",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogEntity"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/{resource}/relations/{relation}/{key}": {
+      "parameters": [
+        {
+          "name": "resource",
+          "in": "path",
+          "required": true,
+          "description": "Resource name declared in the selected catalog manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "server",
+          "in": "query",
+          "required": false,
+          "description": "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "relation",
+          "in": "path",
+          "required": true,
+          "description": "Relation name declared in the resource manifest.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "description": "Relation key returned by the relation index.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read one current resource relation",
+        "operationId": "getLatestRelation",
+        "tags": [
+          "Latest resource API"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogRelationResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Source-Id": {
+                "description": "Source snapshot associated with the selected release.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Structured API error",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read one current resource relation",
+        "operationId": "getLatestRelationHead",
+        "tags": [
+          "Latest resource API"
         ],
         "responses": {
           "200": {

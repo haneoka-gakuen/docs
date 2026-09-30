@@ -1,59 +1,65 @@
 ---
-title: Servers 和 releases
-description: 发现活动 resource servers，并固定不可变 releases。
+title: 服务器与版本
+description: 选择活动 server，并为可重现 build 固定不可变 release。
 ---
 
-## 列出活动 servers
+本页介绍高级 server-scoped contract。普通消费者直接使用 `/api/v1/songs` 等 alias；省略 `server` 时，它们读取 `intl` 的当前数据。
+
+## 列出活动 server slug
 
 ```http
 GET /api/v1/releases
 HEAD /api/v1/releases
 ```
 
-不需要身份验证。响应按 region、display name 和 slug 排序：
+历史 route name 保留用于兼容。响应列出活动 server slug 和显示信息：
 
 ```json
 {
   "releases": [
     { "id": "intl", "displayName": "Global", "region": "global" },
-    { "id": "jp", "displayName": "Japan", "region": "jp" }
+    { "id": "intl-cbt", "displayName": "Global CBT", "region": "global" },
+    { "id": "jp", "displayName": "Japan", "region": "jp" },
+    { "id": "jp-cbt", "displayName": "Japan CBT", "region": "jp" }
   ]
 }
 ```
 
-支持的 `region` 值为 `global`、`jp`、`kr`、`tw`、`cn` 和 `en`。`id` 是 server slug，也是所有 server-scoped API 的 `{server}` 路径参数。registry 只包含活动 servers。
+此响应中的 `id` 是 server slug，用于 `?server=` 和显式 server-scoped 路由的 `{server}`。当部署新增或停用 server 时，列表会变化。
 
-## 查看当前 release
+## 读取当前 release manifest
 
 ```http
 GET /api/v1/servers/{server}/release
-HEAD /api/v1/servers/{server}/release
 GET /api/v1/servers/{server}/release?projection=identity
 ```
 
-默认响应是已发布的 release manifest。其结构由 release 决定，是 catalog manifest、source index、game-client manifest 和 content inventory 的事实来源。当小型稳定 descriptor 足够时，请使用 identity projection：
+完整 manifest 描述 release 的 catalog、source tree、game-client inventory 和文件。工具只需要记录所选 release 时，可使用 `projection=identity` 返回的 compact descriptor：
 
 ```json
 {
   "schema": "haneoka-resource-release-identity-v1",
   "server": "intl",
-  "releaseId": "r-679793a903cd5cd2838a",
-  "sourceId": "v25-c0b6a1541e45-9e9e2f64c6da-medea1e907f55-ncd8654cc"
+  "releaseId": "r-0123456789abcdef0123",
+  "sourceId": "source-snapshot-id"
 }
 ```
 
-`releaseId` 匹配 `r-` 后接 20 个小写十六进制字符。后续固定请求请使用响应或 release pointer 返回的值；不要构造或猜测 release ID。
+`releaseId` 是服务返回的不透明值，客户端不能自行构造。
 
-## 固定请求
+## 固定显式请求
 
-每个 server-scoped catalog 路径都接受：
+每个 server-scoped catalog、source 和 release route 都接受 release query：
 
-```text
-?release=r-0123456789abcdef0123
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/servers/intl/songs/100001?release=r-0123456789abcdef0123'
 ```
 
-Release descriptor 是不可变的。缺少 identity descriptor 时返回 `404 release_identity_missing`；descriptor 无效时返回 `502 release_identity_invalid`。未固定请求使用当前 release pointer；没有发布 release 时返回 `503 release_unavailable`。
+响应包含 `X-Haneoka-Release-Id` 和 `X-Haneoka-Source-Id`。需要审计的 archive 应将这些 headers 与下载数据一起保存。无效 release 返回 `404 release_not_found`；未固定请求使用 server 的当前 pointer。
 
-## Release headers
+Release media 和 game-client 文件也由活动 server pointer 选择。Content-addressed artifact route 显式使用 source ID。请参阅[媒体与文件](./media/)、[Game-client](./game-client/)和[Source tree](./sources/)。
 
-成功的 server-scoped 响应包含 `X-Haneoka-Release-Id` 和 `X-Haneoka-Source-Id`。请将这些 headers 与缓存或索引数据一起保留。
+## 什么时候使用本页
+
+当 build 必须重现过去的产物、crawler 保存完整 snapshot，或工具需要 release 的 storage descriptor 时固定 release。显示当前歌曲、活动或剧情的 web app 可以继续使用直接 alias，让每次请求读取当前 catalog。

@@ -1,7 +1,17 @@
 ---
 title: Media and files
-description: Resolve release media, content-addressed artifacts, ranges, and validators.
+description: Turn catalog media paths into images, audio, video, and chart requests.
 ---
+
+Most applications reach media through URLs returned by a current catalog DTO. Resolve a path such as `/assets/intl/...png` or `/runtime/intl/...mp3` against `https://haneoka.org` and request it directly:
+
+```bash
+curl --fail-with-body \
+  https://haneoka.org/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png \
+  -o jacket.png
+```
+
+The server chooses the current release for the selected server. Keep the returned `ETag` and `Content-Type` when caching or displaying the file. Release manifests, source trees, and content-addressed bundles are advanced inputs for crawlers and client-build tooling.
 
 ## Release media trees
 

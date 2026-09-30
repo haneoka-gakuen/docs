@@ -3,6 +3,10 @@ title: 共享 schemas
 description: API 使用的稳定响应 envelope 和标识符规则。
 ---
 
+## 当前 resource 响应
+
+直接 resource 路由默认使用当前 `intl` catalog；添加 `?server=<slug>` 后选择指定 server。Collection index 通常是以 entity ID 为键的 object，值保留 resource 自己的 DTO shape。同一 resource 的 index、entity、view 和 relation 可以有不同 shape。Catalog 页面提供真实的歌曲响应和调用方需要的字段语义。
+
 ## Error
 
 ```json
@@ -17,7 +21,7 @@ description: API 使用的稳定响应 envelope 和标识符规则。
 
 `code` 是用于分支处理的值。`message` 可能为了清晰度而改变。`requestId` 是可选的，存在时应包含在支持报告中。
 
-## Release identity
+## Release identity（高级）
 
 ```json
 {

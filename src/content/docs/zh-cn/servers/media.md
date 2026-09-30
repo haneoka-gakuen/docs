@@ -1,7 +1,17 @@
 ---
 title: Media 和文件
-description: 解析 release media、content-addressed artifacts、ranges 和 validators。
+description: 将 catalog media path 转为图片、音频、视频和谱面请求。
 ---
+
+大多数应用从当前 catalog DTO 返回的 URL 读取媒体。将 `/assets/intl/...png` 或 `/runtime/intl/...mp3` 这样的路径解析到 `https://haneoka.org` 后直接请求：
+
+```bash
+curl --fail-with-body \
+  https://haneoka.org/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png \
+  -o jacket.png
+```
+
+服务器会为所选 server 使用当前 release。缓存或显示文件时保留返回的 `ETag` 和 `Content-Type`。Release manifest、source tree 和 content-addressed bundle 属于 crawler 与 client-build tooling 使用的高级输入。
 
 ## Release media trees
 

@@ -1,63 +1,124 @@
 ---
 title: 快速开始
-description: 获取服务器、固定资源版本、查询对象与关联数据。
+description: 使用 curl 或 fetch 读取当前歌曲和区域资料。
 ---
 
-## 获取服务器
+## 1. 读取当前歌曲索引
 
-```sh
-curl --fail-with-body https://haneoka.org/api/v1/releases
+省略 `server` 时，直接 resource API 读取当前国际服资料：
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
 ```
 
-响应中的 `releases[].id` 是服务器标识，如 `intl`、`jp`。后续请求使用返回的标识。
+响应是以歌曲 ID 为键的 JSON object。每个值都是已发布的 歌曲数据对象：
 
-## 固定资源版本
+```json
+{
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "bandIds": [1],
+    "bandName": ["MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!"],
+    "jacketThumbUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/small/jkt_001_100001.png",
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3",
+    "vocalCharacterIds": [1]
+  }
+}
+```
 
-```sh
+使用索引返回的键 发出下一次请求。资源名称与条目 ID 对应当前资料，使用响应中的键读取详情。
+
+## 2. 读取一首歌曲
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
+```
+
+详情响应包含完整字段，包括本地化创作者、发布日期、media URL 和 difficulty records。每个难度包含 `difficultyName`、`displayLevel`、`noteCount`、`playLevel`、`sortLevel` 与谱面 `file` 路径：
+
+```json
+{
+  "musicId": 100001,
+  "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+  "difficulty": [
+    {
+      "difficulty": 0,
+      "difficultyName": "easy",
+      "displayLevel": 9,
+      "noteCount": 342,
+      "playLevel": 9,
+      "sortLevel": 9,
+      "file": "/assets/intl/Assets/AddressableResources/Live/MusicScore/0001/0001_00.bytes"
+    }
+  ]
+}
+```
+
+本地化数组的顺序为 `ja`、`en`、`zh-TW`、`zh-CN`、`ko`。按目标语言选取对应项；空项可依次回退到日文、英文。
+
+## 3. 选择其他服务器
+
+在同一路径添加 `server`：
+
+```bash
+curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
+curl --fail-with-body 'https://haneoka.org/api/v1/songs/100001?server=jp'
+```
+
+没有活动时，接口返回空列表：
+
+```json
+{
+  "entries": {},
+  "hasGameEvents": false
+}
+```
+
+服务器标识包括 `intl`（国际服）、`jp`（日服）、`intl-cbt` 和 `jp-cbt`（测试服归档）。省略 `server` 时使用国际服。
+
+## 4. 批量读取 ID
+
+重复 `id` 读取多个 entity：
+
+```bash
 curl --fail-with-body \
-  'https://haneoka.org/api/v1/servers/intl/release?projection=identity'
+  'https://haneoka.org/api/v1/songs?id=100001&id=100002'
 ```
 
-保存返回的 `releaseId`，并在相关目录请求中传入 `release`。这样即使服务器在请求期间更新，得到的资料仍属于同一份快照。
+批量响应包含 `items` map 和 `missing` array：
+
+```json
+{
+  "items": {
+    "100001": { "musicId": 100001, "musicTitle": ["迷星叫", "Mayoiuta"] }
+  },
+  "missing": ["100002"]
+}
+```
+
+`missing` 提供每个 ID 的结果。请求本身成功；重复请求同一个缺失 ID 不会创建该对象。
+
+## 5. 在应用中使用 fetch
 
 ```ts
-const base = "https://haneoka.org/api/v1/servers/intl";
-const identity = await fetch(`${base}/release?projection=identity`).then(r => r.json());
-const read = async (path: string) => {
-  const url = new URL(`${base}/${path}`);
-  url.searchParams.set("release", identity.releaseId);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-};
+const api = new URL("https://haneoka.org/api/v1/songs");
+api.searchParams.set("server", "jp");
 
-const manifest = await read("catalog");
-const songs = await read("songs");
-const song = await read("songs/100001");
+const response = await fetch(api);
+if (!response.ok) {
+  const detail = await response.json().catch(() => ({}));
+  throw new Error(`${response.status}: ${detail.error?.code ?? "request_failed"}`);
+}
+
+const songs = await response.json() as Record<string, {
+  musicId: number;
+  musicTitle: Array<string | null>;
+  musicUrl?: string | null;
+}>;
+console.log(songs["100001"]?.musicTitle[1] ?? "Untitled");
 ```
 
-`manifest.resources` 声明目录中可用的资源、视图与关联关系。对象与媒体字段的实际内容由这份资源快照决定。
-
-## 批量查询
-
-为每个对象重复传入 `id`：
-
-```http
-GET /api/v1/servers/intl/songs?id=100001&id=100002&release=<releaseId>
-```
-
-响应包含 `items` 和 `missing`。`items` 使用对象标识作为键；不存在的对象列在 `missing` 中。
-
-## 获取关联内容
-
-目录清单中的 `relations` 声明可用关联。例如，查询一个乐队的歌曲：
-
-```http
-GET /api/v1/servers/intl/songs/relations/band/1?release=<releaseId>
-```
-
-关联的 `valueMode` 决定结果是对象标识列表还是记录列表。继续使用同一个 `releaseId` 获取这些对象，即可构建角色、卡牌、剧情与活动之间的浏览体验。
-
-## 使用工具描述
-
-[OpenAPI 文件](/openapi.json) 可导入接口工具，或用于生成 TypeScript、Python 等语言的客户端。详细的媒体请求、认证与错误处理分别见 [媒体](/zh-cn/servers/media/)、[认证](/zh-cn/auth/) 与 [错误处理](/zh-cn/errors/)。
+将相对 media path 解析到 `https://haneoka.org`，缓存时保留 `ETag`。Catalog 数据返回 JSON；二进制路由返回自身声明的 media type。

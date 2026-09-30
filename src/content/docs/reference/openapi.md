@@ -1,14 +1,24 @@
 ---
 title: OpenAPI reference
-description: Download and validate the machine-readable public API contract.
+description: Download and inspect the machine-readable public API contract.
 ---
 
-The generated OpenAPI document is available as [`/openapi.json`](/openapi.json). It is built from the route and schema definitions in `scripts/build-openapi.mjs` before every production build.
-
-The document uses OpenAPI 3.1 and covers the current public worker paths: release registry and immutable release pinning, catalog resources/views/relations/batches, media and game-client files, Sonolus, community/profile/upload APIs, account configuration/registration, Better Auth route availability, and the transformed Bestdori provider.
+The generated OpenAPI document is available as [`/openapi.json`](/openapi.json). It is built from [`scripts/build-openapi.mjs`](https://github.com/haneoka-gakuen/haneoka/blob/main/docs/scripts/build-openapi.mjs) before each production build.
 
 ```bash
 curl --fail-with-body https://docs.haneoka.org/openapi.json -o openapi.json
 ```
 
-The OpenAPI file uses `additionalProperties` for provider-shaped and release-specific JSON. Consult [Catalog API](../servers/catalog/) and [Schemas](../reference/schemas/) for the stable envelopes and route-specific semantics.
+The document includes the direct current-data aliases:
+
+```text
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/relations/{relation}/{key}
+```
+
+Each direct route has an optional `server` query; omitting it selects `intl`. The document also describes the explicit server-scoped form, release pinning, media and game-client files, Sonolus, community/profile/upload APIs, account configuration, Better Auth routes, and Bestdori projections.
+
+Provider-shaped and catalog DTOs use `additionalProperties` where the selected resource defines the fields. Use [Catalog data](../servers/catalog/) for stable envelopes and field semantics, and [Shared schemas](../reference/schemas/) for errors, batches, timestamps, and media values.

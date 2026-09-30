@@ -30,15 +30,9 @@ export default defineConfig({
           items: ["quickstart", "conventions", "errors"],
         },
         {
-          label: "Resource servers",
-          translations: { "zh-CN": "资源服务器" },
-          items: [
-            "servers/releases",
-            "servers/catalog",
-            "servers/media",
-            "servers/game-client",
-            "servers/sources",
-          ],
+          label: "Catalog data",
+          translations: { "zh-CN": "资料目录" },
+          items: ["servers/catalog"],
         },
         {
           label: "Sonolus",
@@ -64,6 +58,16 @@ export default defineConfig({
           label: "Provider APIs",
           translations: { "zh-CN": "提供商 API" },
           items: ["providers/bestdori"],
+        },
+        {
+          label: "Advanced server contracts",
+          translations: { "zh-CN": "高级服务器接口" },
+          items: [
+            "servers/releases",
+            "servers/media",
+            "servers/game-client",
+            "servers/sources",
+          ],
         },
         {
           label: "Reference",

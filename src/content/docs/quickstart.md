@@ -1,89 +1,124 @@
 ---
 title: Quickstart
-description: Make your first release and catalog requests.
+description: Read current songs and regional data with curl or fetch.
 ---
 
-## 1. Discover a server
+## 1. Read the current song index
 
-Start with the public registry. It only returns active resource servers, so clients do not need to hard-code a region list.
+The direct resource API selects the current `intl` catalog when `server` is omitted:
 
 ```bash
-curl --fail-with-body https://haneoka.org/api/v1/releases
+curl --fail-with-body https://haneoka.org/api/v1/songs
 ```
 
-Example shape:
+The response is an object whose keys are song IDs. Each value is the published song DTO. A current response has fields like these:
 
 ```json
 {
-  "releases": [
-    { "id": "intl", "displayName": "Global", "region": "global" },
-    { "id": "jp", "displayName": "Japan", "region": "jp" }
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "bandIds": [1],
+    "bandName": ["MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!"],
+    "jacketThumbUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/small/jkt_001_100001.png",
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3",
+    "vocalCharacterIds": [1]
+  }
+}
+```
+
+Use a key returned by the index for the next request. Resource names and IDs come from the current catalog, so a client should discover them from responses or from the catalog manifest.
+
+## 2. Read one song
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
+```
+
+The entity response contains the full resource DTO. For a song, that includes localized credits, publication dates, media URLs, and difficulty records. A difficulty record contains fields such as `difficultyName`, `displayLevel`, `noteCount`, `playLevel`, `sortLevel`, and the chart `file` path:
+
+```json
+{
+  "musicId": 100001,
+  "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+  "difficulty": [
+    {
+      "difficulty": 0,
+      "difficultyName": "easy",
+      "displayLevel": 9,
+      "noteCount": 342,
+      "playLevel": 9,
+      "sortLevel": 9,
+      "file": "/assets/intl/Assets/AddressableResources/Live/MusicScore/0001/0001_00.bytes"
+    }
   ]
 }
 ```
 
-`id` is the server slug used by the catalog and file routes. Use the value returned by the registry; the active list can change.
+Keep localized arrays in their returned order. Their positions follow the source DTO; choose a locale deliberately and provide a fallback when an entry is `null` or empty.
 
-## 2. Read the current catalog
+## 3. Select another server
 
-Catalog URLs resolve the current release for a server:
+Add `server` to the same URL when you need another active server:
+
+```bash
+curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
+curl --fail-with-body 'https://haneoka.org/api/v1/songs/100001?server=jp'
+```
+
+An events response can be empty while remaining successful:
+
+```json
+{
+  "entries": {},
+  "hasGameEvents": false
+}
+```
+
+The `server` value is a server slug such as `intl`, `intl-cbt`, `jp`, or `jp-cbt`. Read [`GET /api/v1/releases`](./servers/releases/) when a user needs the active slug list or its display names. Most applications can keep using the default `intl` server and omit this parameter.
+
+## 4. Batch IDs
+
+Repeat `id` to fetch several entities in one request:
 
 ```bash
 curl --fail-with-body \
-  https://haneoka.org/api/v1/servers/intl/catalog
+  'https://haneoka.org/api/v1/songs?id=100001&id=100002'
 ```
 
-Pin the same request to a release returned in the `X-Haneoka-Release-Id` response header or from the release identity document:
+The batch response has an `items` map and a `missing` array:
 
-```bash
-release_id=r-679793a903cd5cd2838a  # copy the X-Haneoka-Release-Id value from the preceding response
-
-curl --fail-with-body \
-  "https://haneoka.org/api/v1/servers/intl/songs?release=${release_id}"
+```json
+{
+  "items": {
+    "100001": { "musicId": 100001, "musicTitle": ["迷星叫", "Mayoiuta"] }
+  },
+  "missing": ["100002"]
+}
 ```
 
-Release IDs are opaque immutable identifiers. Store and reuse the exact value received from the service.
+Treat `missing` as per-ID information. The request itself succeeded; retrying the same missing ID will not create it.
 
-## 3. Fetch one entity or a batch
-
-The current catalog manifest tells you which resources and views exist. For an entity key returned by the catalog index:
-
-```bash
-song_id=$(curl --fail-with-body \
-  https://haneoka.org/api/v1/servers/intl/songs \
-  | jq -r 'keys[0]')
-
-curl --fail-with-body \
-  "https://haneoka.org/api/v1/servers/intl/songs/${song_id}"
-```
-
-Batch requests use repeated `id` parameters and return an `items` map plus an explicit `missing` list:
-
-```bash
-curl --fail-with-body \
-  "https://haneoka.org/api/v1/servers/intl/songs?id=${song_id}&id=${song_id}"
-```
-
-The server sorts and de-duplicates IDs when creating its cache key. A missing key is reported in `missing`; it is not a partial HTTP failure.
-
-## 4. Use the API client package
-
-The repository includes a host-neutral fetch client in `@haneoka/api-client`:
+## 5. Use fetch in an application
 
 ```ts
-import { createApiClient } from "@haneoka/api-client";
+const api = new URL("https://haneoka.org/api/v1/songs");
+api.searchParams.set("server", "jp");
 
-const api = createApiClient({ baseUrl: "https://haneoka.org/api/v1" });
-const registry = await api.get<{
-  releases: Array<{ id: string; displayName: string; region: string }>;
-}>("releases");
-const server = registry.releases[0]?.id;
-if (!server) throw new Error("No active resource server");
-const catalog = await api.get(`servers/${server}/catalog`);
+const response = await fetch(api);
+if (!response.ok) {
+  const detail = await response.json().catch(() => ({}));
+  throw new Error(`${response.status}: ${detail.error?.code ?? "request_failed"}`);
+}
+
+const songs = await response.json() as Record<string, {
+  musicId: number;
+  musicTitle: Array<string | null>;
+  musicUrl?: string | null;
+}>;
+console.log(songs["100001"]?.musicTitle[1] ?? "Untitled");
 ```
 
-`ApiClientError` preserves the HTTP status, stable error code, request ID, and whether retrying is reasonable. See [Errors and retries](/errors/).
-
-## 5. Send credentials only where required
-
-Public release, catalog, media, game-client, Sonolus, and Bestdori reads do not require a session. Community mutations, profile changes, avatar writes, uploads, preferences, and Better Auth operations do. Browser mutations also require same-origin requests, as described on each page.
+Resolve relative media paths against `https://haneoka.org` and preserve `ETag` when you cache responses. The API returns JSON for catalog data and the media type declared by a file route for binary content.

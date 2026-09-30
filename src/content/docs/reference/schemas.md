@@ -3,6 +3,10 @@ title: Shared schemas
 description: Stable response envelopes and identifier rules used across the API.
 ---
 
+## Current resource responses
+
+Direct resource routes use the current `intl` catalog unless `?server=<slug>` is present. Collection indexes are usually objects keyed by entity ID, and values retain their resource-defined DTO shape. A resource can expose an index, entity, view, and relation with different shapes. The catalog page includes a real song response and the field meanings used by consumers.
+
 ## Error
 
 ```json
@@ -17,7 +21,7 @@ description: Stable response envelopes and identifier rules used across the API.
 
 `code` is the value to branch on. `message` can change for clarity. `requestId` is optional and should be included in support reports when present.
 
-## Release identity
+## Release identity (advanced)
 
 ```json
 {

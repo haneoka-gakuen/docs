@@ -1,137 +1,119 @@
 ---
-title: Catalog API
-description: Read release-backed resources, entities, views, relations, and batches.
+title: Catalog data
+description: Browse current resources, entities, views, relations, and batches.
 ---
 
-Catalog storage is a resource-neutral API. The current release's `catalog` manifest lists resource names, entity indexes, view indexes, relations, count fields, and storage shape.
+## Start with the direct routes
 
-## Manifest and summary
+Use the short current-data URLs for ordinary application reads:
 
 ```http
-GET /api/v1/servers/{server}/catalog
-GET /api/v1/servers/{server}/catalog/summary
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}?server=jp
+GET /api/v1/{resource}/{id}?server=jp
 ```
 
-The manifest has this stable envelope:
+The default server is `intl`. The `server` query selects another active server. These routes use the same catalog handler as `/api/v1/servers/{server}/{resource}`; the explicit form belongs in build and archival tooling that also needs a release parameter.
+
+Common resource names include `songs`, `bands`, `characters`, `cards`, `stories`, `events`, `audio`, `videos`, and `voices`. The selected catalog is authoritative: use its resource names, IDs, views, and relations instead of maintaining a hard-coded list.
+
+## Resource indexes and entities
+
+An index request returns a provider-shaped document. Collection resources commonly return an object keyed by entity ID:
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
+```
 
 ```json
 {
-  "schema": "haneoka-catalog-storage-v2",
-  "server": "intl",
-  "sourceId": "source-id-from-the-release",
-  "summary": "api/v1/catalog/summary.json",
-  "partition": { "algorithm": "fnv1a32-mod-256", "shards": 256 },
-  "resources": {
-    "songs": {
-      "count": 85,
-      "dependencies": ["bands", "items", "song-meta", "videos"],
-      "entities": {
-        "algorithm": "fnv1a32-mod-256",
-        "count": 85,
-        "prefix": "api/v1/catalog/songs/entities/",
-        "shards": ["01", "06", "09"]
-      },
-      "index": "api/v1/catalog/songs/index.json",
-      "kind": "collection",
-      "relations": {
-        "band": {
-          "algorithm": "fnv1a32-mod-256",
-          "count": 6,
-          "entityCount": 85,
-          "prefix": "api/v1/catalog/songs/relations/band/",
-          "shards": ["1c", "42", "63"],
-          "valueMode": "records"
-        }
-      }
-    }
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "difficulty": [
+      { "difficulty": 0, "difficultyName": "easy", "displayLevel": 9, "noteCount": 342 }
+    ],
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3"
   }
 }
 ```
 
-The nested entity, relation, and view metadata is authoritative. Use the resource names, relation names, view names, and entity IDs returned by the manifest. Counts and shard lists are release data; the abbreviated list above is illustrative of the shape, not a complete manifest.
+Read the complete entity with its key:
 
-## Resource index
-
-```http
-GET /api/v1/servers/{server}/{resource}
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
 ```
 
-Returns the release's index document for a resource listed in the manifest. The index is a provider-shaped JSON document for discovery; use the entity route for one record. Its keys and values are resource-defined.
+The entity may contain more fields than the index entry, such as localized credits, publication dates, combo rewards, chart paths, and video IDs. Preserve unknown fields and treat `null` as an explicit missing source value. Other resources define their own shapes; an event document, for example, uses `entries` and `hasGameEvents` rather than song fields.
 
-## Entity
+## Batch reads
 
-```http
-GET /api/v1/servers/{server}/{resource}/{id}
+Repeat `id` to fetch a small set of entities:
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs?id=100001&id=100002&server=jp'
 ```
 
-`id` must match the route key grammar (`A-Z`, `a-z`, `0-9`, `.`, `_`, `:`, `~`, and `-`, up to 256 characters). A known resource with a missing ID returns:
-
-```json
-{
-  "error": { "code": "entity_not_found", "message": "Catalog entity not found" }
-}
-```
-
-The entity body is the canonical DTO for that resource. It may include localized values, numeric IDs, timestamps, nested records, media paths, and provider fields. Consumers should preserve unknown fields and use the resource's manifest metadata and returned DTO instead of coercing every resource into a shared game entity type.
-
-## Batch entities
-
-```http
-GET /api/v1/servers/{server}/{resource}?id={id}&id={id}
-```
-
-Batching is supported for a resource and for a view. IDs are de-duplicated and sorted for caching. The response is:
+The response is:
 
 ```json
 {
   "items": {
-    "song-key": { "id": "song-key", "title": "Example" }
+    "100001": { "musicId": 100001, "musicTitle": ["迷星叫", "Mayoiuta"] }
   },
-  "missing": ["missing-song-key"]
+  "missing": ["100002"]
 }
 ```
 
-Use the IDs returned by the resource index. A malformed ID returns `400 invalid_batch`. The batch envelope is stable; the values under `items` retain the resource-defined entity shape.
+`items` is keyed by the requested ID. `missing` lists IDs with no entity. The API sorts and de-duplicates IDs for cache stability.
 
-## Views
+## Views and relations
 
-The manifest may expose a view with an explicit shape and path:
-
-```http
-GET /api/v1/servers/{server}/{resource}/views/{view}
-GET /api/v1/servers/{server}/{resource}/views/{view}/{id}
-GET /api/v1/servers/{server}/{resource}/views/{view}?id={id}&id={id}
-```
-
-The view index returns its declared collection shape (`array` or `object`) at the path listed in the manifest. The entity route reads the view's entity index. A missing view returns `404 view_not_found`. View entities are DTOs for that view and are not required to match the parent resource entity shape.
-
-## Relations
+The catalog manifest declares optional views and relations for each resource. A view is a named projection with its own index and entity shape:
 
 ```http
-GET /api/v1/servers/{server}/{resource}/relations/{relation}/{key}
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/views/{view}?id={id}&id={id}
 ```
 
-The manifest declares whether a relation uses `valueMode: "ids"` or `valueMode: "records"`:
-
-- `ids` relations are expanded into an object whose keys are entity IDs and whose values are the canonical entities from the resource entity store.
-- `records` relations return the relation's provider record object directly.
-
-An absent relation key returns `{}`. Unknown relation names and invalid keys return `404 relation_not_found`.
-
-## UI marks
+A relation is addressed by its resource, relation name, and key:
 
 ```http
-GET /api/v1/servers/{server}/ui-marks
+GET /api/v1/{resource}/relations/{relation}/{key}
 ```
 
-Returns a JSON object mapping UI mark names to release asset paths. The set may be empty:
+The manifest's `valueMode` explains the result. `ids` relations expand to canonical entities keyed by ID. `records` relations return provider records from the relation document. An empty relation key returns `{}` when the relation exists but has no value.
 
-```json
-{
-  "RarityIconCenter_R.png": "Assets/.../RarityIconCenter_R.png"
-}
+Use the selected server's manifest when you need these names:
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/servers/intl/catalog
 ```
 
-## Query and caching rules
+The manifest describes resource `kind`, count, index path, entity store, view paths and shapes, relation names, and dependencies. Its storage fields are useful for a crawler; application code can stay on the direct routes.
 
-Catalog JSON is release-backed and cacheable. Use `ETag` where supplied and retain the release headers. `catalog` and `catalog/summary` are different documents; the summary is a consumer-oriented projection while the manifest explains all storage routes.
+## Field semantics that matter in clients
+
+| Field pattern | How to use it |
+| --- | --- |
+| Localized arrays such as `musicTitle` and `bandName` | Choose the documented locale position and fall back when the value is empty. Keep the array for later locale changes. |
+| `*Url` and `file` paths | Resolve against `https://haneoka.org`; send the path back to the matching media or game-client route when a binary request is needed. |
+| Difficulty records | Read `difficultyName`, `displayLevel`, `playLevel`, `sortLevel`, and `noteCount` as separate values. Preserve the chart `file` path. |
+| IDs such as `musicId`, `bandId`, and `videoIds` | Keep the source numeric or string type. IDs are resource-specific. |
+| `null` values | The source currently has no value. Do not convert `null` into an empty string. |
+
+## Advanced explicit form
+
+For a server-scoped request, use:
+
+```http
+GET /api/v1/servers/{server}/{resource}
+GET /api/v1/servers/{server}/{resource}/{id}
+```
+
+Add `release=r-<20 lowercase hex characters>` only when a reproducible build or archive needs one immutable catalog. [Advanced server contracts](./releases/) explains the release, source, media, and storage surfaces.

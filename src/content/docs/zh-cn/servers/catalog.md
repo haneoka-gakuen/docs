@@ -1,137 +1,119 @@
 ---
-title: Catalog API
-description: 读取 release-backed resources、entities、views、relations 和 batches。
+title: Catalog 数据
+description: 浏览当前 resource、entity、view、relation 和 batch。
 ---
 
-Catalog storage 是与 resource 无关的 API。当前 release 的 `catalog` manifest 列出 resource names、entity indexes、view indexes、relations、count fields 和 storage shape。
+## 先使用直接路由
 
-## Manifest 和 summary
+普通应用使用读取当前数据的短 URL：
 
 ```http
-GET /api/v1/servers/{server}/catalog
-GET /api/v1/servers/{server}/catalog/summary
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}?server=jp
+GET /api/v1/{resource}/{id}?server=jp
 ```
 
-Manifest 具有以下稳定 envelope：
+默认 server 是 `intl`。`server` query 用于选择活动 server。这些路径与 `/api/v1/servers/{server}/{resource}` 使用同一个 catalog handler；显式形式用于同时需要 release 参数的 build 和 archive 工具。
+
+常见 resource name 包括 `songs`、`bands`、`characters`、`cards`、`stories`、`events`、`audio`、`videos` 和 `voices`。选定 catalog 才是权威来源，请使用它提供的 resource name、ID、view 和 relation，不要维护硬编码列表。
+
+## Resource index 和 entity
+
+Index 请求返回 provider-shaped document。Collection resource 通常返回以 entity ID 为键的 object：
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
+```
 
 ```json
 {
-  "schema": "haneoka-catalog-storage-v2",
-  "server": "intl",
-  "sourceId": "source-id-from-the-release",
-  "summary": "api/v1/catalog/summary.json",
-  "partition": { "algorithm": "fnv1a32-mod-256", "shards": 256 },
-  "resources": {
-    "songs": {
-      "count": 85,
-      "dependencies": ["bands", "items", "song-meta", "videos"],
-      "entities": {
-        "algorithm": "fnv1a32-mod-256",
-        "count": 85,
-        "prefix": "api/v1/catalog/songs/entities/",
-        "shards": ["01", "06", "09"]
-      },
-      "index": "api/v1/catalog/songs/index.json",
-      "kind": "collection",
-      "relations": {
-        "band": {
-          "algorithm": "fnv1a32-mod-256",
-          "count": 6,
-          "entityCount": 85,
-          "prefix": "api/v1/catalog/songs/relations/band/",
-          "shards": ["1c", "42", "63"],
-          "valueMode": "records"
-        }
-      }
-    }
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "difficulty": [
+      { "difficulty": 0, "difficultyName": "easy", "displayLevel": 9, "noteCount": 342 }
+    ],
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3"
   }
 }
 ```
 
-嵌套的 entity、relation 和 view metadata 具有权威性。请使用 manifest 返回的 resource names、relation names、view names 和 entity IDs。Count 和 shard lists 是 release data；上面的缩短列表只用于说明结构，并不完整。
+使用 key 读取完整 entity：
 
-## Resource index
-
-```http
-GET /api/v1/servers/{server}/{resource}
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
 ```
 
-返回 manifest 中列出的 resource 的 release index document。Index 是用于发现的 provider-shaped JSON document；读取单条记录请使用 entity route。它的键和值由 resource 定义。
+Entity 可能比 index 项目包含更多字段，例如本地化创作者、发布日期、combo rewards、谱面路径和 video IDs。保留未知字段，并把 `null` 视为 source 当前没有值。其他 resource 有自己的 shape；events document 使用 `entries` 和 `hasGameEvents`，而不是歌曲字段。
 
-## Entity
+## Batch 读取
 
-```http
-GET /api/v1/servers/{server}/{resource}/{id}
+重复 `id` 读取一组 entity：
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs?id=100001&id=100002&server=jp'
 ```
 
-`id` 必须符合路由键语法（`A-Z`、`a-z`、`0-9`、`.`、`_`、`:`、`~` 和 `-`，最多 256 个字符）。已知 resource 缺少 ID 时返回：
-
-```json
-{
-  "error": { "code": "entity_not_found", "message": "Catalog entity not found" }
-}
-```
-
-Entity body 是该 resource 的规范 DTO。它可能包含本地化值、数字 ID、时间戳、嵌套记录、media path 和 provider 字段。使用者应保留未知字段，并使用 resource 的 manifest metadata 和返回的 DTO，不要把每个 resource 强制转换为共享的游戏 entity 类型。
-
-## Batch entities
-
-```http
-GET /api/v1/servers/{server}/{resource}?id={id}&id={id}
-```
-
-Resource 和 view 都支持批量请求。ID 会去重并排序，以便缓存。响应为：
+响应为：
 
 ```json
 {
   "items": {
-    "song-key": { "id": "song-key", "title": "Example" }
+    "100001": { "musicId": 100001, "musicTitle": ["迷星叫", "Mayoiuta"] }
   },
-  "missing": ["missing-song-key"]
+  "missing": ["100002"]
 }
 ```
 
-请使用 resource index 返回的 ID。ID 格式错误时返回 `400 invalid_batch`。Batch envelope 是稳定的；`items` 下的值保留 resource 定义的 entity shape。
+`items` 使用请求的 ID 作为 key；没有 entity 的 ID 出现在 `missing`。API 会排序并去重 ID，以稳定缓存。
 
-## Views
+## View 和 relation
 
-Manifest 可能提供带有明确 shape 和 path 的 view：
-
-```http
-GET /api/v1/servers/{server}/{resource}/views/{view}
-GET /api/v1/servers/{server}/{resource}/views/{view}/{id}
-GET /api/v1/servers/{server}/{resource}/views/{view}?id={id}&id={id}
-```
-
-View index 会在 manifest 列出的 path 返回其声明的 collection shape（`array` 或 `object`）。Entity route 读取 view 的 entity index。缺少 view 时返回 `404 view_not_found`。View entities 是该 view 的 DTO，不要求与父 resource entity shape 一致。
-
-## Relations
+Catalog manifest 会为 resource 声明可选 view 和 relation。View 是有自己 index 和 entity shape 的命名 projection：
 
 ```http
-GET /api/v1/servers/{server}/{resource}/relations/{relation}/{key}
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/views/{view}?id={id}&id={id}
 ```
 
-Manifest 声明 relation 使用 `valueMode: "ids"` 还是 `valueMode: "records"`：
-
-- `ids` relations 会展开为对象，键是 entity ID，值是来自 resource entity store 的规范 entity。
-- `records` relations 直接返回 relation 的 provider record object。
-
-不存在的 relation key 返回 `{}`。未知 relation name 和无效 key 返回 `404 relation_not_found`。
-
-## UI marks
+Relation 使用 resource、relation name 和 key：
 
 ```http
-GET /api/v1/servers/{server}/ui-marks
+GET /api/v1/{resource}/relations/{relation}/{key}
 ```
 
-返回将 UI mark name 映射到 release asset path 的 JSON 对象。该集合可能为空：
+Manifest 中的 `valueMode` 说明结果。`ids` relation 会展开为以 ID 为键的 canonical entity；`records` relation 直接返回 provider record。已声明但没有值的 relation key 返回 `{}`。
 
-```json
-{
-  "RarityIconCenter_R.png": "Assets/.../RarityIconCenter_R.png"
-}
+需要这些名称时读取所选 server 的 manifest：
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/servers/intl/catalog
 ```
 
-## 查询和缓存规则
+Manifest 描述 resource `kind`、count、index path、entity store、view path 与 shape、relation name 和 dependencies。Storage 字段适合 crawler；普通应用可以继续使用直接路由。
 
-Catalog JSON 由 release 提供并可缓存。在提供 `ETag` 时请使用，并保留 release headers。`catalog` 和 `catalog/summary` 是不同的文档；summary 是面向消费者的 projection，而 manifest 解释所有 storage routes。
+## 对调用方有用的字段语义
+
+| 字段模式 | 使用方式 |
+| --- | --- |
+| `musicTitle`、`bandName` 等本地化数组 | 选择文档规定的 locale 位置，值为空时提供 fallback；保留数组以支持之后切换 locale。 |
+| `*Url` 和 `file` path | 以 `https://haneoka.org` 为基准解析，需要二进制时发送到对应 media 或 game-client 路由。 |
+| Difficulty record | 分别读取 `difficultyName`、`displayLevel`、`playLevel`、`sortLevel` 和 `noteCount`，保留 chart `file` path。 |
+| `musicId`、`bandId`、`videoIds` 等 ID | 保留 source 的数字或字符串类型；ID 规则由 resource 定义。 |
+| `null` | Source 当前没有值，不要转换为空字符串。 |
+
+## 高级显式形式
+
+Server-scoped 请求使用：
+
+```http
+GET /api/v1/servers/{server}/{resource}
+GET /api/v1/servers/{server}/{resource}/{id}
+```
+
+只有可重现 build 或 archive 需要固定 catalog 时，才添加 `release=r-<20 lowercase hex characters>`。[高级服务器接口](./releases/) 介绍 release、source、media 和 storage surface。

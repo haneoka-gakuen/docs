@@ -1,7 +1,9 @@
 ---
 title: Source metadata
-description: 读取 release 已发布的 source tree 和 source DTO。
+description: 为 archive 和 build tooling 检查已发布的 source metadata。
 ---
+
+Source record 是高级的 release-scoped 数据。普通应用可以继续使用当前 resource alias 和 DTO 返回的 media path。
 
 ## Source tree
 

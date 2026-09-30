@@ -1,12 +1,12 @@
 ---
 title: Haneoka API
-description: 将乐曲、剧情、角色、活动、游戏资源与社区连接到你的应用。
+description: 读取 haneoka.org 上的当前乐曲、活动、剧情、角色、媒体和社区数据。
 template: splash
 hero:
-  title: 连接 Our Notes 的每一面
-  tagline: 从乐曲与剧情，到角色、活动和社区。用统一的 HTTP 接口，让资料成为工具、创作和体验的起点。
+  title: Haneoka API
+  tagline: 用直接、清晰的 HTTP 请求读取当前游戏资料。
   actions:
-    - text: 开始接入
+    - text: 发出第一个请求
       link: /zh-cn/quickstart/
       icon: right-arrow
     - text: OpenAPI
@@ -14,25 +14,49 @@ hero:
       variant: minimal
 ---
 
-Haneoka 提供资源目录、关联查询、媒体文件、Sonolus 与社区接口。资源请求支持固定版本：一次选定服务器与资源快照，随后读取的剧情、谱面和关联资料始终属于同一份数据。
+Haneoka 在 `https://haneoka.org` 提供已发布的游戏资料目录和社区服务。使用 `songs`、`events`、`characters` 或 `stories` 等资源名称发出请求：
 
-## 选择你的入口
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
+curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
+```
+
+接口默认返回国际服当前资料。添加 `?server=jp` 即可读取日服的数据。
+
+## 选择入口
 
 | 目标 | 文档 |
 | --- | --- |
-| 获取可用服务器与资源版本 | [服务器与版本](/zh-cn/servers/releases/) |
-| 浏览乐曲、角色、卡牌、剧情与活动 | [资料目录](/zh-cn/servers/catalog/) |
-| 查询关联数据与批量获取对象 | [目录视图与关联](/zh-cn/servers/catalog/) |
-| 使用图片、音频、视频等资源 | [媒体与文件](/zh-cn/servers/media/) |
-| 接入 Sonolus 关卡与歌单 | [Sonolus](/zh-cn/sonolus/) |
-| 读取帖子、评论与用户资料 | [社区](/zh-cn/community/) |
-| 上传媒体并发布内容 | [上传](/zh-cn/community/uploads/) |
-| 使用 GBP 数据 | [Bestdori 接口](/zh-cn/providers/bestdori/) |
+| 浏览歌曲、乐队、卡牌、剧情或活动 | [资料目录](./servers/catalog/) |
+| 下载 DTO 返回的图片、音频、视频或谱面 | [媒体与文件](./servers/media/) |
+| 构建 Sonolus server 或 playlist | [Sonolus](./sonolus/) |
+| 使用 Bestdori 格式的 Garupa 数据 | [Bestdori provider](./providers/bestdori/) |
+| 读取或发布帖子与评论 | [社区](./community/) |
+| 登录并管理资料 | [身份验证](./auth/) |
+| 重现历史 catalog 或检查 storage | [高级服务器接口](./servers/releases/) |
 
-[下载 OpenAPI 描述](/openapi.json)，为你的语言生成客户端，或在接口工具中导入完整的路由、参数和响应定义。
+## 响应的样子
 
-## 从一份目录开始
+资料索引以条目 ID 为键，每种资源提供对应的字段。歌曲包含 `musicId`、本地化标题 `musicTitle`、乐队 `bandId`、难度 `difficulty` 和媒体路径：
 
-先获取服务器列表，再读取该服务器的目录清单。清单会告诉你有哪些资源、可用视图和关联关系；按清单中的对象标识获取详情，继续沿关联读取相关内容。
+```json
+{
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "bandName": ["MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!", "MyGO!!!!!"],
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3"
+  }
+}
+```
 
-公开资源接口支持跨域读取。社区写操作通过 Haneoka 的登录会话进行。每个接口页面分别说明版本、分页、认证和文件传输方式。
+各资源的字段及数据结构见接口参考。媒体路径以 `https://haneoka.org` 为基准解析。
+
+## 公开接口和登录接口
+
+Catalog、media、Sonolus 和 Bestdori 的读取接口公开可用。社区写入、资料修改、偏好设置、上传和 Better Auth 操作使用浏览器 session 与同源请求。[约定](./conventions/) 说明缓存、headers、URL 编码和当前数据行为；[错误和重试](./errors/) 说明 status 处理。
+
+[OpenAPI 文件](/openapi.json) 提供机器可读的路由和 schema contract。

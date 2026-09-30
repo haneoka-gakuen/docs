@@ -1,50 +1,72 @@
 ---
 title: 约定
-description: 共享的 URL、响应、缓存、身份验证和分页规则。
+description: API 共用的 URL、响应、缓存、身份验证和分页规则。
 ---
 
-## 基础 URL 和路径
+## 基础 URL 和当前数据 alias
 
-生产环境 origin 使用 `https://haneoka.org`。本网站中的路径都是相对于 origin 的。请保留资源键、文件名和 Sonolus 名称的 URL 编码；不要在未编码的情况下拼接不可信的路径片段。
-
-## JSON 和 headers
-
-JSON 响应使用 `application/json; charset=utf-8`。成功的文件响应会保留自身 media type，并在适用时暴露 `ETag`、`Content-Length` 和 range headers。公开 API 响应可能包含：
-
-| Header                         | Meaning                                                                                                                                           |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `X-Request-Id`                 | 将错误与服务日志关联。由通用 Worker 错误路径返回。                                                                                                |
-| `X-Haneoka-Release-Id`         | 提供服务器范围 catalog、source 或 game-client 响应的 release。release media 和 artifacts 会暴露自身 validator，但不会添加这些服务器范围 headers。 |
-| `X-Haneoka-Source-Id`          | 与该 release 关联的 source snapshot。                                                                                                             |
-| `X-Haneoka-Garupa-Snapshot-Id` | playlist projection 使用的不可变 Garupa Master snapshot。                                                                                         |
-| `Sonolus-Version`              | 服务声明的 Sonolus app 版本。                                                                                                                     |
-| `ETag`                         | 与 `If-None-Match` 一起使用；匹配时响应为 `304`。                                                                                                 |
-| `Accept-Ranges: bytes`         | release media、game-client files、artifacts、Bestdori media 和就绪社区附件内容在路由页面声明支持时接受单一 byte range。                           |
-
-服务器在公开文件和 JSON surface 上发送 `Access-Control-Allow-Origin: *`。身份验证和社区变更响应是同源浏览器流程，不能当作匿名跨源写入 API。
-
-## 当前数据与不可变数据
-
-不带 `release` 的 catalog 和 source 路径遵循活动指针。为 JSON 请求添加 `?release=r-<20 lowercase hex characters>`，即可将其固定到不可变 release。release media 和 game-client 路径遵循活动 release 指针。
-
-响应 headers 会标识解析出的 release。请求的 release 无法解析时返回 `404 release_not_found`；没有发布当前 release 时，未固定的路径返回 `503 release_unavailable`。
-
-## 分页
-
-使用游标的 API 会返回不透明的 `nextCursor`。请按收到的值原样发送：
+生产环境使用 `https://haneoka.org`。直接 catalog 路由为：
 
 ```text
-GET /api/v1/community/posts?limit=20&cursor=<nextCursor>
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/relations/{relation}/{key}
 ```
 
-不要解码或修改游标，也不要对游标内部结构做持久化假设。Sonolus 列表使用从零开始的 `page` 索引而不是游标。Catalog 批次受 URL 和 manifest 限制，并返回明确的 `missing` ID。
+这些路径默认使用当前 `intl` server。添加 `?server=jp` 或 `GET /api/v1/releases` 返回的其他 slug 选择活动 server。显式的 `/api/v1/servers/{server}/...` 使用同一个 catalog handler，并增加供可重现 build 使用的 `release` 参数。
 
-## 缓存
+`resource`、`id`、`view`、`relation` 和 `key` 都由数据定义。构造路径前先读取 catalog manifest 或 index。`releases`、`servers`、`account`、`me`、`community` 和 `garupa` 等顶层分组保留自己的 API 路由，不是 catalog resource name。对动态片段进行 URL 编码；只有路由明确接受 path 时才保留 `/`。
 
-公开 registry 和 provider 数据可以缓存。当前指针 JSON 使用较短的浏览器生命周期，以便快速看到提升的 release。不可变 release 对象和 content-addressed game bundle 可以缓存一年。社区和账户 JSON 响应使用 `Cache-Control: no-store`。
+## JSON 和字段
 
-请遵守 `ETag`、`Cache-Control` 和 `Content-Range`。`206` 响应只对请求的 range 有效；`416` 响应包含 `Content-Range: bytes */<size>`。
+JSON 响应使用 `application/json; charset=utf-8`。Catalog index 通常是以 entity ID 为键的 object，entity value 保留 source DTO shape。例如 song 使用 `musicId`、`musicTitle` 等本地化数组、difficulty records 和 media path；events resource 可以返回 `{ "entries": {}, "hasGameEvents": false }`。按照请求 resource 的字段编写代码，并保留额外字段。
+
+API 不会为 provider DTO 加入统一的 `id`、`title` 或 `data` wrapper。Index key 是 lookup ID，即使 value 使用 resource 专属的 ID 字段。`null` 表示 source 当前没有该属性的值。
+
+## 常用响应 headers
+
+| Header | 含义 |
+| --- | --- |
+| `X-Request-Id` | 错误或诊断报告的关联 ID。 |
+| `X-Haneoka-Release-Id` | server-scoped 响应使用的当前 release。 |
+| `X-Haneoka-Source-Id` | 与该 release 关联的 source snapshot。 |
+| `ETag` | 条件请求使用的 representation validator。 |
+| `Cache-Control` | 服务指定的新鲜度和重新验证策略。 |
+| `Content-Range` | 返回的 byte range，或无效 range 时的 `bytes */size`。 |
+
+直接 alias 会在服务提升新 catalog 时变化。需要解释用户看到哪个数据版本时，可将 release headers 与缓存一起保存。需要稳定重放的应用可以改用显式 `release` 请求；高级 release 页面介绍该流程。
+
+## Batch、view 和 relation
+
+重复 `id` 批量读取：
+
+```text
+GET /api/v1/songs?id=100001&id=100002
+```
+
+Catalog batch 返回 `{ "items": { ... }, "missing": [ ... ] }`。服务会排序并去重 ID 以稳定缓存 key。缺失 ID 是该 ID 的结果，不表示请求失败。
+
+Catalog manifest 会声明每个 resource 的 view 和 relation。View 有自己的 index 和 entity shape。Relation 会返回以 ID 为键的 canonical entity（`valueMode: "ids"`），或 relation document 中的 provider record（`valueMode: "records"`）。按 manifest 提供的名称和 shape 读取，不能假设所有 resource 相同。
+
+## 缓存和媒体
+
+请遵守 `ETag` 和 `Cache-Control`。发送 `If-None-Match`，representation 未变化时会收到 `304`。将 `/assets/intl/...` 和 `/runtime/intl/...` 这样的相对 media path 解析到 `https://haneoka.org`。
+
+二进制路由会声明 media type，并可能支持单一 byte range。有效的部分响应是 `206`；无效 range 返回 `416` 和 `Content-Range: bytes */<size>`。不要原样重试 `416`。
 
 ## 身份验证和同源写入
 
-Better Auth 使用 HTTP-only cookies。浏览器请求请发送 `credentials: "include"`。社区、资料、头像、上传和偏好设置写入会拒绝跨源请求并返回 `403`。直接集成应使用已授权的浏览器会话或特定于应用的流程；不要把会话 cookie 复制到日志或公开示例中。
+公开 catalog、media、Sonolus 和 Bestdori 读取不需要 session。社区写入、资料修改、偏好设置、上传和 Better Auth 操作使用 HTTP-only cookie 与同源浏览器请求：
+
+```ts
+await fetch("/api/v1/account/profile", {
+  credentials: "include",
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ bio: "Hello", version: 4 }),
+});
+```
+
+不要将 session cookie 写入日志或前端 bundle。每个身份验证页面会说明 request body、conflict 字段和 moderation 状态。

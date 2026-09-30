@@ -149,6 +149,31 @@ const resourcePath = (path, summary, options = {}) => {
     }),
   };
 };
+const currentServerQuery = query(
+  "server",
+  { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$" },
+  "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+);
+const latestResourcePath = (path, summary, options = {}) => {
+  const { parameters: extraParameters = [], ...operationOptions } = options;
+  const response = options.responses ?? ok(anyObject);
+  return {
+    parameters: [
+      pathParam(
+        "resource",
+        "Resource name declared in the selected catalog manifest.",
+      ),
+      currentServerQuery,
+      ...extraParameters,
+    ],
+    get: operation(summary, withHeaders(response, releaseHeaders), {
+      ...operationOptions,
+      operationId:
+        options.operationId ?? `getLatest${path.replace(/[^A-Za-z0-9]+/g, "-")}`,
+      tags: options.tags ?? ["Latest resource API"],
+    }),
+  };
+};
 const readPath = (parameters, summary, responses, options = {}) => ({
   parameters,
   get: operation(summary, responses, options),
@@ -494,6 +519,83 @@ const paths = {
       ),
     }),
 };
+
+Object.assign(paths, {
+  "/api/v1/{resource}": latestResourcePath(
+    "resource-index",
+    "Read the current resource index or an entity batch",
+    {
+      operationId: "getLatestResource",
+      parameters: [
+        query(
+          "id",
+          { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" },
+          "Repeat for an entity batch.",
+        ),
+      ],
+      responses: {
+        200: json(ref("CatalogResourceIndexOrBatch")),
+        400: error(),
+        404: error(),
+        502: error(),
+      },
+    },
+  ),
+  "/api/v1/{resource}/{id}": latestResourcePath(
+    "resource-entity",
+    "Read one current resource entity",
+    {
+      operationId: "getLatestEntity",
+      parameters: [pathParam("id", "Entity key returned by the resource index.")],
+      responses: { 200: json(ref("CatalogEntity")), 404: error() },
+    },
+  ),
+  "/api/v1/{resource}/views/{view}": latestResourcePath(
+    "resource-view",
+    "Read a current resource view or view batch",
+    {
+      operationId: "getLatestView",
+      parameters: [
+        pathParam("view", "View name declared in the resource manifest."),
+        query(
+          "id",
+          { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" },
+          "Repeat for a view entity batch.",
+        ),
+      ],
+      responses: {
+        200: json(ref("CatalogViewDocumentOrBatch")),
+        400: error(),
+        404: error(),
+        502: error(),
+      },
+    },
+  ),
+  "/api/v1/{resource}/views/{view}/{id}": latestResourcePath(
+    "resource-view-entity",
+    "Read one current view entity",
+    {
+      operationId: "getLatestViewEntity",
+      parameters: [
+        pathParam("view", "View name declared in the resource manifest."),
+        pathParam("id", "View entity key returned by the view index."),
+      ],
+      responses: { 200: json(ref("CatalogEntity")), 404: error() },
+    },
+  ),
+  "/api/v1/{resource}/relations/{relation}/{key}": latestResourcePath(
+    "resource-relation",
+    "Read one current resource relation",
+    {
+      operationId: "getLatestRelation",
+      parameters: [
+        pathParam("relation", "Relation name declared in the resource manifest."),
+        pathParam("key", "Relation key returned by the relation index."),
+      ],
+      responses: { 200: json(ref("CatalogRelationResponse")), 404: error() },
+    },
+  ),
+});
 
 for (const tree of ["assets", "runtime", "objects"])
   paths[`/${tree}/{server}/{path}`] = resourcePath(
@@ -2950,6 +3052,11 @@ const document = {
   },
   servers: [{ url: "https://haneoka.org", description: "Production" }],
   tags: [
+    {
+      name: "Latest resource API",
+      description:
+        "Current catalog aliases with intl as the default server and an optional server query.",
+    },
     {
       name: "Resource servers",
       description:
