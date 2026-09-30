@@ -179,6 +179,75 @@ const readPath = (parameters, summary, responses, options = {}) => ({
   get: operation(summary, responses, options),
 });
 
+const announcementServerQuery = query(
+  "server",
+  { type: "string", pattern: "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$" },
+  "Current announcement server slug. Omit this parameter to read the default intl server.",
+);
+const announcementFetchedAtHeaders = {
+  "X-Haneoka-Announcement-Fetched-At": {
+    description: "UTC time of the published announcement snapshot.",
+    schema: { type: "string", format: "date-time" },
+  },
+};
+const announcementTimestamp = {
+  type: "integer",
+  minimum: 0,
+  description: "Unix time in seconds.",
+};
+const announcementMediaUrl = {
+  type: "string",
+  format: "uri",
+  description: "Canonical HTTPS URL under /api/v1/announcements/media/.",
+};
+const announcementLanguage = {
+  type: "string",
+  pattern: "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+  description: "BCP 47 source-language tag inferred from the returned text.",
+};
+const announcementSummaryProperties = {
+  id: { type: "integer", minimum: 1 },
+  category: { type: "integer", minimum: 0 },
+  title: { type: "string", minLength: 1 },
+  startAt: announcementTimestamp,
+  endAt: announcementTimestamp,
+  updatedAt: announcementTimestamp,
+  pinned: { type: "boolean" },
+  bodyImage: announcementMediaUrl,
+  bodyImageWidth: { type: "integer", minimum: 1, description: "Intrinsic width in pixels." },
+  bodyImageHeight: { type: "integer", minimum: 1, description: "Intrinsic height in pixels." },
+  banner: announcementMediaUrl,
+  bannerWidth: { type: "integer", minimum: 1, description: "Intrinsic width in pixels." },
+  bannerHeight: { type: "integer", minimum: 1, description: "Intrinsic height in pixels." },
+  sourceLanguage: announcementLanguage,
+};
+const announcementSummaryRequired = [
+  "id",
+  "category",
+  "title",
+  "startAt",
+  "endAt",
+  "updatedAt",
+];
+const announcementMediaResponse = {
+  description: "Immutable announcement media bytes. The extension determines the actual image media type.",
+  headers: {
+    "Content-Length": rangeHeaders["Content-Length"],
+    ETag: rangeHeaders.ETag,
+    "X-Content-Type-Options": {
+      description: "MIME sniffing protection.",
+      schema: { type: "string", const: "nosniff" },
+    },
+  },
+  content: {
+    "image/avif": { schema: { type: "string", format: "binary" } },
+    "image/gif": { schema: { type: "string", format: "binary" } },
+    "image/jpeg": { schema: { type: "string", format: "binary" } },
+    "image/png": { schema: { type: "string", format: "binary" } },
+    "image/webp": { schema: { type: "string", format: "binary" } },
+  },
+};
+
 const paths = {
   "/api/v1/releases": {
     get: operation("List active resource servers", ok(ref("ReleaseRegistry")), {
@@ -519,6 +588,72 @@ const paths = {
       ),
     }),
 };
+
+paths["/api/v1/announcements"] = {
+  get: operation(
+    "List current operational announcements",
+    {
+      200: json(
+        ref("AnnouncementList"),
+        "Current announcement snapshot.",
+        announcementFetchedAtHeaders,
+      ),
+      400: error("Invalid server or limit parameter."),
+      404: error("Announcement server not found."),
+    },
+    {
+      operationId: "listAnnouncements",
+      tags: ["Operational announcements"],
+      parameters: [
+        announcementServerQuery,
+        query(
+          "limit",
+          { type: "integer", minimum: 1, maximum: 100 },
+          "Return up to this many records from the current list. Defaults to 100.",
+        ),
+      ],
+    },
+  ),
+};
+paths["/api/v1/announcements/{id}"] = readPath(
+  [
+    pathParam("id", "Announcement ID from the list response.", {
+      type: "integer",
+      minimum: 1,
+    }),
+    announcementServerQuery,
+  ],
+  "Read one current operational announcement",
+    {
+      200: json(
+        ref("AnnouncementDetail"),
+        "Announcement detail with optional raw HTML.",
+        announcementFetchedAtHeaders,
+      ),
+      400: error("Invalid server parameter."),
+      404: error("Announcement or announcement server not found."),
+    },
+  { operationId: "getAnnouncement", tags: ["Operational announcements"] },
+);
+paths["/api/v1/announcements/media/{server}/{sha256}.{ext}"] = readPath(
+  [
+    pathParam("server", "Current announcement server slug.", {
+      type: "string",
+      pattern: "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$",
+    }),
+    pathParam("sha256", "Full lowercase SHA-256 digest of the media bytes.", {
+      type: "string",
+      pattern: "^[a-f0-9]{64}$",
+    }),
+    pathParam("ext", "Media extension returned by the publisher.", {
+      type: "string",
+      enum: ["avif", "gif", "jpg", "jpeg", "png", "webp"],
+    }),
+  ],
+  "Read canonical announcement media",
+  { 200: announcementMediaResponse, 404: error("Announcement media not found.") },
+  { operationId: "getAnnouncementMedia", tags: ["Operational announcements"] },
+);
 
 Object.assign(paths, {
   "/api/v1/{resource}": latestResourcePath(
@@ -1723,6 +1858,39 @@ const schemas = {
     additionalProperties: false,
   },
   RequestIdHeader: { type: "string" },
+  AnnouncementSummary: {
+    type: "object",
+    properties: announcementSummaryProperties,
+    required: announcementSummaryRequired,
+    additionalProperties: false,
+    description: "One record from the latest-first current announcement list. List records omit html.",
+  },
+  AnnouncementList: {
+    type: "object",
+    properties: {
+      server: { type: "string" },
+      available: { type: "boolean" },
+      fetchedAt: { type: ["string", "null"], format: "date-time" },
+      announcements: { type: "array", items: ref("AnnouncementSummary"), maxItems: 100 },
+    },
+    required: ["server", "available", "fetchedAt", "announcements"],
+    additionalProperties: false,
+  },
+  AnnouncementDetail: {
+    type: "object",
+    properties: {
+      server: { type: "string" },
+      available: { type: "boolean" },
+      fetchedAt: { type: ["string", "null"], format: "date-time" },
+      ...announcementSummaryProperties,
+      html: {
+        type: "string",
+        description: "Optional source-authored raw HTML. Sanitize with an allowlist before rendering.",
+      },
+    },
+    required: ["server", "available", "fetchedAt", ...announcementSummaryRequired],
+    additionalProperties: false,
+  },
   ReleaseRegistry: {
     type: "object",
     properties: {
@@ -3056,6 +3224,11 @@ const document = {
       name: "Latest resource API",
       description:
         "Current catalog aliases with intl as the default server and an optional server query.",
+    },
+    {
+      name: "Operational announcements",
+      description:
+        "Current game announcements and their images, refreshed independently of catalog data.",
     },
     {
       name: "Resource servers",

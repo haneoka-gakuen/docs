@@ -35,6 +35,11 @@ export default defineConfig({
           items: ["servers/catalog"],
         },
         {
+          label: "Operational data",
+          translations: { "zh-CN": "运营数据" },
+          items: ["servers/announcements"],
+        },
+        {
           label: "Sonolus",
           translations: { "zh-CN": "Sonolus" },
           items: ["sonolus"],

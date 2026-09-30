@@ -29,6 +29,7 @@ curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
 | 目标 | 文档 |
 | --- | --- |
 | 浏览歌曲、乐队、卡牌、剧情或活动 | [资料目录](./servers/catalog/) |
+| 读取当前游戏运营公告 | [运营公告](./servers/announcements/) |
 | 下载 DTO 返回的图片、音频、视频或谱面 | [媒体与文件](./servers/media/) |
 | 构建 Sonolus server 或 playlist | [Sonolus](./sonolus/) |
 | 使用 Bestdori 格式的 Garupa 数据 | [Bestdori provider](./providers/bestdori/) |

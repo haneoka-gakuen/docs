@@ -30,6 +30,7 @@ The direct resource API uses the current catalog for the `intl` server by defaul
 | What you are building | Read this |
 | --- | --- |
 | Browse songs, bands, cards, stories, or events | [Catalog data](./servers/catalog/) |
+| Read current in-game operational announcements | [Operational announcements](./servers/announcements/) |
 | Download an image, audio file, video, or chart referenced by a DTO | [Media and files](./servers/media/) |
 | Build a Sonolus server or playlist | [Sonolus](./sonolus/) |
 | Use Bestdori-shaped Garupa data | [Bestdori provider](./providers/bestdori/) |
