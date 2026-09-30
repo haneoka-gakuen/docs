@@ -27,15 +27,15 @@ GET /sonolus/levels/{levelName}/data/{sha1}
 列表每页 20 个条目，页码从零开始。关卡名称标明本站、游戏服务器、歌曲与难度：
 
 ```text
-#haneoka-jp-100109-expert
-#haneoka-intl-100109-expert
-#haneoka-gbp-1234-expert
+haneoka-jp-100109-expert
+haneoka-intl-100109-expert
+haneoka-gbp-1234-expert
 ```
 
-请求时使用列表返回的完整名称。游戏数据更新后，名称保持稳定。将名称作为 URL 路径段时，需要进行编码：`#` 应写成 `%23`。
+请求时使用列表返回的完整名称。游戏数据更新后，名称保持稳定。客户端显示编号时会自动添加 `#`，因此 API 的 `name` 不带井号。构造请求地址时，对完整名称使用 URL 路径编码即可。
 
 ```http
-GET /sonolus/levels/%23haneoka-jp-100109-expert
+GET /sonolus/levels/haneoka-jp-100109-expert
 ```
 
 每个关卡提供引擎、演出资源、封面、音频与谱面数据。`data` 对象包含压缩谱面的地址和 40 位 SHA-1 摘要；直接读取这个地址即可。摘要用于标识内容，文件可长期缓存。
@@ -50,7 +50,7 @@ GET /sonolus/playlists/list?page=0
 GET /sonolus/playlists/{playlistName}
 ```
 
-歌单按歌曲整理各个难度，并提供完整关卡条目。`#haneoka-jp-100109`、`#haneoka-gbp-1234` 等名称保留来源信息。歌单名称的 URL 编码方式与关卡相同。
+歌单按歌曲整理各个难度，并提供完整关卡条目。`haneoka-jp-100109`、`haneoka-gbp-1234` 等名称保留来源信息。歌单名称的 URL 编码方式与关卡相同。
 
 ## 演出资源
 
@@ -83,7 +83,7 @@ GET /sonolus/levels/list?source=bestdori&page=0
 GET /sonolus/playlists/list?source=bestdori&page=0
 ```
 
-这个来源参数选择 GBP 曲库，返回的关卡和歌单名称使用 `#haneoka-gbp-` 前缀。需要歌曲、角色等资料来制作其他界面时，可读取[GBP 资料接口](../providers/bestdori/)。
+这个来源参数选择 GBP 曲库，返回的关卡和歌单名称使用 `haneoka-gbp-` 前缀。需要歌曲、角色等资料来制作其他界面时，可读取[GBP 资料接口](../providers/bestdori/)。
 
 ## 响应状态
 

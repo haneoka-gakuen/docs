@@ -27,15 +27,15 @@ GET /sonolus/levels/{levelName}/data/{sha1}
 Lists contain 20 entries per page and start at page zero. A level name identifies the service, game server, song, and difficulty:
 
 ```text
-#haneoka-jp-100109-expert
-#haneoka-intl-100109-expert
-#haneoka-gbp-1234-expert
+haneoka-jp-100109-expert
+haneoka-intl-100109-expert
+haneoka-gbp-1234-expert
 ```
 
-Use the exact name returned by the list. Names stay stable as the underlying game data updates. Encode the name as a URL path segment: `#` becomes `%23`.
+Use the exact name returned by the list. Names stay stable as the underlying game data updates. The app automatically adds `#` when displaying identifiers; the API name itself has no hash prefix. Encode the exact returned name as a URL path segment.
 
 ```http
-GET /sonolus/levels/%23haneoka-jp-100109-expert
+GET /sonolus/levels/haneoka-jp-100109-expert
 ```
 
 A level contains its engine, presentation choices, jacket, audio, and chart data. Its `data` object supplies the URL and 40-character SHA-1 hash of the compressed chart bytes. Retrieve that URL directly; the hash identifies immutable content.
@@ -50,7 +50,7 @@ GET /sonolus/playlists/list?page=0
 GET /sonolus/playlists/{playlistName}
 ```
 
-A playlist groups a song's difficulties and contains complete level items. Names such as `#haneoka-jp-100109` and `#haneoka-gbp-1234` retain their source identity. Encode playlist names in the same way as level names.
+A playlist groups a song's difficulties and contains complete level items. Names such as `haneoka-jp-100109` and `haneoka-gbp-1234` retain their source identity. Encode playlist names in the same way as level names.
 
 ## Presentation resources
 
@@ -83,7 +83,7 @@ GET /sonolus/levels/list?source=bestdori&page=0
 GET /sonolus/playlists/list?source=bestdori&page=0
 ```
 
-The provider query selects the GBP catalog; returned names use `#haneoka-gbp-`. Use the [GBP data API](../providers/bestdori/) to retrieve song and character records for a separate interface.
+The provider query selects the GBP catalog; returned names use `haneoka-gbp-`. Use the [GBP data API](../providers/bestdori/) to retrieve song and character records for a separate interface.
 
 ## Response status
 
