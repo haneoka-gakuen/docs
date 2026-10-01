@@ -1,0 +1,242 @@
+---
+title: Cassiopeia 谱面嵌入
+description: 使用本站或自带谱面、音频和素材创建独立播放器。
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+
+
+`mountChart` 默认组合 Cassiopeia kernel、Vue ChartPlayer、Our Notes plugin、Three renderer 和 Web 音频/输入宿主。它拥有挂载 DOM、媒体、input、renderer 与数据 loader。自定义 renderer 可沿用 kernel/Web host 并呈现作者自己的图形。候选产物安装与 CDN 方法见 [JavaScript 嵌入](../)。
+
+## 本站谱面
+
+```html
+<div id="chart" style="height:min(70vh,640px);width:100%"></div>
+<button id="play" disabled>播放</button>
+```
+
+```js
+import { mountChart } from "@haneoka/embed-cassiopeia";
+import { haneokaChartSource, haneokaChartTheme } from "@haneoka/embed-cassiopeia/haneoka";
+import "@haneoka/embed-cassiopeia/style.css";
+const chart = mountChart(document.querySelector("#chart"), {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(),
+  server: "intl",
+  locale: "en",
+  mode: "watch",
+  skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+  noteSoundEnabled: true,
+});
+try {
+  await chart.ready;
+  const play = document.querySelector("#play");
+  play.disabled = false;
+  play.onclick = () => chart.play().catch(console.error);
+} catch (error) {
+  await chart.dispose();
+  throw error;
+}
+// 卸载时 await chart.dispose()。
+```
+
+source 读取当前歌曲、选择响应的 difficulty file，并通过 Our Notes plugin 解析谱面，使用返回的 music URL。theme 读取当前源 descriptor 与运行素材。无需登录或 release ID，server 与语言独立。默认轻量 quality 为 2，保留宿主字体和 Material token。
+
+## 自带谱面与音频
+
+`ChartEmbedDocument` 包含 `chart`，可选 `audio`、`background`、`bgmOffsetMs` 和 `assets`。chart 使用公开 `ChartDocument` 字段：version、bpmChanges、signatureChanges、timeScaleChanges、notes、lines、timeline、durationMs。选择 document 或 source 其中一个。
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "musique/été.wav", bgmOffsetMs: 250 },
+  assetsBase: "https://my.example/project/",
+  theme: haneokaChartTheme(),
+  locale: "fr-CA",
+  labels: { player: "Partition", pause: "Pause", loading: "Chargement" },
+});
+await handle.ready;
+```
+
+`myChartDocument` 是调用方实际准备的标准谱面。音频为时钟：`seek(seconds)` 使用媒体/呈现秒数，谱面时间减去 bgmOffsetMs，正偏移产生前导。没有音频时为暂停视觉预览。
+
+HTTP 通过 `httpDataSource({url,decode})`，本地通过 `fileDataSource(jsonFile)` 与 `fileResourceResolver(Map)`。作者可使用单语言和 Unicode 素材名。原生 theme 自己还请求公开 API/素材；严格本地 Map 应让合法的公开绝对路径通过，或提供完整自带 theme。自带素材可用 `document.assets: OurNotesAssetManifest` 或 `theme({loader,signal,skin})` factory。
+
+## 自定义图形
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "audio.ogg" },
+  assetsBase: "https://my.example/project/",
+  rendererAdapter: {
+    async create({ element, chart, loader, signal }) {
+      const canvas = document.createElement("canvas");
+      element.append(canvas);
+      const context = canvas.getContext("2d");
+      const artwork = await loader.resourceUrl("notes.svg", { signal });
+      return {
+        render(snapshot, options) { drawMyChart(context, chart, snapshot, options, artwork); },
+        resize(width, height, ratio) { canvas.width = width * ratio; canvas.height = height * ratio; },
+        dispose() { canvas.remove(); },
+      };
+    },
+  },
+});
+```
+
+`drawMyChart` 由作者实现。adapter 路径加载 kernel/Web host；自己的 render、resize、dispose 负责图形与 SE。可选 `laneAtClientPoint(x,y)` 返回 0–23 连续原生 lane，外部为 -1，以接收 play-mode input。`createSession` 为另一个源游戏提供自己的规则；默认使用当前 Cassiopeia session。
+
+## 控制、事件和销毁
+
+```js
+await chart.setOptions({ rate: 0.8, volume: 0.6, noteSoundVolume: 0.4, settings: { noteSpeed: 9 } });
+await chart.setSkin({ noteSkin: "skin003", noteEffectSkin: "effect001Simple", noteSeGroup: 4 });
+chart.seek(12);
+await chart.play();
+chart.pause();
+await chart.dispose();
+```
+
+`play`、`setOptions`、`setSkin`、`dispose` 返回 Promise，pause/seek 同步。ready 表示视觉初始化，不表示媒体完整下载；在用户点击后调用 play 以解锁音频。默认 theme 更换皮肤时在当前媒体位置重新构建并暂停。skin001/002/003 为 Our Notes/Garupa/Honeycomb，effect001/effect001Simple 为效果版本，SE 组 1–4 为 Our Notes/Solid/Wood/Typing。
+
+`loadTimeoutMs` 默认 30000，只覆盖构造。cancel 和外部 signal 终止 handle；dispose 幂等，加载中也能调用，拆除 DOM、停音频并释放 loader URL。重试先销毁再挂载。snapshot 提供 phase、playing、time、duration。
+
+onEvent/subscribe 提供 load、state、player、error，load 保留 core 每个资源的进度，player 将既有播放器事件及参数转交宿主。subscribe 返回取消监听函数，监听错误与操作结果隔离。
+
+## 跨域与静态分发
+
+`assetsBase` 解析作者数据资源；theme 的 `apiBase`/`publicBase` 独立指定公开 API/原素材根。core 默认 cors/omit，可配置 fetcher、headers、credentials 与每项默认 64 MiB 预算。默认播放器的媒体/贴图/SE 使用既有原生加载器及 anonymous CORS，未经过注入 fetcher/private headers；私人素材可由宿主供应可访问 URL 或 Blob。
+
+把全部延迟 chunk 与模块一起发布，单独链接 style.css。本站图像消费在外站遇到 Referer 403 时，可让数据传输使用 `new Request(request,{referrerPolicy:"no-referrer"})`；原生贴图/音频请求仍由其加载器控制，需按部署的 origin/加载方式确认访问。CSP 应允许模块、素材、媒体以及使用的 blob URL。
+
+宿主沿用已有 Material 控件和加载状态，保持舞台尺寸及触控按钮。Cassiopeia 默认显示原图标与Haneoka链接，图标半透明悬浮，画面保持全尺寸，dispose自动清理；作者素材保持原许可。
+
+
+
+## 本页实际谱面应用
+
+默认八秒原创ChartDocument、轻音量WAV Blob和作者Canvas adapter，通过真实Cassiopeia session/MediaClock驱动。它展示作者集成，不冒充游戏皮肤。HTTP读取[实际谱面JSON](/examples/chart.json)，file用你选的File；本站模式改用真实song source/native theme。修改options后加载，再play/pause/seek/setOptions，默认theme支持setSkin。
+
+<DemoPlayer kind="chart" locale="zh-CN" />
+
+点击才import/create，同页另一个实例先dispose。input/publicSource/nativeTheme/url为示例字段，会转成真实factory；callback不能写JSON，实际adapter在源码链接中。五语显示另保留作者locale输入。
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js";
+const chart = mountChart(element, { source: haneokaChartSource({songId:"100070",difficulty:"expert"}), theme:haneokaChartTheme(), server:"intl",locale:"en",mode:"watch" });
+await chart.ready;
+await chart.play(); // 用户按钮
+await chart.dispose();
+```
+
+实际示例使用稳定官方alias。官方facade在mount注入原包CSS、最后dispose移除；包/bundler方式单独import style.css。r22没有nonce参数，后续nonce接口需取该版本真实receipt/interface。CDN文件为部署build输出，仓库保留源码。
+
+## mountChart 完整参数
+
+container必填浏览器HTMLElement且有效尺寸，非法TypeError、同容器重复Error。runtime严格source/document二选一，否则TypeError。默认composition还需theme或document.assets，自带renderer管理自己的图形。
+
+| 字段 | 类型/默认 | 作用/错误/组合 |
+| --- | --- | --- |
+| document | ChartEmbedDocument，替代source必填 | notes/lines array和finite durationMs，非法ready TypeError。 |
+| source | DataSource&lt;ChartEmbedDocument&gt;，替代document必填 | memory/http/file/custom，load失败拒绝ready。 |
+| server | string/undefined，本站intl | registry，与locale独立。 |
+| locale | string/en | 作者/UI语言。 |
+| assetsBase | 可选HTTP(S)目录/sourcebase | 无query/fragment，非法TypeError。 |
+| resolveResource | (key,DataContext)=&gt;URL/string/Blob/Promise | literal键，默认原key；缺资源失败。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt;，fetch | core/nativebytes；公开Haneoka assets/runtime/embed no-referrer，作者/API保留策略；音乐独立anonymous CORS。 |
+| credentials | omit/same-origin/include，omit | core传输，需要origin/credential允许。 |
+| headers | HeadersInit，无 | core头，音乐不继承私有header。 |
+| maxBytes | 正safe integer/67108864 | 每decodedresponse，非法RangeError；URL/媒体元素另计。 |
+| onListenerError | (unknown)=&gt;void，可选 | observer隔离。 |
+| theme | (ChartThemeContext)=&gt;manifest或Promise，可选 | 默认呈现，优先于document.assets；factory失败拒绝construct，setSkin需要。 |
+| skin | ChartSkin/\{\} | 下表四字段；作者renderer不消费native皮肤。 |
+| rendererAdapter | ChartRendererAdapter，可选 | 选kernel/Webhost作者呈现，自己拥有SE。 |
+| createSession | (chart,playbackOptions)=&gt;CassiopeiaSessionPort，可选 | 作者renderer替代规则，默认ChartSession；不传给默认Vue driver。 |
+| signal | AbortSignal，可选 | 终止handle，ready后也适用。 |
+| loadTimeoutMs | 正safe integer/30000 | 文档与每构造阶段期限，不是player生命周期；非法RangeError/超时TimeoutError。 |
+| labels | \{player?,pause?,loading?\} | 可选string，默认Chart player/Pause/Loading，仅默认Vue。 |
+| onEvent | (ChartEmbedEvent)=&gt;void，可选 | 加载前登记。 |
+| mode | chart/watch/play，watch | 预览/自动/手动input，变更沿driver reset/pause。 |
+| settings | Partial&lt;RenderSettings&gt;+judgementOffsetMs，\{\} | 下表完整；setOptions合并。 |
+| volume | number/.8 | 0–1，初始media超界拒绝，更新clamp，需finite。 |
+| rate | number/1 | 正数规范化 .25–4；非法/非正用fallback。 |
+| loop | boolean/false | 音乐loop。 |
+| noteSoundEnabled | boolean/true | 默认SE，作者renderer自管SE。 |
+| noteSoundVolume | number/.7 | 默认SE gain，使用finite0–1。 |
+
+core共同参数见[core](../core/)。无autoplay，ready后用户操作play；construct deadline按阶段，不表示ready已下载完整音乐。
+
+## skin、labels 和 factory 全部字段
+
+| skin | 取值/本站默认 | 含义 |
+| --- | --- | --- |
+| noteSkin | skin001/002/003，001 | Our Notes/Garupa/Honeycomb。 |
+| noteEffectSkin | effect001/effect001Simple，前者 | native效果。 |
+| noteSeGroup |1–4，1 | Our Notes/Solid/Wood/Typing。 |
+| currentQuality |0/1/2，2 | high/middle/low素材，与graphicsQuality独立。 |
+
+typed union由theme解析，坏/缺素材拒绝构造。labels.player/pause/loading全为可选string，不选择server或语言。
+
+haneokaChartSource(\{songId,difficulty,apiBase?\})的前两项必填，difficulty为easy/normal/hard/expert/special/master且该曲提供；apiBase默认https://haneoka.org/api/v1/。读取返回谱面file并parse/build，再用musicUrl；缺difficulty Error，data/budget/parser保留原因。server从mount。
+
+haneokaChartTheme(\{apiBase?,publicBase?,server?\}=\{\})：API默认上述root，publicBase默认其origin根，server override默认loader.server→intl；与作者assetsBase独立。真实descriptor缺失/歧义Error。ChartThemeContext完整为loader、signal、skin；可以按signal读loader bytes并返回manifest。
+
+## settings 全部字段
+
+以下是public OurNotes插件RenderSettings默认，mount本身只给partial\{\}；固定旧SDK仍保留其plugin版本。未被mount显式校验的项原样传递，使用finite和建议区间，不伪称SDK逐项验证。
+
+| 字段 | 类型/默认 | 呈现/规范化 |
+| --- | --- | --- |
+| noteSpeed | number/5 | scroll速度。 |
+| noteSpeedCurve | number/1.30999994 | offset curve常量。 |
+| mirror | boolean/false | 原24lane镜像。 |
+| effects | boolean/true | note效果。 |
+| noteSize | number/1 | .1–2 clamp。 |
+| longAlpha | number/.6 | .1–1。 |
+| guideAlpha | number/.6 | .1–1。 |
+| graphicsQuality | number/1 | 原0/1/2高/中/低。 |
+| guidelineCount | number/6 | lane分隔。 |
+| guidelineOpacity | number/.25 | 建议0–1 alpha。 |
+| laneOpacity | number/.8 | 建议0–1。 |
+| showJudgementLine | boolean/false | 判定线。 |
+| showSimultaneousLine | boolean/true | 同时线。 |
+| showEaseNote | boolean/false | ease/critical强调。 |
+| backgroundBrightness | number/.7 | 建议0–1。 |
+| judgeResultPosition | center/lane/none，center | 位置。 |
+| noteOverlapLaneBuffer | number/0 | 判定lane buffer。 |
+| showFastSlow | boolean/true | 时机提示。 |
+| showPerfectFastSlow | boolean/true | 包括Perfect。 |
+| showJudgeOffsetMs | boolean/false | ms显示。 |
+| alwaysShowFastSlow | boolean/false | 常驻偏好。 |
+| scoreRankScores | readonly number[]/无 | C/B/A/S/SS阈值。 |
+| judgementOffsetMs | number/0 | ms session offset，作者adapter用setOffset更新。 |
+
+## 完整document/renderer接口
+
+ChartEmbedDocument.chart必填；audio/background?:string默认无，资源key/URL；bgmOffsetMs?:number默认0，chartTime=mediaMs-offset；assets?:OurNotesAssetManifest在无theme时提供默认图形，rendererAdapter可省略；无audio为暂停预览。
+
+ChartDocument root必填字段：version、bpmChanges、signatureChanges、timeScaleChanges、notes、lines、timeline、durationMs。BPM行tick/beat/timeMs/bpm；signature行tick/beat/timeMs/numerator/denominator；scale行timeMs/scale；timeline skills行index/tick/timeMs，fever行index/startTick/endTick/startTimeMs/endTimeMs，callChanges行index/tick/timeMs/rhythms。line为id/kind:long或guide/critical/noteIds。
+
+note全部字段：id/tick/timeMs/beat/pos/size/laneX/width；operateType/judgementType/judgementAreaOffsetType/direction；critical/judged/visible；lineIds；slideAlong；indexInLine:number/null；easeL/easeR:enum/null。使用公共converter/enums，原创例子包含全部必填。
+
+native manifest root为id、source\{game,noteSkin,laneSkin,noteEffectSkin,authoredProfile\}、liveQuality\{quality,effectRenderingScale,backgroundCameraFps,live2dFps\}、noteAtlas、arrowGradient?、lane、particles、slideLineStyle、hud、tmpSdfFont?、noteSeGroup、noteSounds、palette、tiltThresholds[\{distance,value\}]。它是provider DTO；sprite/particle/audio详细descriptor见[完整公开schema](https://github.com/haneoka-gakuen/cassiopeia-plugin-our-notes/blob/main/src/assets/manifest.ts)，资源交给loader。
+
+rendererAdapter.create(\{element,chart,loader,signal\})同步/Promise返回render(snapshot,options)、resize(width,height,pixelRatio)、dispose()、可选laneAtClientPoint(clientX,clientY)。snapshot复用，只在当次消费；lane连续0–23或外部-1。作者adapter用真实MediaClock/input/session；createSession可以提供自己的publicsession规则，遵循reset/update/input/finish。
+
+## handle/events 全部成员
+
+| 成员 | 签名 | 生命周期/错误 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | 视觉准备，requiredSE失败拒绝，音频可还buffer。 |
+| snapshot | phase/playing/time/duration | phase为loading/ready/cancelled/error/disposed，秒。 |
+| play | ()=&gt;Promise&lt;void&gt; | 需ready，返回浏览器audio拒绝。 |
+| pause | ()=&gt;void | 需ready，state暂停。 |
+| seek | (seconds)=&gt;void | finite非负否则RangeError，已知durationclamp，需ready。 |
+| setOptions | ChartPlaybackOptions=&gt;Promise&lt;void&gt; | partialsettings合并，其它交driver。 |
+| setSkin | ChartSkin=&gt;Promise&lt;void&gt; | ready+默认theme factory，作者/no factory Error；当前位置重建并暂停。 |
+| subscribe | listener=&gt;unsubscribe | 未来事件，disposed Error。 |
+| cancel | ()=&gt;void | boot/ready都终止，停止player/input/资源。 |
+| dispose | 共用Promise&lt;void&gt; | 幂等，包括loading；移DOM/fullscreen监听，停media/renderer/revoke；失败AggregateError。 |
+
+events为load\{event\}、state\{snapshot\}、player\{name,args\}、error\{error\}。默认转发playing/media-playing/timeupdate/duration/judgement/skill/fever/callchange；timeupdate/duration为秒，judgement含note/judgement/timing/diffMs/judgedAtMs/combo/maxCombo/score/scoreDelta/life。observer异常由onListenerError隔离，source/transport/theme/decoder保留原Error，没有新的错误envelope。同容器重新mount前先dispose。
+
+当前源码的署名背景透明，图标透明度55%，48px角落触控区域悬浮在完整画面上。稳定alias随匹配构建部署采用该行为；固定r22保留旧的预留行布局，显式固定旧版时以该版行为为准。

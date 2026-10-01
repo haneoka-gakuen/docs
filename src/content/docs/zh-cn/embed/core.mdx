@@ -217,4 +217,4 @@ EmbedHttpError(status,url) 扩展Error，带name/message/status/url。URL/base/p
 
 ## branding子入口全部参数
 
-createHaneokaBranding(document,options=\{\}) 在官方core facade和包/branding入口可用。document必填DOM Document；corner?:top-left/top-right/bottom-left/bottom-right，默认top-left。返回HTMLAnchorElement，不自动append，不请求图像。宿主在有定位/预留48px角落的容器append并在清理时remove。固定https://haneoka.org/、_blank/noopener、原inlineSVG、48px触控与focus；可视embed自动管理，data-only core导入不碰DOM。
+createHaneokaBranding(document,options=\{\}) 在官方core facade和包/branding入口可用。document必填DOM Document；corner?:top-left/top-right/bottom-left/bottom-right，默认top-left。返回HTMLAnchorElement，不自动append，不请求图像。宿主在有定位的完整容器角落悬浮append，保留48px触控区域，清理时remove。固定https://haneoka.org/、_blank/noopener、原inlineSVG、48px触控与focus；可视embed自动管理，data-only core导入不碰DOM。

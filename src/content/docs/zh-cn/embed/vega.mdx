@@ -1,0 +1,261 @@
+---
+title: Vega 剧情嵌入
+description: 挂载单语或本站剧情，控制播放、跳转并正确释放资源。
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+
+
+`mountStory` 在你的容器内创建 Vega 播放器，复用 Three renderer、资源 resolver、portable 对白与 richtext。支持内存 `AdvStory`、HTTP、本地文件及本站剧情。候选包与 CDN 构建方法见 [嵌入入口](../)。
+
+## 从单语剧情开始
+
+```html
+<div id="story" style="height:60vh;min-height:320px"></div>
+<button id="play" disabled>播放</button>
+<button id="pause">暂停</button>
+<button id="next">下一句</button>
+```
+
+```js
+import { mountStory } from "@haneoka/embed-vega";
+import { ADV_COMMAND } from "@haneoka/vega/renderer-kit";
+const story = mountStory(document.querySelector("#story"), {
+  document: {
+    localization: { locales: ["fr"], defaultLocale: "fr" },
+    commands: [
+      { command: ADV_COMMAND.Stage, background: { url: "背景/庭園.png" } },
+      { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Bienvenue." },
+      { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Prenez votre temps." },
+    ],
+  },
+  locale: "fr",
+  assetsBase: "https://your.example/stories/garden/",
+  onEvent(event) { if (event.type === "error") console.error(event.error); },
+});
+try {
+  await story.ready;
+  const play = document.querySelector("#play");
+  play.disabled = false;
+  play.onclick = () => story.play();
+  document.querySelector("#pause").onclick = () => story.pause();
+  document.querySelector("#next").onclick = () => story.next();
+} catch (error) {
+  await story.dispose();
+  throw error;
+}
+// 组件离开时 await story.dispose()。
+```
+
+播放器在第一个命令处暂停。`AdvStory` 使用 Vega 公共指令和资源字段，作者语言集合可以只有一种语言；`runtime.fonts` 在 ready 前准备。按钮和播放进度由宿主组织，portable 对白保留既有鼠标、触摸和键盘交互。
+
+## HTTP 与本地素材
+
+```js
+import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
+const remote = mountStory(element, {
+  source: httpDataSource({ url: "https://your.example/stories/episode.json" }),
+  locale: "fr",
+});
+await remote.ready;
+
+const local = mountStory(otherElement, {
+  source: fileDataSource(jsonFile),
+  resolveResource: fileResourceResolver(new Map([
+    ["背景/庭園.png", backgroundFile],
+    ["fonts/author.woff2", fontFile],
+  ])),
+  locale: "fr",
+});
+await local.ready;
+```
+
+提供 `document` 或 `source` 其中一个。HTTP 相对素材以文档目录为基准，显式 `assetsBase` 可覆盖；本地 key 按字面匹配。宿主绝对化声明的媒体、模型、纹理、动画和字体 URL，保留对白和标签。模型 manifest 的 sidecar 仍由 provider 解析，本地 resolver 也需覆盖最终 sidecar key，或提供完整模型 descriptor。
+
+## 播放与跳转
+
+```js
+story.play();
+story.pause();
+const commandIndex = await story.seek(0.75);
+await story.seek(0.25);
+await story.seek(0);
+story.play();
+console.log(commandIndex, story.snapshot);
+```
+
+`seek(ratio)` 的范围是 0–1，映射到当前可达剧情路径的命令边界，包含选项路径。它保持播放/暂停意图，并返回实际恢复的 command index；比例表示剧情进度。高级控制可在 ready 阶段读取 `story.player`。
+
+`subscribe` 返回取消监听函数。load 事件包裹 core start/progress/ready/error/cancelled/disposed，state 含 phase、播放/暂停/完成/跳转、命令位置与 progress，seek 返回落点。状态约每 100 ms 合并发布，操作会立即更新。`onListenerError` 接收观察者错误。
+
+## 取消与释放
+
+挂载立即返回 handle。`ready` 等待 renderer、资源、字体和 seek index；随时保留 handle 以便清理。`cancel()` 终止加载中的构造，重试应先 `await story.dispose()` 再挂载。外部 signal 在 ready 后 abort 会销毁实例。销毁幂等，先关闭 player，再释放 loader 的 Blob URL 和 source cleanup；同一容器再次挂载前等待完成。
+
+## 原有主题与本站剧情
+
+默认 portable 界面包含对白和选项。需要完整 Haneoka theme/shell 时安装相应候选 peer 并接入插件：
+
+```js
+import { haneokaStoryPlugins } from "@haneoka/embed-vega/theme";
+const themed = mountStory(element, {
+  document: myStory,
+  assetsBase: "https://your.example/story/",
+  locale: "fr",
+  theme: "haneoka",
+  plugins: haneokaStoryPlugins,
+  shell: { initialScreen: "game", projectId: "my-story", settingsId: "my-settings" },
+});
+await themed.ready;
+```
+
+保留主题 `assets/` 的字体与 sprite 相对路径。模型和扩展命令通过 Vega 公共 plugin 契约添加。`renderer` 接收现有 Three renderer 参数。
+
+本站适配器读取一个 story、runtime 和声明的 Live2D metadata，接受 `apiBase` 覆盖。模型剧情需要单独供应有许可的 Cubism adapter/Core：
+
+```js
+import { haneokaStorySource, cubismStoryPlugin } from "@haneoka/embed-vega/haneoka";
+const publicStory = mountStory(element, {
+  source: haneokaStorySource({ id: "afterlive_10109" }),
+  server: "intl",
+  locale: "en",
+  plugins: [cubismStoryPlugin({
+    moduleUrl: "https://your.example/cubism-runtime/vega-cubism-web-runtime.mjs",
+    runtime: {
+      cubismCoreUrl: "https://your.example/Core/live2dcubismcore.js",
+      cubism2CoreUrl: "https://your.example/Core/live2d.min.js",
+      motionSyncCoreUrl: "https://your.example/Core/CRI/live2dcubismmotionsynccore.min.js",
+    },
+  })],
+});
+await publicStory.ready;
+```
+
+这些 runtime URL 由你的合法供应流程提供，adapter 与 Core 版本应匹配。根据故事实际内容追加 Haneoka 的模型/命令 provider。
+
+## 传输与署名
+
+文档和资源 bytes 使用 core fetcher：cors、omit、默认每项 64 MiB。`headers`、`credentials`、`resolveResource`、`maxBytes` 可配置，`resourceTimeoutMs` 默认每项 30 秒。模型动态模块/Core 使用自己的 script/module 加载路径；core headers 不配置那些请求。各素材 origin 应允许宿主 CORS。
+
+播放器保留 Haneoka 原图标与 https://haneoka.org/ 链接，默认半透明悬浮在画面角落，不占单独一行或缩小画面。可用 `brandingCorner: "top-right"` 改到右侧；署名保持可见，作者素材权利归作者。给容器足够高度并使用宿主 Material 加载控件、可触摸的播放按钮与可读对白区域。
+
+## 加载并实际修改参数
+
+下面只在点击加载后导入官方稳定播放器alias，默认四条原创指令与本站SVG。HTTP读取[实际剧情JSON](/examples/story.json)，file使用所选File；本站预设调用真实公开adapter，模型剧情需下方独立Cubism配置。options是mount参数，input/url/publicSource/cubism是示例组织输入的字段，会转成实际factory。
+
+<DemoPlayer kind="story" locale="zh-CN" />
+
+播放/暂停/下一句/seek直接调用handle；同页启用另一个player前销毁前一个。JSON编辑scalar/object参数，callback/plugin使用实际示例源码和下述完整签名。
+
+```js
+import { mountStory } from "https://haneoka.org/embed/r-22bfe102f7deb73f/vega.js";
+const story = mountStory(element, { document: myStory, locale: "fr", assetsBase: "https://author.example/story/" });
+await story.ready;
+story.play(); // 按钮点击触发
+await story.seek(.5);
+await story.dispose();
+```
+
+## mountStory 全部参数
+
+container必填浏览器HTMLElement，有ownerDocument/defaultView和有效尺寸；非法TypeError，同容器未销毁再次挂载Error。立即返回handle。TypeScript中document/source二选一；实际实现优先source，缺/坏commands会拒绝ready。
+
+| 字段 | 类型/默认 | 作用与错误 |
+| --- | --- | --- |
+| document | AdvStory，source替代必填 | 内存剧情，commands需array，非法ready TypeError；作者数据可单语。 |
+| source | DataSource&lt;AdvStory&gt;，document替代必填 | memory/http/file/custom源返回engine文档，source失败传递ready。 |
+| server | string，undefined；本站intl | 来源registry，与语言独立。 |
+| locale | string，en | 作者语言，启动后同时设置player语言与shell UI语言。 |
+| assetsBase | 可选绝对HTTP(S)目录，sourcebase | 不含query/fragment，非法TypeError。 |
+| resolveResource | (key,DataContext)=&gt;string/URL/Blob或Promise | 完整路径映射，已解析URL只过一次；错误拒绝资源/ready。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt;，fetch | 文档/资源bytes；script/module有独立加载路径。 |
+| credentials | omit/same-origin/include，omit | core传输，凭据跨域需允许origin/credentials。 |
+| headers | HeadersInit，无 | core请求头，不配置Core脚本/module。 |
+| maxBytes | 正safe integer，67108864 | 每文档/bytes预算，非法RangeError，不是GPU总预算。 |
+| onListenerError | (unknown)=&gt;void，可选 | observer异常隔离。 |
+| theme | portable/haneoka，portable | Haneoka需对应plugins，缺contribution拒绝ready。 |
+| brandingCorner | top-left/top-right，top-left | 半透明角落悬浮，画面全尺寸，无hide。 |
+| shell | false或VegaPlayerShellOptions | portable默认false，Haneoka默认initialScreen:game。 |
+| plugins | readonly VegaPlugin[]，[] | 加到已有richtext/portable/Three/resources后；setup/dependency失败拒绝ready。 |
+| renderer | ThreeRendererPluginOptions，\{\} | 下表完整字段。 |
+| resourceTimeoutMs | 正safe integer，30000 | 每资源总期限，非法RangeError，超时TimeoutError；不是整剧情期限。 |
+| signal | AbortSignal，可选 | boot取消，ready后abort销毁。 |
+| onEvent | (StoryEmbedEvent)=&gt;void，可选 | boot前登记，事件同subscribe。 |
+| resolveLocalizedText | (unknown)=&gt;\{text:string,lang?:string\}，Vega默认 | 自定义文本resolver，保留返回shape；作者错误传递相应操作。 |
+
+core继承参数的路径、预算、transport规则见[core](../core/)；mount没有autoplay/general loadTimeoutMs。整次期限用外部signal，音频从用户点击播放。
+
+## shell 完整嵌套字段
+
+| 字段 | 默认/类型 | 行为 |
+| --- | --- | --- |
+| storage | 可选VegaSaveStorage，memory | read(key)=&gt;Promise&lt;string/null&gt;、write(key,value)=&gt;Promise&lt;void&gt;、remove(key)=&gt;Promise&lt;void&gt;、list(prefix)=&gt;Promise&lt;readonly string[]&gt;；宿主保存，坏save在相应load拒绝。 |
+| projectId | 可选string | explicit trim→vegaProject.id→story.id→vega-story，save namespace。 |
+| settingsId | string，projectId | preferences独立key，已保存settings优先initialSettings。 |
+| initialSettings | Partial&lt;VegaNarrativeSettings&gt; | 下表默认；mount随后用外locale设置player/UI，初始语言用外层locale。 |
+| title | 可选string | explicit→本地化project/story title/name→projectId。 |
+| initialScreen | title/game | generic默认title，Haneoka隐式shell为game。 |
+| onExitRequest | ()=&gt;void/Promise&lt;void&gt; | 暂停回title后通知宿主退出，callback拒绝对应shell操作。 |
+
+| initialSettings | 类型/默认 | 范围/作用 |
+| --- | --- | --- |
+| textSpeed | number/1 | .1–5 clamp。 |
+| autoDelay | number/1.5 | 秒，0–30。 |
+| masterVolume | number/1 | 0–1。 |
+| bgmVolume | number/.8 | 0–1。 |
+| voiceVolume | number/1 | 0–1。 |
+| seVolume | number/.9 | 0–1。 |
+| language | string/auto | 内容语言，保存最多64字符。 |
+| uiLanguage | string/auto | UI语言，与server独立。 |
+| reducedMotion | boolean/false | 支持的UI减少动画。 |
+| highContrast | boolean/false | UI对比偏好。 |
+| instantText | boolean/false | 文本即时完成。 |
+| webText | boolean/false | Haneoka Reading UI浏览器文字模式，见版本条件。 |
+| textSize | number/1 | .5–2。 |
+| subtitlesEnabled | boolean/true | 可用字幕。 |
+| bgmEnabled | boolean/true | BGM开关。 |
+
+数字非finite用fallback，boolean规范化；set未知key RangeError。webText已进入engine1916c57/theme1d5b20e/shell436ade8源码，需匹配构建或含这些版本的后续CDN receipt；r22示例保持该固定版已有参数，不声称已带新开关。匹配版本可设置shell.initialSettings.webText，或ready后story.player.shell.setSetting("webText",true)。
+
+## renderer 完整嵌套字段
+
+| 字段 | 类型/默认 | 作用/组合 |
+| --- | --- | --- |
+| rendererId | vega-three-webgl2/haneoka-three-webgl2，前者 | provider route。 |
+| profile | vega/unity-adv，vega | scene profile。 |
+| staticPortraitFallback | boolean/true | 模型provider缺失时static portrait。 |
+| colorGradingMode | ldr/hdr，ldr | color pipeline。 |
+| contributionId | string/haneoka.renderer-three | 注册identity。 |
+| contributionName | string/Vega Three WebGL2 | 显示名。 |
+| backend | 两个rendererID，vega-three-webgl2 | embed选择vega backend，不匹配拒绝ready。 |
+| postTextureResolver | 可选ThreePostTextureResolver | 不与postTextureAssets同时提供，否则TypeError；plugin持有可选dispose。 |
+| postTextureAssets | 可选Readonly&lt;Record&lt;string,string&gt;&gt;或ReadonlyMap&lt;string,string&gt; | 授权素材stablekey到URL，单独提供时建resolver。 |
+
+自定义resolver完整字段：resolve(reference:unknown,usage)=&gt;Three.Texture/null必填；preload([\{reference,usage\}],signal?)=&gt;Promise&lt;void&gt;、dispose()可选。usage包括film-grain/color-lookup/lens-dirt，null沿pipelinefallback；Three实例应匹配，textures由provider回收。参数冲突同步TypeError，加载/provider/render失败经ready/events。
+
+## 所有 source/Cubism/theme factory
+
+haneokaStorySource(\{id,apiBase?\})的id必填；apiBase默认https://haneoka.org/api/v1/并遵core目录校验。读取story/story-runtime/声明的Live2D metadata，server/locale来自mount；缺数据/坏record拒绝load，无账号/release字段。
+
+cubismStoryPlugin(\{moduleUrl,runtime\})需合法供应的module绝对URL与runtime.cubismCoreUrl；runtime.cubism2CoreUrl/motionSyncCoreUrl可选。module需export createCubismWebRuntimeAdapter，缺export或renderer能力拒绝prepare。按模型需要lazy加载，Core不打入SDK；adapter/Core应版本匹配。
+
+haneokaStoryPlugins无参数，是theme/default-shell数组。createHaneokaThemeAssetsPlugin(provider)接受可选assets()、resolveChatImage(value,kind:icon/stamp)、resolveSourceAsset(path)。assets()的全部可选URL键为arrow/auto/chatWindow/chatBackground/chatBackgroundFallback/chatLock/chatTextBox/chatComposerPlus/chatComposerPhoto/chatComposerPicture/chatComposerSmile/chatComposerMicrophone/chatIcons/fast/frame/fullscreen/subtitles/skip；缺值沿theme默认。HANEOKA_POST_TEXTURE_ASSETS为固定授权renderer映射，可放renderer.postTextureAssets。
+
+## 文档、全部 handle 和 events
+
+AdvStory包含commands（mount要求）、可选runtime/localization及source扩展字段。localization有locales:string[]、defaultLocale:string、arrayOrder:string[]，作者定义语言；runtime为engine Partial&lt;AdvRuntimeConfig&gt;。command/resource字段由opcode/provider模型定义，示例使用公共Stage25/Talk2。
+
+| 成员 | 签名 | 行为/错误 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | renderer/resources/fonts/seekindex。 |
+| snapshot | readonly object | phase/playing/paused/finished/seeking/commandIndex/commandCount/progress；phase为loading/ready/cancelled/error/disposed。 |
+| player | VegaPlayerHandle/undefined | id/player/lifetime/root/slots/shell?/dispose，高级访问；由embed统一销毁。 |
+| play/pause/next | ()=&gt;void | 需ready否则Error；play异步错误经error事件，next请求下一句。 |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | finite0–1否则RangeError，实际commandIndex，保持play/pause。 |
+| subscribe | listener=&gt;unsubscribe | 未来事件，disposed后Error。 |
+| cancel | ()=&gt;void | 仅boot，ready后无动作；retry先dispose。 |
+| dispose | 共用Promise&lt;void&gt; | 幂等，先engine后loader/URLs，移DOM/监听并等待boot；清理失败AggregateError。 |
+
+事件完整为load\{event:EmbedEvent\}、state\{snapshot\}、seek\{commandIndex\}、error\{error\}。core字段按core表；state100ms+操作发布变更，observer异常隔离。取消保留signal.reason，source/resource/plugin保留其错误，没有额外第二套error code。
+
+当前源码的署名背景透明，图标透明度55%，48px角落触控区域悬浮在完整画面上。稳定alias随匹配构建部署采用该行为；固定r22保留旧的预留行布局，显式固定旧版时以该版行为为准。

@@ -1,0 +1,26 @@
+{
+  "localization": {
+    "locales": [
+      "en"
+    ],
+    "defaultLocale": "en"
+  },
+  "commands": [
+    {
+      "command": 25,
+      "background": {
+        "url": "garden.svg"
+      }
+    },
+    {
+      "command": 2,
+      "targetName": "Mira",
+      "text": "Welcome to this original garden."
+    },
+    {
+      "command": 2,
+      "targetName": "Mira",
+      "text": "Seek backwards or exit to release the player."
+    }
+  ]
+}

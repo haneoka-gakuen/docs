@@ -1,0 +1,38 @@
+---
+interface Props { kind: "story" | "chart"; locale?: "en" | "zh-CN" }
+const { kind, locale = "en" } = Astro.props;
+const zh = locale === "zh-CN";
+const languages = [["ja", "日本語"], ["en", "English"], ["zh-TW", "繁體中文"], ["zh-CN", "简体中文"], ["ko", "한국어"]];
+---
+<section class="docs-demo docs-demo--player" data-player-kind={kind} data-ui-locale={locale} aria-label={zh ? "播放器实际示例" : "Runnable player example"}>
+  <p>{zh ? "选择数据并修改参数，点击加载才创建播放器。当前页面同时只有一个活动播放器，切换前自动销毁前一个。" : "Choose data and edit parameters. A player is created only when you load; activating another example disposes the previous player first."}</p>
+  <div class="docs-demo__presets" role="group" aria-label={zh ? "数据输入" : "Data input"}>
+    <button type="button" data-player-preset="author">{zh ? "原创数据" : "Authored data"}</button>
+    <button type="button" data-player-preset="http">HTTP JSON</button>
+    <button type="button" data-player-preset="file">{zh ? "本地 JSON" : "Local JSON"}</button>
+    <button type="button" data-player-preset="haneoka">{zh ? "本站数据" : "Haneoka data"}</button>
+  </div>
+  <fieldset><legend>{zh ? "语言" : "Language"}</legend><div class="docs-demo__languages">
+    {languages.map(([value, label]) => <label><input type="radio" name={`player-${kind}-language`} value={value} data-player-language />{label}</label>)}
+  </div></fieldset>
+  <label>locale<input type="text" value="en" data-player-locale /></label>
+  <label>{zh ? "参数 JSON" : "Parameters JSON"}<textarea rows="12" spellcheck="false" data-player-config></textarea></label>
+  <label>{zh ? "本地 JSON 文件（file 用法）" : "Local JSON file (file input)"}<input type="file" accept=".json,application/json" data-player-file /></label>
+  <div class="docs-demo__actions"><button type="button" data-player-run>{zh ? "加载" : "Load"}</button><button type="button" data-player-cancel disabled>{zh ? "取消加载" : "Cancel loading"}</button><button type="button" data-player-dispose disabled>{zh ? "退出并销毁" : "Exit and dispose"}</button></div>
+  <div class="docs-demo__stage" data-player-stage aria-busy="false"></div>
+  <div class="docs-demo__actions"><button type="button" data-player-play disabled>{zh ? "播放" : "Play"}</button><button type="button" data-player-pause disabled>{zh ? "暂停" : "Pause"}</button>{kind === "story" && <button type="button" data-player-next disabled>{zh ? "下一句" : "Next"}</button>}</div>
+  <label>{kind === "story" ? (zh ? "剧情比例（0–1）" : "Story ratio (0–1)") : (zh ? "媒体秒数" : "Media seconds")}<input type="number" min="0" max={kind === "story" ? "1" : undefined} step={kind === "story" ? ".1" : "1"} value={kind === "story" ? ".5" : "2"} data-player-seek-value /></label>
+  <button type="button" data-player-seek disabled>{zh ? "跳转" : "Seek"}</button>
+  {kind === "chart" && <><label>{zh ? "setOptions 参数" : "setOptions parameters"}<textarea rows="4" data-player-options>{JSON.stringify({ rate: .8, volume: .3, settings: { noteSpeed: 5 } }, null, 2)}</textarea></label><button type="button" data-player-set-options disabled>{zh ? "更新设置" : "Apply options"}</button><label>{zh ? "setSkin 参数（本站 theme）" : "setSkin parameters (public theme)"}<textarea rows="3" data-player-skin>{JSON.stringify({ noteSkin: "skin003", noteEffectSkin: "effect001Simple", noteSeGroup: 4 }, null, 2)}</textarea></label><button type="button" data-player-set-skin disabled>{zh ? "更换皮肤" : "Change skin"}</button></>}
+  <p role="status" aria-live="polite" data-player-status>{zh ? "等待加载" : "Waiting to load"}</p>
+  <pre class="docs-demo__output" tabindex="0"><code data-player-output></code></pre>
+  <a href="/examples/player-demo.js" target="_blank" rel="noopener">{zh ? "查看实际示例代码" : "View the example source"}</a>
+</section>
+<script>
+  const bindingUrl = "/examples/player-demo.js";
+  for (const root of document.querySelectorAll<HTMLElement>("[data-player-kind]")) {
+    if (root.dataset.playerBound) continue;
+    root.dataset.playerBound = "true";
+    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => install(root));
+  }
+</script>

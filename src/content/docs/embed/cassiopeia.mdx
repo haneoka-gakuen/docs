@@ -1,0 +1,309 @@
+---
+title: Cassiopeia chart embed
+description: Mount a chart player with current or authored data, playback, skin and lifecycle controls.
+---
+
+import DemoPlayer from "../../../components/DemoPlayer.astro";
+
+
+Mount a Cassiopeia chart player inside an ordinary website. The default player uses the existing Vue player, Three renderer, Our Notes plugin and Web audio/input host. A custom renderer can use authored artwork with the kernel and Web host. Each mount owns its DOM, media, input, renderer and resource loader.
+
+
+## Browser modules and package imports
+
+The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/cassiopeia.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js`. The package imports below describe a bundled host application; npm publication remains separate.
+
+## Install and mount the default player
+
+Install the package and the peers used by the default composition. These packages are prepared together; use the corresponding local release tarballs while preparing a release.
+
+```sh
+npm install @haneoka/embed-cassiopeia @haneoka/embed-core @haneoka/api-client \
+  @haneoka/cassiopeia @haneoka/cassiopeia-host-web \
+  @haneoka/cassiopeia-plugin-our-notes @haneoka/cassiopeia-renderer-three \
+  @haneoka/cassiopeia-ui-vue vue three
+```
+
+A bundler such as Vite resolves these ESM imports. Give the player a stable, nonzero size and load the layout stylesheet. The player inherits the page's font and Material tokens; the example uses Fontsource and `@haneoka/design-tokens`.
+
+```html
+<div id="chart" style="height: min(70vh, 640px); width: 100%"></div>
+<button id="play" disabled>Play</button>
+```
+
+```js
+import { mountChart } from "@haneoka/embed-cassiopeia";
+import { haneokaChartSource, haneokaChartTheme } from "@haneoka/embed-cassiopeia/haneoka";
+import "@haneoka/embed-cassiopeia/style.css";
+
+const chart = mountChart(document.querySelector("#chart"), {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(),
+  server: "intl",
+  locale: "en",
+  mode: "watch",
+  skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+  noteSoundEnabled: true,
+});
+await chart.ready;
+const play = document.querySelector("#play");
+play.disabled = false;
+play.onclick = () => chart.play().catch(console.error);
+// chart.pause(); chart.seek(30); await chart.dispose();
+```
+
+The source reads the current public song entity, selects its returned difficulty file, parses that score through the Our Notes plugin and uses its returned music URL. The theme discovers current source descriptors and exact runtime outputs. No release identifier or login is required. `server` selects the resource server; `locale` is an independent author/UI language string. The default theme selects lightweight quality 2. Original visual and note-audio assets are fetched from the public resource origin.
+
+## Bring a chart and audio
+
+A standard `ChartDocument` contains `version`, `bpmChanges`, `signatureChanges`, `timeScaleChanges`, `notes`, `lines`, `timeline` and `durationMs`, as exported by `@haneoka/cassiopeia`. Supply exactly one `document` or `source`. An author document can use one language and arbitrary Unicode resource names.
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "musique/été.wav", bgmOffsetMs: 250 },
+  assetsBase: "https://my.example/project/",
+  theme: haneokaChartTheme(), // optional original presentation
+  locale: "fr-CA",
+  labels: { player: "Partition", pause: "Pause", loading: "Chargement" },
+});
+await handle.ready;
+```
+
+The audio element is the timing source. `seek(seconds)` uses media/presentation seconds; chart time is media time minus `bgmOffsetMs`. Positive offset creates pre-roll. No audio source means a paused visual preview: provide playable audio to advance the internal transport.
+
+Use an existing `OurNotesAssetManifest` as `document.assets` to supply your own compatible theme resources, or a `theme({loader, signal, skin})` factory. `createOurNotesAssetManifest` from the original plugin builds this manifest from its public media/resolver contract. URL fields, HUD image maps, sound strings/layers and animation clip maps are resolved by the mount; names and inline atlas metadata are preserved.
+
+For HTTP JSON and local files use the existing sources from `@haneoka/embed-core`:
+
+```js
+import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
+const source = httpDataSource({
+  url: "https://my.example/project/chart.json",
+  decode: (value) => value, // validate/convert your envelope here
+});
+const fromHttp = mountChart(element, { source, theme: haneokaChartTheme() });
+// source.assetsBase defaults to the JSON URL's directory.
+
+const local = mountChart(otherElement, {
+  source: fileDataSource(jsonFile),
+  resolveResource: fileResourceResolver(new Map([["musique/été.wav", audioFile]])),
+  theme: myLocalTheme,
+});
+```
+
+`fileResourceResolver` resolves literal keys; a default original theme also requests its public API/assets and needs a resolver that passes those absolute URLs through. Blob URLs created by the loader are revoked after the player is disposed. Consumers own URLs they create themselves.
+
+## Use an authored renderer
+
+Pass `rendererAdapter` to load the kernel and Web host without loading the default Vue/Three/Our Notes visual composition. The adapter returns `render`, `resize`, `dispose` and optionally `laneAtClientPoint`. Resolve artwork through `loader.resourceUrl` or `resourceBytes` using the provided `signal`. Release owned graphics in `dispose`.
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "audio.ogg" },
+  assetsBase: "https://my.example/project/",
+  rendererAdapter: {
+    async create({ element, chart, loader, signal }) {
+      const canvas = document.createElement("canvas");
+      element.append(canvas);
+      const context = canvas.getContext("2d");
+      const artwork = await loader.resourceUrl("notes.svg", { signal });
+      // Load your artwork with the same signal and render your own chart geometry.
+      return {
+        render(snapshot, options) {
+          drawMyChart(context, chart, snapshot, options, artwork);
+        },
+        resize(width, height, ratio) {
+          canvas.width = width * ratio;
+          canvas.height = height * ratio;
+        },
+        dispose() {
+          canvas.remove();
+        },
+      };
+    },
+  },
+});
+```
+
+The embed uses the existing `MediaClock`, `MusicTimeAnchor` and session update/reset methods. A renderer with `laneAtClientPoint(x,y)` can receive play-mode input through the existing host; return continuous native lanes 0..23, or -1 outside. Held judgement is advanced by the session, with real pointer movement forwarded once. `createSession(chart, options)` lets an authored renderer supply different kernel rules; choose that port for a source game whose rules differ. Without it the current Cassiopeia session rules apply. Custom renderers own their presentation and sound effects; `noteSoundEnabled`, `noteSoundVolume` and original skin selections belong to the default player.
+
+## Transport, changes and teardown
+
+`mountChart()` returns immediately. Await `handle.ready` for initial visual readiness. The initial audio cue preparation reports failures through events; the existing player retries failed cues when playback unlocks. Readiness does not imply a completed media download. Call `play()` from a user gesture after readiness to authorize audio. `pause()` and `seek()` are synchronous; `play()`, `setOptions()`, `setSkin()` and `dispose()` return promises.
+
+```js
+await handle.setOptions({ rate: 0.8, volume: 0.6, noteSoundVolume: 0.4, settings: { noteSpeed: 9 } });
+await handle.setSkin({ noteSkin: "skin003", noteEffectSkin: "effect001Simple", noteSeGroup: 4 });
+// Changing the default theme rebuilds the player paused at its current media time.
+handle.seek(12);
+await handle.play();
+await handle.dispose();
+```
+
+`setSkin` requires a default-player theme factory. Original skin IDs are `skin001` (Our Notes), `skin002` (Garupa), `skin003` (Honeycomb); effect IDs are `effect001` and `effect001Simple`. Note audio group IDs are 1–4 (Our Notes, Solid, Wood, Typing). The actual plugin's localized naming and audio loop metadata remain authoritative.
+
+`setOptions` passes mode, partial render settings, music volume/rate/loop and note audio enable/volume to the existing player. Mode changes use its existing reset behavior. Call `cancel()` to abort the mount and stop playback; this handle is terminal. Call `dispose()` to remove its DOM and release the loader. Disposal is idempotent and works during loading, including a factory that returns late. An external `signal` cancels the mount. `loadTimeoutMs` defaults to 30000 and applies to construction, not to the playable lifetime. Dispose before mounting again in the same container.
+
+`handle.snapshot` exposes phase, playing, time and duration. Subscribe at construction to observe load progress/errors and current state:
+
+```js
+const handle = mountChart(element, {
+  document: myDocument,
+  rendererAdapter: myRenderer,
+  onEvent(event) {
+    if (event.type === "load") showResourceProgress(event.event);
+    if (event.type === "state") updateTransport(event.snapshot);
+    if (event.type === "error") showError(event.error);
+    if (event.type === "player" && event.name === "judgement") showJudgement(event.args[0]);
+  },
+});
+// const unsubscribe = handle.subscribe(listener);
+```
+
+## Origins, credentials and browser ESM
+
+`assetsBase` is an absolute directory URL. Relative keys resolve under it; root-relative paths resolve on its origin; absolute URLs keep their origin. `resolveResource(key, context)` can asynchronously return a URL, string or Blob. The theme's `apiBase` selects its API root and `publicBase` selects the public asset origin; these are separate from authored document resources. Returned paths use latest public resources and may change as the server updates.
+
+`fetcher(request)`, `headers`, `credentials` (default `omit`) and `maxBytes` come from embed-core. They apply to document/resource reads made through the loader. The default player downloads media/textures/SE with its own existing loaders and anonymous CORS; those requests do not use the injected fetcher or its private headers. Supply public CORS URLs or Blob resources for private media. An `include` credential policy only affects loader requests, whose server must explicitly allow credentials and the embedding origin. CSP must permit the script/module, asset and media origins plus owned `blob:` URLs where used.
+
+Bundlers emit lazy chunks for the default player and its dependencies. For a plain `<script type="module">`, host the emitted ESM files and chunks together, or provide an import map for every bare dependency and exported subpath. Pin a compatible version of Vue/Three and all Cassiopeia packages in that map. Keep `style.css` linked separately. Importing the package itself does not create DOM, fetch data or initialize Three.
+
+A small-screen page should reserve height, use touch-sized transport controls outside the stage, and reflect loading/error state with the page's existing Material components. Renderer performance and media formats depend on the browser/device; validate the final consumer on the devices it targets.
+
+## Haneoka attribution
+
+The host displays the original Haneoka icon with a transparent background and55% SVG opacity, floating at the top-left of the full-size player. It follows the player through fullscreen/theme changes and is removed on dispose. Authored content keeps its own license.
+
+## A real chart application on this page
+
+Load an original eight-second chart first. Its renderer is an authored Canvas adapter driven by Cassiopeia's actual session and MediaClock, with a generated quiet WAV Blob; it demonstrates integration, not the game's visual skin. HTTP loads [this chart JSON](/examples/chart.json), and Local JSON loads your selected File. Select Haneoka data to use the actual song source and native theme. Edit `options` before loading, then use Play/Pause/Seek/setOptions; setSkin is available for the default theme.
+
+<DemoPlayer kind="chart" />
+
+Only a click imports the SDK/creates the player. Another active example is disposed first. `input`, `publicSource`, `nativeTheme` and `url` are application fields that create the actual source/theme/renderer callbacks. JSON cannot encode a function; the executable adapter is in the linked example source. Five language controls retain an additional author-locale field.
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js";
+const chart = mountChart(element, {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(), server: "intl", locale: "en", mode: "watch",
+});
+await chart.ready;
+await chart.play(); // call from a user's button
+await chart.dispose();
+```
+
+The live example uses the stable official alias. The hosted facade supplies the package stylesheet on mount and releases it after the last instance is disposed. Package/bundler consumers import style.css separately. r22 has no nonce option; a later nonce API must be taken from that release's actual receipt/interface. Generated CDN files are deployment build outputs, with the source maintained in the package repositories.
+
+## Every mountChart option
+
+Required positional `container` is a browser HTMLElement with ownerDocument/defaultView and stable nonzero size. Nonbrowser TypeError, repeated mount before disposal Error. Exactly one source/document is required at runtime (TypeError for both/neither). Default composition also requires theme or document.assets; authoredRenderer provides its own artwork.
+
+| Field | Type/default | Role, combinations and errors |
+| --- | --- | --- |
+| document | ChartEmbedDocument; required alternative | In-memory envelope below. notes/lines must be arrays and durationMs finite, otherwise ready TypeError. |
+| source | DataSource&lt;ChartEmbedDocument&gt;; required alternative | memory/http/file/custom source. Load/decode errors reject ready. |
+| server | optional string;undefined, Haneoka intl | Registry independent from locale. |
+| locale | optional string;en | Authored/UI language; any author locale. |
+| assetsBase | optional absolute HTTP(S) directory;source base | Resource directory override; no query/fragment, TypeError for invalid base. |
+| resolveResource | optional (key,DataContext)→string/URL/Blob/Promise | Literal author keys, URL/Blob mapping; default key. Missing paths reject. |
+| fetcher | optional (Request)→Promise&lt;Response&gt;;fetch | Core data/native-resource bytes. Public Haneoka assets/runtime/embed requests use no-referrer; original author/API requests retain policy. Music uses native anonymous CORS. |
+| credentials | omit/same-origin/include;omit | Loader transport, service origin/credential permission required. |
+| headers | HeadersInit;none | Core headers; music requests do not inherit private headers. |
+| maxBytes | positive safe integer;67108864 | Per decoded response budget, invalid RangeError; URL-only/audio-element download not a loader read. |
+| onListenerError | optional (unknown)→void | Observer-error sink, isolated. |
+| theme | optional (ChartThemeContext)→OurNotesAssetManifest/Promise | Default visual/audio factory; wins over document.assets. Errors reject construct; needed for setSkin. |
+| skin | optional ChartSkin;\{\} | Four optional fields below. Authored renderer does not consume native skin. |
+| rendererAdapter | optional ChartRendererAdapter | Selects kernel/Web host with authored presentation instead of Vue/Three native visual composition. It owns artwork/SE. |
+| createSession | optional (chart,playbackOptions)→CassiopeiaSessionPort | Custom rules for authored renderer. Otherwise ChartSession; this field is not forwarded to the default Vue driver. |
+| signal | optional AbortSignal | Aborts/terminates the handle, including after ready. |
+| loadTimeoutMs | positive safe integer;30000 | Applies to document loading and each construction stage; not the player's usable lifetime. Illegal value RangeError, deadline TimeoutError. |
+| labels | optional \{player?,pause?,loading?\} | string labels, defaults Chart player/Pause/Loading; default Vue composition only. |
+| onEvent | optional (ChartEmbedEvent)→void | Registered before loading. |
+| mode | chart/watch/play;watch | Session mode: chart preview/watch auto/play input. Changing mode follows driver reset/pause semantics. |
+| settings | optional Partial&lt;RenderSettings&gt; plus judgementOffsetMs;\{\} | Full settings below. setOptions merges settings rather than replacing unspecified fields. |
+| volume | number;.8 | Music volume0–1. Initial native media rejects out-of-range values; updates clamp. Use finite values. |
+| rate | number;1 | Positive playback rate normalized to .25–4; invalid/nonpositive falls back. |
+| loop | boolean;false | Music loop. |
+| noteSoundEnabled | boolean;true | Default player's note SE; authored renderer owns its own sound behavior. |
+| noteSoundVolume | number;.7 | Default note SE gain; use finite0–1. |
+
+Common resource/callback details are in [core](../core/). No autoplay field: await readiness and call play from a user gesture. The construction timeout covers its stages rather than promising that ready includes a fully downloaded song.
+
+### Complete skin, labels and factory options
+
+| skin key | Allowed/default in Haneoka theme | Meaning |
+| --- | --- | --- |
+| noteSkin | skin001/skin002/skin003;skin001 | Our Notes/Garupa/Honeycomb. |
+| noteEffectSkin | effect001/effect001Simple;effect001 | Native effect selection. |
+| noteSeGroup |1/2/3/4;1 | Our Notes/Solid/Wood/Typing. |
+| currentQuality |0/1/2;2 | High/Middle/Low asset profile; independent from graphicsQuality setting. |
+
+Skin fields are typed unions, resolved by the selected theme. Invalid/missing underlying assets reject construction rather than creating a invented fallback skin. labels.player/labels.pause/labels.loading are all optional strings; none changes data locale.
+
+`haneokaChartSource({songId,difficulty,apiBase?})`: songId and difficulty required; difficulty is easy/normal/hard/expert/special/master and must exist in the song DTO. apiBase defaults https://haneoka.org/api/v1/. Source validates song structure, reads its returned score file, parses/builds the standard chart, and uses returned musicUrl. Missing difficulty rejects Error; data/budget/parser errors retain their cause. `server` belongs to mount context.
+
+`haneokaChartTheme({apiBase?,publicBase?,server?}={})`: API directory defaults https://haneoka.org/api/v1/; publicBase defaults that origin root; server override defaults loader.server then intl. URL fields are resolved separately from author's assetsBase. It discovers actual source/output descriptors; missing/ambiguous required outputs reject Error.
+
+`ChartThemeContext` has exactly loader:EmbedLoader&lt;ChartEmbedDocument&gt;, signal:AbortSignal, skin:ChartSkin. A custom theme can call loader.resourceBytes with that signal and return the public manifest. No extra context cache or renderer is injected.
+
+## All playback.settings fields
+
+Defaults below are the public Our Notes plugin's RenderSettings defaults; the mount itself passes an empty partial object. A pinned older SDK retains its own plugin revision. Fields not explicitly validated by the mount are forwarded; use finite values and the documented render range, not a claim of per-field SDK validation.
+
+| Key | Type/default | Rendering/normalization |
+| --- | --- | --- |
+| noteSpeed | number/5 | Scroll speed; authored/native visual interpretation. |
+| noteSpeedCurve | number/1.30999994 | Note-display offset curve constant. |
+| mirror | boolean/false | Mirror original24-lane coordinates. |
+| effects | boolean/true | Note effects. |
+| noteSize | number/1 | Clamped .1–2 in frame builder. |
+| longAlpha | number/.6 | Long-line opacity, clamped .1–1. |
+| guideAlpha | number/.6 | Guide opacity, clamped .1–1. |
+| graphicsQuality | number/1 | Quality preference; native0/1/2 high/middle/low. |
+| guidelineCount | number/6 | Lane subdivision display. |
+| guidelineOpacity | number/.25 | Guideline alpha, use0–1. |
+| laneOpacity | number/.8 | Lane alpha, use0–1. |
+| showJudgementLine | boolean/false | Judgement line. |
+| showSimultaneousLine | boolean/true | Simultaneous-note connector. |
+| showEaseNote | boolean/false | Ease/critical mark emphasis. |
+| backgroundBrightness | number/.7 | Background brightness, use0–1. |
+| judgeResultPosition | center/lane/none;center | Judgement display placement. |
+| noteOverlapLaneBuffer | number/0 | Judgement-lane overlap buffer. |
+| showFastSlow | boolean/true | Timing label. |
+| showPerfectFastSlow | boolean/true | Include perfect timing label. |
+| showJudgeOffsetMs | boolean/false | Millisecond offset text. |
+| alwaysShowFastSlow | boolean/false | Persistent timing label preference. |
+| scoreRankScores | optional readonly number[];none | Source C/B/A/S/SS score thresholds. |
+| judgementOffsetMs | number/0 | Session timing offset in milliseconds; authored adapter updates it through setOffset. |
+
+## Complete document envelope and renderer adapter
+
+`ChartEmbedDocument.chart` is required. `audio?:string`/`background?:string` are resource keys or URLs, default absent. `bgmOffsetMs?:number` defaults0; chart time equals media milliseconds minus offset. `assets?:OurNotesAssetManifest` supplies default artwork when theme is absent; rendererAdapter can omit it. No audio leaves a paused visual preview.
+
+Standard chart root fields, all required: version:number; bpmChanges:BpmChange[]; signatureChanges:ChartSignatureChange[]; timeScaleChanges:\{timeMs,scale\}[]; notes:ChartNote[]; lines:ChartLine[]; timeline:\{skills,fever,callChanges\}; durationMs:number. BPM rows contain tick/beat/timeMs/bpm; signatures tick/beat/timeMs/numerator/denominator. Skill rows index/tick/timeMs; fever rows index/startTick/endTick/startTimeMs/endTimeMs; callChanges index/tick/timeMs/rhythms:number[]. Lines contain id,kind:long|guide,critical:boolean,noteIds:number[].
+
+Each note has id,tick,timeMs,beat,pos,size,laneX,width; operateType,judgementType,judgementAreaOffsetType,direction; critical,judged,visible:boolean; lineIds:number[]; slideAlong:boolean; indexInLine:number|null; easeL/easeR:ease-enum|null. Use the public converter/enums rather than guessing source-game note flags. The original authored example includes every required field.
+
+The native asset manifest has id; source\{game,noteSkin,laneSkin,noteEffectSkin,authoredProfile\}; liveQuality\{quality,effectRenderingScale,backgroundCameraFps,live2dFps\}; noteAtlas; optional arrowGradient; lane; particles; slideLineStyle; hud; optional tmpSdfFont; noteSeGroup; noteSounds; palette; tiltThresholds[\{distance,value\}]. These are provider DTOs, not a second list of mount options. Use the [published manifest schema](https://github.com/haneoka-gakuen/cassiopeia-plugin-our-notes/blob/main/src/assets/manifest.ts) for sprite/particle/audio descriptors and supply their declared resources through the loader.
+
+`rendererAdapter.create({element,chart,loader,signal})` returns `{render,resize,dispose,laneAtClientPoint?}` synchronously or by Promise. render(snapshot,options) consumes the reused SessionSnapshot during that call; do not hold it as an immutable future state. resize(width,height,pixelRatio) updates your graphics; dispose() releases them. laneAtClientPoint(clientX,clientY) maps to continuous0–23 lanes, or-1 outside. The authored adapter uses MediaClock/input/ChartSession rather than an invented timer. createSession(chart,options) can return an alternate public session port; observe its reset/update/input/finish contract.
+
+## All handle methods, state and events
+
+| Member | Signature/result | Constraints and lifecycle |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | Initial visual readiness; required SE failure can reject, media may still buffer. |
+| snapshot | readonly \{phase,playing,time,duration\} | phase:loading/ready/cancelled/error/disposed; media seconds. |
+| play | ()=&gt;Promise&lt;void&gt; | Requires ready; browser audio rejection is returned. |
+| pause | ()=&gt;void | Requires ready, emits paused state. |
+| seek | (seconds:number)=&gt;void | Finite nonnegative, otherwise RangeError; clamps to known duration, requires ready. |
+| setOptions | (ChartPlaybackOptions)=&gt;Promise&lt;void&gt; | Requires ready, merges partial settings. Volume/rate/loop/mode/SE are forwarded to the chosen driver. |
+| setSkin | (ChartSkin)=&gt;Promise&lt;void&gt; | Requires ready/default theme factory; authored renderer or no factory Error. Rebuilds at media position, paused. |
+| subscribe | listener=&gt;unsubscribe | Future events, disposed Error. |
+| cancel | ()=&gt;void | Terminal loading or ready handle; stops player/input/resource calls. |
+| dispose | shared Promise&lt;void&gt; | Idempotent, including loading; removes DOM/fullscreen hook, stops media/renderer, revokes owned URLs; cleanup failures AggregateError. |
+
+Events: load\{event:EmbedEvent\}, state\{snapshot\}, player\{name,args:readonly unknown[]\}, error\{error\}. Forwarded default names are playing,media-playing,timeupdate,duration,judgement,skill,fever,callchange; typed payloads are defined by the underlying player. timeupdate/duration use seconds, judgement includes note/judgement/timing/diffMs/judgedAtMs/combo/maxCombo/score/scoreDelta/life. Observer failures use onListenerError. Source/transport/theme/decoder failures keep their Error objects; the embed adds no new error-code envelope. Destroy before remounting the same container.
+
+Current source uses a transparent attribution background,55% icon opacity and a48px corner touch target over the full viewport. Stable aliases adopt this behavior when the matching build is deployed. The immutable r22 player retains its earlier reserved-row layout; use its documented version semantics when explicitly pinning it.

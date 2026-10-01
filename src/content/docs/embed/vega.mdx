@@ -1,0 +1,353 @@
+---
+title: Vega story embed
+description: Mount a Vega story, select its resources, control playback and release the player.
+---
+
+import DemoPlayer from "../../../components/DemoPlayer.astro";
+
+
+`@haneoka/embed-vega` mounts a Vega story inside an element you own. It uses the Three renderer, Vega's existing resource resolver, and the portable dialogue UI. Your page controls loading and playback through a small handle. You can supply an in-memory document, HTTP JSON, local files, or a current Haneoka story.
+
+
+## Browser modules and package imports
+
+The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/vega.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/vega.js`. The package imports below describe a bundled host application; npm publication remains separate.
+
+## Install and mount
+
+Install the embed and its rendering peers in your application:
+
+```sh
+npm install @haneoka/embed-vega @haneoka/embed-core @haneoka/vega @haneoka/vega-renderer-three @haneoka/vega-ui-portable @haneoka/vega-plugin-richtext three howler
+```
+
+Use a browser bundler that supports ESM, such as Vite. Give the container an explicit height; it can be placed in an article, dialog, or full-screen view. The player starts paused at the first command.
+
+```html
+<div id="story" style="width:100%;height:60vh;min-height:240px"></div>
+<button id="play">Play</button>
+<button id="pause">Pause</button>
+<button id="next">Next</button>
+```
+
+```js
+import { mountStory } from "@haneoka/embed-vega";
+import { ADV_COMMAND } from "@haneoka/vega/renderer-kit";
+
+const document = {
+  localization: { locales: ["en"], defaultLocale: "en" },
+  commands: [
+    { command: ADV_COMMAND.Stage, background: { url: "garden.png" } },
+    { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Welcome to the garden." },
+    { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Take your time." },
+  ],
+};
+const story = mountStory(window.document.querySelector("#story"), {
+  document,
+  locale: "en",
+  assetsBase: "https://your.example/stories/garden/",
+  onEvent(event) {
+    if (event.type === "error") console.error(event.error);
+    if (event.type === "load") console.log(event.event);
+  },
+});
+await story.ready;
+window.document.querySelector("#play").onclick = () => story.play();
+window.document.querySelector("#pause").onclick = () => story.pause();
+window.document.querySelector("#next").onclick = () => story.next();
+```
+
+The document is Vega's public `AdvStory`, with authored opcodes and resolved resource entries. A story can use one language or any author-defined locale set. Text and IDs retain their authored values. `locale` selects the player's text language independently of the asset server. `runtime.fonts` retains Vega's font declarations and prepares them before `ready`.
+
+For a script-based page, bundle this entry once and load the resulting ESM asset:
+
+```html
+<script type="module">
+  import { mountStory } from "/scripts/vega-embed.js";
+  const story = mountStory(document.querySelector("#story"), {
+    document: window.myStory,
+    assetsBase: "https://your.example/story-assets/",
+    locale: "en",
+  });
+  await story.ready;
+  document.querySelector("#play").onclick = () => story.play();
+</script>
+```
+
+`vega-embed.js` is the output of your bundler with `export { mountStory } from '@haneoka/embed-vega'` as its entry. Serve it with JavaScript MIME type. Bundle the required peer packages; browser-native bare package imports need an import map and browser-compatible distribution files.
+
+## HTTP documents and local resources
+
+```js
+import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
+
+const remote = mountStory(element, {
+  source: httpDataSource({ url: "https://your.example/stories/episode.json" }),
+  locale: "en",
+});
+await remote.ready;
+```
+
+Relative resource paths resolve against the HTTP document's directory. A root-relative path resolves against that origin, and an absolute URL keeps its origin. An explicit `assetsBase` overrides the document's directory. It must be an absolute HTTP(S) directory URL. The host resolves declared media, model, texture, animation and font fields before creating the renderer; source labels and dialogue strings remain intact. Provider manifests continue to resolve their own relative sidecar paths through the existing provider.
+
+To load local files, provide a JSON `File` and a map of literal project paths to `Blob` or `File` values:
+
+```js
+const local = mountStory(element, {
+  source: fileDataSource(jsonFile),
+  resolveResource: fileResourceResolver(
+    new Map([
+      ["背景/庭園.png", backgroundFile],
+      ["fonts/author.woff2", fontFile],
+    ]),
+  ),
+  locale: "en",
+});
+await local.ready;
+```
+
+Paths are matched literally, including Unicode. The data loader owns these Blob URLs. The Vega resolver owns encoded resource caching, renderable URLs and leases; model providers and Three own decoded and GPU resources. When using model manifests with local sidecars, resolve the manifest's resulting absolute sidecar URLs in your resolver too, or supply a provider's complete resource descriptor.
+
+## Transport, events and cancellation
+
+The same embed-core transport reads the document and Vega resource bytes. Requests use CORS mode and omit credentials by default. Configure `fetcher`, `headers`, `credentials`, `resolveResource`, or `maxBytes` when your host needs them. `maxBytes` defaults to 64 MiB per document/resource response. Resource adapter calls have a 30-second total deadline, adjustable through `resourceTimeoutMs`. Vega retains its existing cache and lease behavior.
+
+The asset and JSON origins must permit your site's origin with CORS response headers. Credentialed cross-origin requests need an explicit allowed origin and credential permission. Font files, model files, textures and audio all need accessible URLs. Dynamic Cubism modules and Core scripts use their native module/script loading paths; transport headers do not configure those script requests.
+
+`onEvent` is active from the first load. `subscribe` adds a listener and returns an unsubscribe function:
+
+```js
+const unsubscribe = story.subscribe((event) => {
+  if (event.type === "load") {
+    // start / progress / ready / error / cancelled / disposed
+    // Each data/resource operation has its own operation number and key.
+    console.log(event.event);
+  }
+  if (event.type === "state") updateControls(event.snapshot);
+  if (event.type === "seek") console.log("Restored command", event.commandIndex);
+});
+```
+
+Load events describe data and resource transport. The handle's `ready` additionally waits for Vega's renderer, resources, fonts and seek index. State events carry loading/ready/error/cancelled/disposed phase, play/pause/finish/seek flags, command position and reachable-path progress. They are coalesced at 100 ms, with immediate publication for controls. A failing listener is isolated; `onListenerError` can record it.
+
+```js
+const controller = new AbortController();
+const story = mountStory(element, { source, signal: controller.signal });
+// A Cancel loading button can call either:
+story.cancel();
+// controller.abort();
+try {
+  await story.ready;
+} catch (error) {
+  showLoadingError(error);
+}
+await story.dispose();
+```
+
+`cancel()` retires a loading player. Dispose it before retrying with a new handle. Aborting the supplied signal after `ready` disposes the mounted player. `dispose()` is idempotent and releases the player before the data source's URLs and cleanup. Await it before recreating the player in the same element; other children of your container remain in place.
+
+## Playback and seeking
+
+Call `play()` from a click or tap after `ready`; this gives browser audio a user gesture. `pause()` pauses the interpreter and current video, and `next()` advances readable dialogue. The portable dialogue surface also accepts its existing pointer and keyboard interaction. A completed story can be rewound with `seek(0)` and played again.
+
+```js
+story.play();
+story.pause();
+await story.seek(0.75); // forward on the current reachable story path
+await story.seek(0.25); // backward, preserving the paused state
+await story.seek(0);
+story.play();
+await story.dispose();
+const replacement = mountStory(element, { document: nextDocument, assetsBase, locale: "en" });
+await replacement.ready;
+```
+
+The ratio maps to Vega's prepared command boundaries, including its active choice path. It represents story progress rather than elapsed video seconds. The returned number is the restored command boundary. Use `story.snapshot` for the current transport state and `story.player` for advanced Vega APIs while the handle is ready.
+
+## Existing theme, shell and model providers
+
+The default portable player includes dialogue and choices. Your page provides transport buttons and a progress control. The existing Haneoka theme and shell can be selected when you want the full theme UI:
+
+```sh
+npm install @haneoka/vega-theme-haneoka @haneoka/vega-shell-default
+```
+
+```js
+import { haneokaStoryPlugins } from "@haneoka/embed-vega/theme";
+
+const story = mountStory(element, {
+  document,
+  assetsBase,
+  locale: "en",
+  theme: "haneoka",
+  plugins: haneokaStoryPlugins,
+  shell: { initialScreen: "game", projectId: "my-story", settingsId: "my-story-settings" },
+});
+```
+
+For custom models, append their provider plugins to `haneokaStoryPlugins`. Serve the theme's `assets/` files beside its built module as expected by that package's relative asset URLs. Retain its font and sprite files, or configure your bundler to preserve/copy the selected package assets. `renderer` accepts the existing Three plugin options, including an authorized post-texture provider. `plugins` installs existing Vega character and command providers. These keep their public lifecycle contracts.
+
+## Current Haneoka stories
+
+The optional adapter resolves one story, its runtime and its declared Live2D metadata. It uses the public API's current data and returned resource paths. Install the adapter peers and supply a separately provisioned Cubism runtime:
+
+```sh
+npm install @haneoka/api-client @haneoka/vega-plugin-haneoka @haneoka/vega-plugin-cubism
+```
+
+```js
+import { haneokaStorySource, cubismStoryPlugin } from "@haneoka/embed-vega/haneoka";
+
+const story = mountStory(element, {
+  source: haneokaStorySource({ id: "afterlive_10109" }),
+  server: "intl",
+  locale: "en",
+  plugins: [
+    cubismStoryPlugin({
+      moduleUrl: "https://your.example/cubism-runtime/vega-cubism-web-runtime.mjs",
+      runtime: {
+        cubismCoreUrl: "https://your.example/Core/live2dcubismcore.js",
+        cubism2CoreUrl: "https://your.example/Core/live2d.min.js",
+        motionSyncCoreUrl: "https://your.example/Core/CRI/live2dcubismmotionsynccore.min.js",
+      },
+    }),
+  ],
+});
+await story.ready;
+```
+
+The runtime module and Core files are provisioned under their respective licenses. Keep versioned module/Core URLs together so browser caching retains a compatible adapter. An API returning mutable asset paths follows that API's current snapshot behavior. You can also pass `apiBase` to `haneokaStorySource` to use your own compatible API origin.
+
+## Haneoka attribution
+
+Every mounted player displays the Haneoka icon linking to https://haneoka.org/ in a new tab. This identifies the playback engine, including for your own documents; your story and assets retain their own authorship and licenses. The icon floats translucently in the scene corner without reserving a row or shrinking the viewport. Set `brandingCorner: "top-right"` to move it to the other top corner. The attribution is always enabled.
+
+Other embed hosts can reuse `createHaneokaBranding(document, { corner })` from `@haneoka/embed-core/branding`. It returns an anchor for the host to append and remove. Its import leaves the DOM untouched; the icon is inline and makes no asset request.
+
+## Layout and distribution
+
+Use a container that preserves its space while loading. Place accessible, clearly labelled controls outside its interactive stage, with touch targets of at least 48 pixels and a layout that wraps at narrow widths. Your host controls the loading indicator, error presentation and UI language. Reuse your component library and design tokens for these controls; the embed adds no page navigation.
+
+The package ships ESM and TypeScript declarations. Its main entry uses the portable renderer peers; the Haneoka adapter and theme are optional. Import the main entry on the server if needed, and call `mountStory` in the browser after the container exists. Run `npm run build` before packing a local checkout. Source documents and your assets stay under their own licenses; this host module is MPL-2.0.
+
+## Load a player and change its parameters
+
+The application below loads the official stable player alias only after **Load**. Its default is an original four-command story using this site's small SVG background. HTTP reads [the actual story document](/examples/story.json); Local JSON uses your selected File. The Haneoka preset uses the real public source adapter; model stories require the separately configured Cubism runtime shown below. Edit `options` for mount arguments. `input`, `url`, `publicSource` and `cubism` are this application's source-selection fields, translated into the actual factories.
+
+<DemoPlayer kind="story" />
+
+Play, pause, next and seek call the returned handle directly. Another active player on the same page is disposed before this example mounts. The stage keeps its space during loading. JSON controls cover scalar/object parameters; callbacks/plugins are executable integrations, with their complete signatures below and their code in the example source.
+
+```js
+import { mountStory } from "https://haneoka.org/embed/r-22bfe102f7deb73f/vega.js";
+const story = mountStory(element, { document: myStory, locale: "fr", assetsBase: "https://author.example/story/" });
+await story.ready;
+// A real button click:
+story.play();
+await story.seek(.5);
+await story.dispose();
+```
+
+## Every mountStory option
+
+Required positional `container` is a browser HTMLElement with an ownerDocument/defaultView and nonzero layout dimensions. A nonbrowser container throws TypeError; mounting a second story in the same container before disposal throws Error. It returns the handle synchronously. In TypeScript choose exactly one `document` or `source`; the implementation prefers a supplied source, while missing/invalid commands reject ready.
+
+| Option | Type; required/default | Effect, constraints and failures |
+| --- | --- | --- |
+| document | AdvStory; required alternative to source | In-memory engine document. commands must be an array; malformed document rejects ready with TypeError. Objects are authored input, not a required five-language catalog. |
+| source | DataSource&lt;AdvStory&gt;; required alternative to document | `load(context)` returns the engine document; memory/http/file/custom factories are supported. Source failures reject ready. |
+| server | optional string; undefined, public adapter intl | Asset registry passed to source, independent from locale. |
+| locale | optional string; en | Author/playback language; startup also sets the player's locale and shell UI language. |
+| assetsBase | optional absolute HTTP(S) directory; source base | No query/fragment; overrides source resource origin. Invalid base TypeError. |
+| resolveResource | optional (key,DataContext)→string/URL/Blob or Promise; key unchanged | Maps declared media/model/font paths; already-resolved URLs pass through once. Resolver errors reject ready/resource use. |
+| fetcher | optional (Request)→Promise&lt;Response&gt;; fetch | Data and resource bytes use core transport. Modules/Core script loaders have their separate loading path. |
+| credentials | omit/same-origin/include; omit | Loader requests; service must allow credentials/origin when applicable. |
+| headers | optional HeadersInit; none | Core transport headers, not script/module request headers. |
+| maxBytes | positive safe integer;67108864 | Per document/resource decoded bytes; illegal value RangeError. Not a combined GPU/cache budget. |
+| onListenerError | optional (unknown)→void | Observer-error sink, isolated from playback results. |
+| theme | portable/haneoka; portable | Haneoka requires its theme/shell plugins. Missing contributions reject ready. |
+| brandingCorner | top-left/top-right; top-left | Always-visible translucent corner attribution over the full-size scene; no hide option. |
+| shell | false or VegaPlayerShellOptions | Portable defaults false; Haneoka defaults `{initialScreen:"game"}`. Full fields below. |
+| plugins | readonly VegaPlugin[];[] | Appended providers/commands after richtext, portable UI, Three and resource adapter. Real plugin setup/manifest/contributions are required; setup/dependency failures reject ready. |
+| renderer | ThreeRendererPluginOptions;\{\} | Full renderer and post-texture settings below. |
+| resourceTimeoutMs | positive safe integer;30000 | Total deadline for each adapter resource read. Illegal value RangeError; elapsed resource request rejects with TimeoutError. It is not a whole-story deadline. |
+| signal | optional AbortSignal | Cancels boot; abort after ready disposes this player. The per-resource timeout remains separate. |
+| onEvent | optional (StoryEmbedEvent)→void | Attached before boot; same event shapes as subscribe. |
+| resolveLocalizedText | optional (value:unknown)→\{text:string,lang?:string\} | Custom text resolution; default Vega localization. Must produce the resolver shape; own exceptions can fail the active operation. |
+
+The nine common loader options use the detailed [core transport/resource contract](../core/). There is no mount autoplay or general loadTimeoutMs option. Use an external signal/deadline for whole loading; start playback from a user gesture.
+
+## Nested shell options and settings
+
+| shell field | Type/default | Meaning |
+| --- | --- | --- |
+| storage | optional VegaSaveStorage; memory | `read(key)→Promise<string\|null>`, `write(key,value)→Promise<void>`, `remove(key)→Promise<void>`, `list(prefix)→Promise<readonly string[]>`. Caller backend owns persistence; malformed saves fail the relevant save/load operation. |
+| projectId | optional string | Trimmed explicit ID, then story.vegaProject.id/story.id, then vega-story. Save namespace identity. |
+| settingsId | optional string; projectId | Separate preferences namespace; persisted settings take precedence over initialSettings. |
+| initialSettings | optional Partial&lt;VegaNarrativeSettings&gt;; table defaults | Applied during shell creation. Mount then applies outer locale to player/UI; use outer locale for startup language. |
+| title | optional string | Trimmed explicit title, then localized project/story title/name, then projectId. |
+| initialScreen | title/game | Generic shell defaults title; Haneoka embed's implicit shell starts game. |
+| onExitRequest | optional ()=&gt;void/Promise&lt;void&gt; | Receives shell Exit after it pauses/returns to title. Host chooses navigation/close; callback failure rejects that shell operation. |
+
+| initialSettings key | Type/default | Range and behavior |
+| --- | --- | --- |
+| textSpeed | number/1 | Clamped .1–5. |
+| autoDelay | number/1.5 | Seconds, clamped0–30. |
+| masterVolume | number/1 | Clamped0–1. |
+| bgmVolume | number/.8 | Clamped0–1. |
+| voiceVolume | number/1 | Clamped0–1. |
+| seVolume | number/.9 | Clamped0–1. |
+| language | string/auto | Narrative language or auto; stored string up to64 characters. |
+| uiLanguage | string/auto | UI language, separate from server. |
+| reducedMotion | boolean/false | Reduce supported UI motion. |
+| highContrast | boolean/false | Supported UI contrast preference. |
+| instantText | boolean/false | Complete readable text immediately. |
+| webText | boolean/false | Browser text mode for Haneoka Reading UI; version note below. |
+| textSize | number/1 | Clamped .5–2. |
+| subtitlesEnabled | boolean/true | Display available subtitles. |
+| bgmEnabled | boolean/true | BGM enabled preference. |
+
+Nonfinite numeric settings use their fallback; boolean settings are normalized. Unknown shell setting keys throw RangeError when set. `webText` is present in the published source revisions engine1916c57/theme1d5b20e/shell436ade8; use a matching build or a later CDN receipt containing those revisions. The r22 demo keeps its supported defaults rather than claiming this new flag is in that frozen player. On a matching shell, set `shell.initialSettings.webText` at construction or `story.player.shell.setSetting("webText", true)` after ready.
+
+## Nested renderer options
+
+| Field | Type/default | Meaning and combinations |
+| --- | --- | --- |
+| rendererId | vega-three-webgl2/haneoka-three-webgl2; vega-three-webgl2 | Scene provider route; normally leave the embed's backend intact. |
+| profile | vega/unity-adv;vega | Provider scene profile. |
+| staticPortraitFallback | boolean/true | Permit static portrait fallback when a model provider is missing. |
+| colorGradingMode | ldr/hdr;ldr | Post color pipeline. |
+| contributionId | string/haneoka.renderer-three | Installed renderer contribution identity. |
+| contributionName | string/Vega Three WebGL2 | Human-readable contribution name. |
+| backend | vega-three-webgl2/haneoka-three-webgl2;vega-three-webgl2 | Contribution route. Embed selects vega-three-webgl2; incompatible registration rejects player creation. |
+| postTextureResolver | optional ThreePostTextureResolver | Cannot combine with postTextureAssets (TypeError). resolver owns supplied textures and optional dispose is tied to plugin lifetime. |
+| postTextureAssets | optional Readonly&lt;Record&lt;string,string&gt;&gt; or ReadonlyMap&lt;string,string&gt; | Authorized URLs keyed by stable renderer texture key. Builds a resolver if supplied alone. |
+
+Custom `postTextureResolver` has required `resolve(reference:unknown,usage)→Three.Texture|null`, optional `preload(requests,signal?)→Promise<void>`, optional `dispose()`. Each request is `{reference,usage}`; usages include film-grain, color-lookup and lens-dirt. A null result allows the existing pipeline fallback. Return textures compatible with the selected Three instance; the provider owns their cleanup. Parameter conflicts throw synchronously during plugin creation; load/render/provider errors arrive through ready/events.
+
+## Source, Cubism and theme factories
+
+`haneokaStorySource({id,apiBase?})` requires a public story ID. apiBase defaults https://haneoka.org/api/v1/ and follows core directory validation. It loads the selected story, story-runtime and only declared Live2D metadata, with server/locale from the mount. A missing story/model or malformed catalog record rejects load; no release/account argument is needed.
+
+`cubismStoryPlugin({moduleUrl,runtime})` requires a separately licensed absolute module URL and `runtime.cubismCoreUrl`. `runtime.cubism2CoreUrl?` and `runtime.motionSyncCoreUrl?` are optional version-specific script URLs. The module must export createCubismWebRuntimeAdapter; a missing export/provider capability rejects model preparation. This plugin lazily loads the adapter when a model needs it, preserves the provider lifecycle, and does not bundle Core. Keep compatible adapter/Core versions together.
+
+`haneokaStoryPlugins` has no options: it is the theme+default-shell plugin list. `createHaneokaThemeAssetsPlugin(provider)` accepts optional `assets()`, `resolveChatImage(value,kind:icon|stamp)`, and `resolveSourceAsset(path)` callbacks. assets returns optional URL fields arrow,auto,chatWindow,chatBackground,chatBackgroundFallback,chatLock,chatTextBox,chatComposerPlus,chatComposerPhoto,chatComposerPicture,chatComposerSmile,chatComposerMicrophone,chatIcons,fast,frame,fullscreen,subtitles,skip. Missing overrides use existing theme assets. HANEOKA_POST_TEXTURE_ASSETS is the fixed authorized renderer asset map; supply it as renderer.postTextureAssets when needed.
+
+## Document shape and complete handle/events
+
+AdvStory has commands (required by this mount), optional runtime and localization, plus source-defined fields. localization contains optional locales:string[], defaultLocale:string, arrayOrder:string[]; these are author-defined, not a fixed five-language requirement. Runtime is Vega's Partial&lt;AdvRuntimeConfig&gt;, retained through the engine. Individual command opcodes/resource structures follow the selected command/provider schema; the example uses Stage25 and Talk2 from the public protocol.
+
+| Handle member | Signature | Behavior/errors |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | Renderer/resources/fonts/seek-index boot. Rejection remains available even when onEvent observes error. |
+| snapshot | readonly object | phase,playing,paused,finished,seeking,commandIndex,commandCount,progress. phase:loading/ready/cancelled/error/disposed. |
+| player | VegaPlayerHandle or undefined | Advanced ready engine handle: id,player,lifetime,root,slots,shell?,dispose(). Let the embed own disposal. |
+| play / pause / next | ()=&gt;void | Require ready (otherwise Error). Play resumes; async interpreter failure becomes error event. Next requests readable advancement. |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | Finite0–1, otherwise RangeError. Returns actual command index; preserves play/pause intent. |
+| subscribe | (listener)=&gt;unsubscribe | Future events; subscribing after disposed throws Error. |
+| cancel | ()=&gt;void | Only loading boot; after ready it is a no-op. Dispose before retry. |
+| dispose | ()=&gt;Promise&lt;void&gt; | Shared/idempotent Promise; release engine before loader/URLs, remove host DOM/listeners, await boot cleanup. Cleanup failures AggregateError. |
+
+Events are `{type:"load",event:EmbedEvent}`, `{type:"state",snapshot}`, `{type:"seek",commandIndex}`, `{type:"error",error}`. Load event fields follow core; state publishes changed snapshots at100ms and on controls. Listener exceptions are isolated. A disposal completes with phase disposed; its state/load events can be observed by construction listeners. Resource/source/plugin failures keep their actual errors; cancellation rejects signal.reason. This embed does not add a second error-code taxonomy.
+
+Current source uses a transparent attribution background,55% icon opacity and a48px corner touch target over the full viewport. Stable aliases adopt this behavior when the matching build is deployed. The immutable r22 player retains its earlier reserved-row layout; use its documented version semantics when explicitly pinning it.

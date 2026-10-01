@@ -326,3 +326,5 @@ mobile-starlight-toc .toggle {
 .docs-demo button[data-demo-run] { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border-color: transparent; }
 .docs-demo button:disabled { opacity: .5; cursor: default; }
 .docs-demo__output { min-height: 8rem; max-height: 28rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--md-sys-spacing-3); background: var(--md-sys-color-surface); }
+.docs-demo__stage { height: clamp(22rem, 60vh, 38rem); min-width: 0; position: relative; overflow: hidden; background: var(--md-sys-color-surface-container); border-radius: var(--md-sys-shape-corner-medium); }
+.docs-demo--player input[type="number"] { width: 100%; box-sizing: border-box; min-height: var(--md-comp-control-height-touch); font: inherit; padding: var(--md-sys-spacing-2); background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small); }

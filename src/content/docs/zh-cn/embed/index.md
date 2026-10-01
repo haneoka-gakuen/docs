@@ -118,6 +118,6 @@ export default defineConfig({
 
 HTTP 文档和资源默认 `mode: cors`、`credentials: omit`。数据与素材服务器应允许宿主来源。HTTP JSON 的相对路径基于文档目录；内存、本地文档需要 `assetsBase` 或 resolver。图片、音频和模型 provider 的原生加载器有各自的传输要求，见对应组件页。
 
-Vega 与 Home Spot 默认显示 Haneoka 原图标与 [haneoka.org](https://haneoka.org/) 链接。Cassiopeia 候选宿主的内置署名接线待合入；当前使用组件页的共用 helper 为宿主添加署名。署名位于宿主层，作者保留自己的剧情和素材权利；Home Spot 署名在 canvas 与 PNG 内容之外。数据 core 本身没有 UI，自定义可视宿主可以通过 `/branding` 子入口创建并管理署名 anchor。
+Vega、Cassiopeia 与 Home Spot 默认显示 Haneoka 原图标与 [haneoka.org](https://haneoka.org/) 链接。当前宿主使用半透明角落悬浮，不占单独一行或缩小画面。署名位于宿主层，作者保留自己的剧情和素材权利；Home Spot 署名在 canvas 与 PNG 内容之外。数据 core 本身没有 UI，自定义可视宿主可以通过 `/branding` 子入口创建并管理署名 anchor。
 
 接着阅读 [数据源](./core/)、[Vega](./vega/)、[Cassiopeia](./cassiopeia/) 和 [Home Spot](./home-spot/)。
