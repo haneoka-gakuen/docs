@@ -65,7 +65,7 @@ ApiClientError 保存 method/url/status/code/requestId/details/retryable。取�
 
 <DemoData kind="api" locale="zh-CN" />
 
-示例动态导入随文档站正常构建的公开客户端源码快照，生成的 SDK 文件只作为构建输出。官方 core/可视 ESM 已在 https://haneoka.org/embed/ 托管；第六个 API client 入口随下一版本发布，固定它时使用实际发布 receipt 的模块映射。包源码导入独立可用，npm 状态以实际包发布为准。
+示例在点击运行后动态导入已上线的 `https://haneoka.org/embed/api-client.js`，直接使用官方客户端。当前已验证发布版为 `r-5d91763f60cdf19b`，六入口与 manifest 均返回200，入口字节SHA已核对；SDK由已提交pinned源码在部署时构建。npm仍是独立发布步骤。
 
 ## 全部构造参数
 
@@ -178,3 +178,15 @@ ApiClientError 扩展 Error，公开 name/message/继承 cause/code/details/meth
 自定义传输可构造：code/message/method/url 必填，cause/details/requestId 可选，retryable 默认false，status 默认0。此客户端没有 subscribe/events/dispose，结果通过 Promise/Response 提供，AbortController 与响应流归调用方。
 
 包的 ./browser 源码入口合并 createApiClient、ApiClientError 和 createHaneokaClient，没有额外参数或浏览器副作用；官方托管 facade 的出口以实际 release manifest 为准。
+
+## 当前官方浏览器模块
+
+稳定地址为 `https://haneoka.org/embed/{name}.js`；固定当前版为 `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`。name依次可用api-client、core、vega、cassiopeia、home-spot、vega-theme。api-client导出createApiClient/ApiClientError/createHaneokaClient；core为共享数据/资源，四个可视/主题入口按对应页使用。以后读取manifest.modules，基于https://haneoka.org/embed/解析相对地址。旧r22兼容路径保留。
+
+```js
+import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
+const api = createHaneokaClient();
+console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
+```
+
+此发布来自[已完成CI](https://github.com/haneoka-gakuen/haneoka/actions/runs/36927057401)，源码26b1709，2026-10-02完成六个immutable入口hash验证。页面已移除临时客户端源码副本。

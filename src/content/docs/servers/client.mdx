@@ -81,7 +81,7 @@ Choose an operation, edit the JSON, and press **Load and run**. Each preset call
 
 <DemoData kind="api" />
 
-The example dynamically imports a pinned source snapshot of the public client, compiled with this documentation site. Generated SDK files are build outputs rather than checked-in source. The official core and visual ESM modules are already hosted at `https://haneoka.org/embed/`; the sixth API client CDN entry belongs to the next release. Use the official receipt's module map when pinning that entry. Source/package imports shown below remain valid independently of the CDN facade. npm availability follows the actual package release.
+The example dynamically imports the published `https://haneoka.org/embed/api-client.js` only when you run it. The verified current release is `r-5d91763f60cdf19b`: all six entries and the manifest returned200, and immutable entry bytes/SHA were checked. SDK files are deployment outputs from committed pinned source. npm publication remains a separate distribution step.
 
 ## Constructor options
 
@@ -198,3 +198,15 @@ console.log(general.url("songs", { id: ["100001", "100070"] }));
 The class can be constructed with `{code,message,method,url}` required, plus `cause?`, `details?`, `requestId?`, `retryable?` (false) and `status?` (0), for a custom transport's structured failure. Methods have no subscribe/events/dispose interface: results arrive through Promise/Response, and the caller owns AbortControllers and response streams.
 
 The package `./browser` source entry combines createApiClient, ApiClientError and createHaneokaClient; it adds no separate options or browser-only side effects. Hosted facade exports are selected by the release manifest.
+
+## Current official browser modules
+
+Stable modules use `https://haneoka.org/embed/{name}.js`; pin this verified release with `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`. Available names are api-client,core,vega,cassiopeia,home-spot and vega-theme. The API entry exports createApiClient,ApiClientError and createHaneokaClient. Core handles shared data/resources; visual/theme entries follow their respective guides. For future releases, resolve manifest.modules relative to https://haneoka.org/embed/. Legacy r22 URLs remain preserved.
+
+```js
+import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
+const api = createHaneokaClient();
+console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
+```
+
+This release comes from the [successful source CI](https://github.com/haneoka-gakuen/haneoka/actions/runs/36927057401), commit26b1709, with six immutable-entry hashes verified on2026-10-02. The temporary documentation client source copies have been removed.

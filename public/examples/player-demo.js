@@ -1,14 +1,6 @@
+import { activate, release } from "./demo-lifecycle.js";
 const epoch = "https://haneoka.org/embed/";
 const exampleBase = new URL("./", import.meta.url).href;
-let active;
-let switchQueue = Promise.resolve();
-const activate = (next) => {
-  switchQueue = switchQueue.catch(() => {}).then(async () => {
-    if (active?.root !== next.root) await active?.exit();
-    active = next;
-  });
-  return switchQueue;
-};
 const ownStory = () => ({ localization: { locales: ["en"], defaultLocale: "en" }, commands: [
   { command: 25, background: { url: "garden.svg" } },
   { command: 2, targetName: "Mira", text: "Welcome to this original garden." },
@@ -57,7 +49,7 @@ export function install(root) {
     generation += 1; controller?.abort(); const current = handle; handle = undefined;
     controls(false); field("cancel").disabled = true; field("dispose").disabled = true; field("run").disabled = false;
     await current?.dispose(); stage.setAttribute("aria-busy", "false"); status.textContent = text("Disposed", "已销毁");
-    if (active?.root === root) active = undefined;
+    release(root);
   };
   const preset = input => {
     const options = { locale: field("locale").value || "en" };

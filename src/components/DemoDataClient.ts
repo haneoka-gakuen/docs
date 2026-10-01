@@ -4,6 +4,9 @@ export function installDataDemos() {
     if (root.dataset.demoBound) continue;
     root.dataset.demoBound = "true";
     const bindingUrl = "/examples/data-demo.js";
-    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => install(root, { loadClient: () => import("./DemoApiClient") }));
+    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => install(root, { loadClient: () => {
+      const moduleUrl = "https://haneoka.org/embed/api-client.js";
+      return import(/* @vite-ignore */ moduleUrl);
+    } }));
   }
 }
