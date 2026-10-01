@@ -1,0 +1,180 @@
+---
+title: 类型化 JavaScript API 客户端
+description: 用 Haneoka ESM 客户端读取当前实体、分页、批量与关联资料。
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+
+
+`@haneoka/api-client/haneoka` 提供 createHaneokaClient，主入口 createApiClient 保留通用 HTTP 能力。使用包含 `./haneoka` 子入口的匹配版本。支持浏览器/Node Fetch，也接受宿主 `transport(Request)`。
+
+```ts
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+import { ApiClientError } from "@haneoka/api-client";
+const api = createHaneokaClient({ baseUrl: "https://haneoka.org/api/v1/" });
+const controller = new AbortController();
+try {
+  const servers = await api.servers({ signal: controller.signal });
+  const song = await api.entity("songs", "100070", {
+    server: "intl", locale: "en", signal: controller.signal,
+  });
+  console.log(servers, song);
+} catch (error) {
+  if (error instanceof ApiClientError) console.error(error.code, error.status, error.requestId, error.retryable);
+  else throw error;
+}
+// 请求期间取消：controller.abort()。
+```
+
+baseUrl 是 /api/v1/ 根。server 默认 intl，可从 servers() 的 id 读取；locale 为 ja/en/zh-TW/zh-CN/ko。返回 catalog 仍保留所有语言，自带文档的其他作者语言交给 [embed-core](../../embed/core/)。
+
+## 分页、批量与 DTO
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await api.page("songs", { server: "intl", limit: 20, ...(cursor ? { cursor } : {}) });
+  for (const entry of page.items) console.log(entry.id, entry.value);
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+const batch = await api.batch("songs", ["100001", "100070"], { server: "intl" });
+console.log(batch.items, batch.missing);
+```
+
+page 默认 limit50，验证 ID、页大小、cursor 与 snapshot identity；短页/空页仍可能继续。batch 接受 1–100 个输入 ID 并返回 items/missing。两者可用 manifest 声明的 view 参数。
+
+index 读取完整索引，entity 读取一项，relation(resource,relation,key,scope) 读取关系；relation 不接受 view。都支持 signal 和 decode(value:unknown)，默认返回 JSON 类型，decode 校验并给出业务 DTO 类型。校验失败使用 invalid_payload。
+
+release 只使用服务返回的 immutable ID；客户端自动切到 /servers/\{server\}/...，普通 alias 不支持 release。chartImageUrl 只构造当前图片 URL，不下载二进制：
+
+```ts
+const url = api.chartImageUrl("100070", "expert", {
+  server: "intl", locale: "en", format: "svg", height: 720, download: false,
+});
+```
+
+## 错误与传输
+
+ApiClientError 保存 method/url/status/code/requestId/details/retryable。取消为 request_aborted 且不可重试，HTML/坏 JSON 错误页仍保留 HTTP status；成功响应的格式错误为 invalid_content_type、invalid_json 或 invalid_payload。客户端不自动重试。
+
+构造时可提供 headers 或 transport，只向预期 origin 发送身份凭据。公开资料无需 session。图片 bytes 或 [排行接口](../records/) 的独立 error shape 可用通用客户端 response() 或原生 fetch。
+
+## 在此运行客户端
+
+选择用法、修改 JSON，再点击**加载并运行**。每个预设调用对应的真实客户端方法；分页会将 nextCursor 写回编辑器供下一次点击。client 是构造参数，scope 是资料读取参数，request 是通用 HTTP 参数；validateMusicId:true 启用示例里的实体校验 callback。读取演示接受 GET/HEAD，记录 URL/status，不记录 header 值。
+
+<DemoData kind="api" locale="zh-CN" />
+
+示例动态导入随文档站正常构建的公开客户端源码快照，生成的 SDK 文件只作为构建输出。官方 core/可视 ESM 已在 https://haneoka.org/embed/ 托管；第六个 API client 入口随下一版本发布，固定它时使用实际发布 receipt 的模块映射。包源码导入独立可用，npm 状态以实际包发布为准。
+
+## 全部构造参数
+
+createHaneokaClient(options=\{\}) 提供资料方法，createApiClient(options) 提供通用 HTTP。
+
+| 字段 | 类型/必填 | 默认值 | 作用、限制与错误 |
+| --- | --- | --- | --- |
+| baseUrl | string；通用必填，Haneoka 可选 | Haneoka 为 https://haneoka.org/api/v1/ | API 目录，通用客户端 trim 并补末尾斜线，空值 TypeError；URL/Request 构造时拒绝非法地址。浏览器/SSR 使用绝对 HTTP(S) 地址。 |
+| headers | 可选 HeadersInit：Headers、record、pairs | 不附加 | 共用头，逐次请求头按大小写不敏感覆盖；非法值由 Headers 拒绝。资料 scope 没有逐次 headers 字段。 |
+| transport | 可选 (Request)=&gt;Promise&lt;Response&gt; | fetch | 接收完整 Request 和 signal，返回真实 Response。拒绝包装为 network_error/request_aborted；主动抛 ApiClientError 保留原错误。可以配置宿主传输、截止时间和凭据。 |
+
+Haneoka 请求默认 omit/cors/no-referrer，覆盖 registry 和资料读取。通用客户端保持 Request 默认行为，callback 可创建新 Request。构造参数没有 timeout/retry/maxBytes/cache/dispose；这些策略由 signal/transport 和调用方负责。
+
+```ts
+import { createApiClient } from "@haneoka/api-client";
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+const api = createHaneokaClient({
+  baseUrl: "https://haneoka.org/api/v1/",
+  headers: { Accept: "application/json" },
+  transport(request) { console.log(request.method, request.url); return fetch(request); },
+});
+const general = createApiClient({ baseUrl: "https://haneoka.org/api/v1/" });
+```
+
+## 资料位置参数与全部 scope
+
+下面覆盖 HaneokaScope/HaneokaReadOptions；servers 只接受 signal，图片 URL 使用单独参数表。
+
+| 参数 | 类型/默认 | 约束、作用与失败 |
+| --- | --- | --- |
+| resource | 必填 string 位置参数 | manifest 名称，1–64 位小写字母/数字/连字符，首尾字母数字。保留组 game/search/account/admin/announcements/auth/catalog/community/garupa/me/release/releases/servers/sources/ui-marks 拒绝。非法语法/保留组 TypeError，不存在404。 |
+| id、relation key、image songId | 对应方法必填 string | 1–256 位，首位字母数字，其余还可 . _ : ~ -；客户端编码为一段，不能含 /。非法 TypeError，缺项按端点404。 |
+| server | 可选 string；intl | 活动 slug，1–40 位小写字母数字/连字符、首尾字母数字。语法 TypeError，不活动404，与 locale 独立。 |
+| locale | 可选 ja/en/zh-TW/zh-CN/ko；省略 | 加 locale query，保留 catalog 多语字段；非法 TypeError。省略时端点协商语言，自带 embed 文档可使用其他语言。 |
+| release | 可选 string；当前版本 | 返回的 r- 加20位小写十六进制；切至 /servers/\{server\}/…，语法 TypeError，不可用404。普通 HTTP alias 拒绝 release query。 |
+| signal | 可选 AbortSignal；无 | 取消请求，传输取消为 request_aborted/status0/retryablefalse；取消后新操作使用新 controller。 |
+| view | 可选 string；canonical resource | 名称语法同 resource，供 index/entity/batch/page；非法 TypeError，缺 view404，relation 不能提供。 |
+| decode | 可选 (unknown)=&gt;T；JSON-value decoder | 同步校验/转换。index/entity/relation 整体调用，batch/page 每实体调用；抛错为 invalid_payload，ApiClientError 原样保留。泛型本身不做校验。 |
+
+## 全部资料方法
+
+| 方法 | 参数/结果 | 组合与行为 |
+| --- | --- | --- |
+| servers(scope=\{\}) | 仅 signal；Promise&lt;\{id,displayName,region\}[]&gt; | 校验 registry.releases，id 是 server slug。 |
+| index(resource,options=\{\}) | shared read options；完整 index 或 decode 值 | 可选 view，不自动分页。 |
+| entity(resource,id,options=\{\}) | 必填 ID；单项 Promise | 可选 view。 |
+| batch(resource,ids,options=\{\}) | readonly string[]；\{items:Record&lt;id,T&gt;,missing:string[]\} | 1–100 个输入 ID，重复项也先计数；空/超量/非法 ID TypeError。缺失项是 batch 成功结果。 |
+| page(resource,options=\{\}) | shared + limit/cursor；下表 envelope | 端点需 collection/view entity storage。 |
+| relation(resource,relation,key,options=\{\}) | relation 名语法同 resource，key 同 ID | 使用 manifest 关系；view+relation TypeError。现存空关系可返回\{\}，关系不存在404。 |
+| chartImageUrl(songId,difficulty,options=\{\}) | 返回 string | 同步构造，不请求，无 signal/decode。 |
+
+### 分页全部字段
+
+limit?:number 默认50，整数1–100；错误在请求前 TypeError。cursor?:string 默认无，由服务返回并原样传回，非法/错 scope 的 cursor 被端点拒绝。它固定 server/resource/view/首 release。保留 scope；快照不可用时重新取第一页。
+
+| 响应 | 类型 | 用途 |
+| --- | --- | --- |
+| items | readonly \{id:string,value:T\}[] | 不超过 limit；8分片预算可能短页/空页仍可继续。 |
+| total | 非负 safe integer | manifest 总数。 |
+| limit | 1–100整数 | 客户端要求与请求有效值相同。 |
+| nextCursor | 非空 string/null | 只有 null 结束。 |
+| release.schema | literal haneoka-resource-release-identity-v1 | envelope 版本。 |
+| release.server | string | 匹配请求/默认 server。 |
+| release.releaseId | string | 若显式给 release，必须匹配。 |
+| release.sourceId | string | 保留真实来源快照 ID。 |
+
+客户端校验 envelope/ID/snapshot，不重排或自动翻页。batch 与 page 的方法参数分离，端点禁止 id 批量混分页。
+
+### 图片 URL 全部参数
+
+| 字段 | 默认/范围 | 作用/错误 |
+| --- | --- | --- |
+| difficulty | 必填 easy/normal/hard/expert/special/master | 非法 TypeError；端点要求该曲有该难度。 |
+| server | 可选，intl | 同 scope slug 校验。 |
+| locale | 可选支持语言 | 图片文字语言。 |
+| format | 可选 svg/png，svg | 非法 TypeError。 |
+| height | 可选整数360–1440；省略时端点720 | 谱面段高，非法 TypeError；最终画布尺寸看响应头。 |
+| download | 可选 boolean；省略 | true→1、false→0；省略沿端点 attachment 默认。 |
+
+没有 release/view/decode/signal 图片选项。获取字节需单独 fetch；[谱面图片](../chart-images/)说明字体/渲染部署和错误。
+
+## 通用 HTTP 全部参数和方法
+
+| 字段 | 类型/默认 | 作用与约束 |
+| --- | --- | --- |
+| path | 必填 string 位置参数 | 相对地址去掉前导 / 后基于 baseUrl；绝对 HTTP(S) 保留 origin。非法 URL/Request 抛原生错误。 |
+| method | DELETE/GET/HEAD/PATCH/POST/PUT；GET | request/response 使用，get 强制 GET；非法 body/method 组合由 Request 拒绝。 |
+| query | 可选 readonly record | 值为 string/number/boolean/null/undefined 或其 readonly array。键排序追加，数组重复，null/undefined 省略，保留已有 URL query。 |
+| headers | 可选 HeadersInit；构造 headers | 逐次覆盖。 |
+| body | 可选 BodyInit/null；省略 | JSON 由调用方编码并设置 MIME，stream/FormData 遵循原生 Fetch。 |
+| signal | 可选 AbortSignal；无 | 取消与自定超时。 |
+| decode | 可选 (unknown)=&gt;T；原 JSON | get/request 使用；HEAD/204/205 输入 undefined，抛错为 invalid_payload；response 不接此字段。 |
+
+get 解析成功 JSON，request 允许 method。两者非2xx 抛 ApiClientError，有正文需 application/json 或 +json，JSON 格式失败单独报错。response 返回真实 Response（包括失败），调用方检查 ok/status/消费body。url 构造 string 不请求。
+
+```ts
+const dto = await general.request("songs/100070", {
+  method: "GET", query: { server: "intl", locale: "en" },
+  headers: { Accept: "application/json" }, signal: new AbortController().signal,
+});
+const raw = await general.response("songs/100070", { method: "HEAD" });
+console.log(raw.status, raw.headers.get("X-Haneoka-Release-Id"));
+console.log(general.url("songs", { id: ["100001", "100070"] }));
+```
+
+## 完整错误对象
+
+ApiClientError 扩展 Error，公开 name/message/继承 cause/code/details/method/url/status/可选requestId/retryable。HTTP 使用返回 error.code/message/details，HTML/坏错误 JSON 回退 http_STATUS 并保留status；requestId 来自 X-Request-Id。网络失败 status0/network_error/retryabletrue，取消 request_aborted/retryablefalse；HTTP408/429/5xx 标记可重试。成功响应格式/校验失败分别 invalid_content_type/invalid_json/invalid_payload，客户端不自动重试。
+
+自定义传输可构造：code/message/method/url 必填，cause/details/requestId 可选，retryable 默认false，status 默认0。此客户端没有 subscribe/events/dispose，结果通过 Promise/Response 提供，AbortController 与响应流归调用方。
+
+包的 ./browser 源码入口合并 createApiClient、ApiClientError 和 createHaneokaClient，没有额外参数或浏览器副作用；官方托管 facade 的出口以实际 release manifest 为准。

@@ -1,0 +1,36 @@
+---
+interface Props { kind: "api" | "core"; locale?: "en" | "zh-CN" }
+const { kind, locale = "en" } = Astro.props;
+const zh = locale === "zh-CN";
+const presets = kind === "api"
+  ? [["entity", "Entity", "实体"], ["page", "Page", "分页"], ["batch", "Batch", "批量"], ["servers", "Servers", "服务器"], ["index", "Index", "索引"], ["relation", "Relation", "关联"], ["image", "Image URL", "图片 URL"], ["get", "GET", "GET"], ["request", "Request", "请求"], ["response", "Response", "原始响应"], ["url", "URL", "URL"]]
+  : [["memory", "Memory", "内存"], ["http", "HTTP JSON", "HTTP JSON"], ["file", "Local file", "本地文件"], ["haneoka", "Haneoka", "本站资料"]];
+const languages = [["ja", "日本語"], ["en", "English"], ["zh-TW", "繁體中文"], ["zh-CN", "简体中文"], ["ko", "한국어"]];
+const config = kind === "api"
+  ? { operation: "entity", resource: "songs", id: "100070", scope: { server: "intl", locale: "en" }, client: { baseUrl: "https://haneoka.org/api/v1/" } }
+  : { source: "memory", locale: "fr", maxBytes: 1048576, assetsBase: "https://docs.haneoka.org/examples/", data: { title: "Une promenade", background: "garden.svg" }, resourceKey: "garden.svg" };
+---
+<section class="docs-demo" data-demo-kind={kind} data-ui-locale={locale} aria-label={zh ? "可运行示例" : "Runnable example"}>
+  <p>{zh ? "修改 JSON 参数，然后点击加载。模块和请求只在点击后启动；输出包含真实响应与传输记录。" : "Edit the JSON parameters, then load. Modules and requests start only after a click; results include the actual response and transport log."}</p>
+  <div class="docs-demo__presets" role="group" aria-label={zh ? "用法" : "Use case"}>
+    {presets.map(([value, en, cn]) => <button type="button" data-demo-preset={value}>{zh ? cn : en}</button>)}
+  </div>
+  <fieldset><legend>{zh ? "语言" : "Language"}</legend><div class="docs-demo__languages">
+    {languages.map(([value, label]) => <label><input type="radio" name={`demo-${kind}-language`} value={value} data-demo-language />{label}</label>)}
+  </div></fieldset>
+  <label>{zh ? "locale（可输入作者自己的语言）" : "locale (including your author's language)"}<input type="text" data-demo-author-locale value={kind === "core" ? "fr" : "en"} /></label>
+  <label>{zh ? "参数 JSON" : "Parameters JSON"}<textarea data-demo-config rows="13" spellcheck="false">{JSON.stringify(config, null, 2)}</textarea></label>
+  {kind === "core" && <label>{zh ? "本地 JSON（file 用法可选）" : "Local JSON (optional for the file example)"}<input type="file" accept=".json,application/json" data-demo-file /></label>}
+  <div class="docs-demo__actions">
+    <button type="button" data-demo-run>{zh ? "加载并运行" : "Load and run"}</button>
+    <button type="button" data-demo-cancel disabled>{zh ? "取消" : "Cancel"}</button>
+    {kind === "core" && <><button type="button" data-demo-resource-url disabled>{zh ? "解析资源 URL" : "Resolve resource URL"}</button><button type="button" data-demo-resource-bytes disabled>{zh ? "读取资源字节" : "Read resource bytes"}</button><button type="button" data-demo-dispose disabled>{zh ? "销毁" : "Dispose"}</button></>}
+  </div>
+  <p role="status" data-demo-status aria-live="polite">{zh ? "等待操作" : "Ready to run"}</p>
+  <pre class="docs-demo__output" tabindex="0" aria-label={zh ? "响应与事件" : "Response and events"}><code data-demo-output></code></pre>
+  <a href="/examples/data-demo.js" target="_blank" rel="noopener">{zh ? "查看实际示例代码" : "View the example source"}</a>
+</section>
+<script>
+  import { installDataDemos } from "./DemoDataClient";
+  installDataDemos();
+</script>

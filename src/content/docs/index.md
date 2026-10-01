@@ -9,13 +9,17 @@ hero:
     - text: Make a request
       link: /quickstart/
       icon: right-arrow
+    - text: Visit Haneoka
+      link: https://haneoka.org/
+      icon: external
+      variant: minimal
     - text: OpenAPI
       link: /reference/openapi/
       icon: external
       variant: minimal
 ---
 
-Haneoka serves the published game catalog and community services at `https://haneoka.org`. Start with a resource name such as `songs`, `events`, `characters`, or `stories`:
+Haneoka serves the published game catalog and community services at [haneoka.org](https://haneoka.org/). Start with a resource name such as `songs`, `events`, `characters`, or `stories`:
 
 ```bash
 curl --fail-with-body https://haneoka.org/api/v1/songs
@@ -58,7 +62,7 @@ Catalog indexes are JSON objects keyed by entity ID. The value keeps the source 
 }
 ```
 
-The complete field set belongs to the resource DTO and can grow with the source data. Preserve fields you do not use so clients continue to work as the catalog gains information. Media paths are origin-relative; resolve them against `https://haneoka.org`.
+The complete field set belongs to the resource DTO and can grow with the source data. Preserve fields you do not use so clients continue to work as the catalog gains information. Media paths are origin-relative; resolve them against [haneoka.org](https://haneoka.org/).
 
 ## Public and signed-in surfaces
 

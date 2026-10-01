@@ -1,0 +1,200 @@
+---
+title: Typed JavaScript API client
+description: Read latest entities, pages, batches and relations with the Haneoka-specific ESM client.
+---
+
+import DemoData from "../../../components/DemoData.astro";
+
+
+`@haneoka/api-client/haneoka` provides `createHaneokaClient` for the resource API. The root `createApiClient` stays a general HTTP client for your own services. Use a matching build with the `./haneoka` entry. It works with browser/Node Fetch or a supplied `transport(Request)`.
+
+## Read and cancel
+
+```ts
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+import { ApiClientError } from "@haneoka/api-client";
+
+const api = createHaneokaClient({ baseUrl: "https://haneoka.org/api/v1/" });
+const controller = new AbortController();
+try {
+  const servers = await api.servers({ signal: controller.signal });
+  const song = await api.entity("songs", "100070", {
+    server: "intl", locale: "en", signal: controller.signal,
+  });
+  console.log(servers, song);
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    console.error(error.code, error.status, error.requestId, error.retryable);
+  } else throw error;
+}
+// Cancel a pending call: controller.abort().
+```
+
+`baseUrl` is the `/api/v1/` root. `server` defaults to `intl` and comes from `servers()`; `locale` accepts `ja`, `en`, `zh-TW`, `zh-CN`, or `ko`. Catalog values keep all supplied languages. Authored embed documents can use other locales through [embed-core](../../embed/core/).
+
+## Pages and batches
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await api.page("songs", { server: "intl", limit: 20, ...(cursor ? { cursor } : {}) });
+  for (const entry of page.items) console.log(entry.id, entry.value);
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+
+const batch = await api.batch("songs", ["100001", "100070"], { server: "intl" });
+console.log(batch.items, batch.missing);
+```
+
+`page` defaults to limit 50 and validates item IDs, limit, cursor and snapshot identity. Short or empty pages can still continue. Batch accepts 1–100 submitted IDs and validates its envelope. Both can select `view` using a name declared in the manifest.
+
+`index(resource, scope)` reads the complete provider index; `entity(resource,id,scope)` reads one entry; `relation(resource,relation,key,scope)` reads the manifest-defined relation. Relations do not accept a view. Each supports `signal` and a `decode(value: unknown)` callback. The default result is a JSON value; a decoder performs runtime validation and gives your business DTO type.
+
+```ts
+const song = await api.entity("songs", "100070", {
+  decode(value) {
+    if (!value || typeof value !== "object" || !("musicId" in value)) {
+      throw new TypeError("Expected a song");
+    }
+    return value;
+  },
+});
+```
+
+Pass `release` only for a recorded immutable catalog ID. The client switches to `/servers/{server}/...` automatically. Ordinary direct aliases reject a release query. `chartImageUrl()` constructs a current-data image address; it does not fetch or decode binary content:
+
+```ts
+const url = api.chartImageUrl("100070", "expert", {
+  server: "intl", locale: "en", format: "svg", height: 720, download: false,
+});
+```
+
+## Errors and transport
+
+`ApiClientError` preserves method, URL, status, code, optional requestId, details and retryability. Aborted requests use `request_aborted` and are not retryable. HTTP gateway failures retain their status even with an HTML or malformed error body. Successful invalid JSON/schema responses report `invalid_content_type`, `invalid_json` or `invalid_payload`. The client does not retry automatically.
+
+Supply `headers` at construction or a custom `transport(request)` for your host. Ensure any authentication headers reach only their intended origin. Public catalog reads need no session. Use raw `response()` on the general client when you need image bytes or endpoint-specific error shapes such as [game records](../records/).
+
+## Try the client here
+
+Choose an operation, edit the JSON, and press **Load and run**. Each preset calls the actual client method. Page requests retain `nextCursor` in the editor for the next click. `client` contains constructor options; `scope` contains catalog call options; `request` contains general HTTP options. `validateMusicId: true` enables the shown example decoder. The read demo limits general requests to GET/HEAD and logs request URL/status without logging header values.
+
+<DemoData kind="api" />
+
+The example dynamically imports a pinned source snapshot of the public client, compiled with this documentation site. Generated SDK files are build outputs rather than checked-in source. The official core and visual ESM modules are already hosted at `https://haneoka.org/embed/`; the sixth API client CDN entry belongs to the next release. Use the official receipt's module map when pinning that entry. Source/package imports shown below remain valid independently of the CDN facade. npm availability follows the actual package release.
+
+## Constructor options
+
+`createHaneokaClient(options = {})` supplies Haneoka resource methods. `createApiClient(options)` supplies general HTTP methods. Both accept these public constructor fields:
+
+| Field | Type and requirement | Default | Meaning, constraints and errors |
+| --- | --- | --- | --- |
+| `baseUrl` | `string`; required for general client, optional for Haneoka client | Haneoka: `https://haneoka.org/api/v1/` | API directory. The general client trims it and adds a trailing slash; an empty string throws TypeError. A malformed base/URL rejects when URL construction or Request creation occurs. Use an absolute HTTP(S) URL in browser/SSR examples. |
+| `headers` | optional `HeadersInit`: Headers, record, or pairs | no added headers | Shared request headers. General per-call headers override matching constructor headers, case-insensitively. Native Headers rejects malformed values. Scope methods have no per-call headers field. |
+| `transport` | optional `(request: Request) => Promise<Response>` | native `fetch` | Receives the complete request, including its signal. Return an actual Response. Transport rejection becomes network_error/request_aborted; throwing ApiClientError preserves it. Customize origin, credentials or deadlines here. |
+
+Haneoka's constructor wraps transport requests with `credentials: "omit"`, `mode: "cors"` and `referrerPolicy: "no-referrer"`. This covers its registry and resource reads. The general client keeps native Request defaults; the callback can construct a modified Request. Neither constructor has a timeout, retry, byte-budget, cache or dispose option. A caller's signal/transport controls those policies.
+
+```ts
+import { createApiClient } from "@haneoka/api-client";
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+const api = createHaneokaClient({
+  baseUrl: "https://haneoka.org/api/v1/",
+  headers: { Accept: "application/json" },
+  transport(request) {
+    console.log(request.method, request.url);
+    return fetch(request);
+  },
+});
+const general = createApiClient({ baseUrl: "https://haneoka.org/api/v1/" });
+```
+
+## Resource arguments and shared scope
+
+The following are complete `HaneokaScope`/`HaneokaReadOptions` fields. Pass the fields needed by a call; `servers()` accepts only `signal`, and `chartImageUrl()` has its separate option set below.
+
+| Field/argument | Type; default | Constraints, effect and failure |
+| --- | --- | --- |
+| `resource` | required string positional argument | Manifest resource name; lowercase letters/digits/hyphens, 1–64 characters, first/last alphanumeric. Reserved groups `game`, `search`, `account`, `admin`, `announcements`, `auth`, `catalog`, `community`, `garupa`, `me`, `release`, `releases`, `servers`, `sources`, `ui-marks` are rejected. Invalid syntax/group throws TypeError; a valid but missing resource returns HTTP404. |
+| `id`, relation `key`, image `songId` | required string where the method lists it | 1–256 characters, first alphanumeric; remaining characters may also include `.`, `_`, `:`, `~`, `-`. The client encodes a segment; `/` is excluded. Syntax failure throws TypeError; absence is endpoint-specific404. |
+| `server` | optional string; `intl` | Active registry slug; lowercase alphanumeric/hyphen, 1–40 characters, first/last alphanumeric. TypeError for syntax,404 for an inactive server. Selects data independently from locale. |
+| `locale` | optional `"ja" \| "en" \| "zh-TW" \| "zh-CN" \| "ko"`; omitted | Adds locale query, retaining localized catalog fields. Invalid locale throws TypeError. Omission lets the endpoint negotiate its supported language. Author-created embed documents can use other languages. |
+| `release` | optional string; current data | Returned `r-` plus20 lowercase hex digits. Changes resource URL to `/servers/{server}/…`. Invalid syntax throws TypeError; unavailable snapshot404. Direct HTTP aliases reject a release query. |
+| `signal` | optional AbortSignal; none | Cancels the request. Aborted transport becomes ApiClientError(request_aborted,status0,retryablefalse). Give each operation a fresh controller after cancellation. |
+| `view` | optional string; canonical resource | Manifest view name with the same syntax as resource. Adds `/views/{view}` for index/entity/batch/page. Invalid name TypeError, missing view404. Relation rejects any supplied view. |
+| `decode` | optional `(value: unknown) => T`; JSON-value decoder | Synchronous runtime validation/conversion. Applied to the complete index/entity/relation, each batch entity or each page item. Throwing causes invalid_payload; a thrown ApiClientError is retained. The generic type alone performs no validation. |
+
+## Every Haneoka method
+
+| Method | Arguments/options | Result and behavior |
+| --- | --- | --- |
+| `servers(scope = {})` | only `{ signal? }` | Promise of `{id,displayName,region}[]`, validated from the registry's `releases` array. `id` is the slug, not a release identifier. |
+| `index(resource, options = {})` | shared read options | Promise of complete resource/view index, or your decoded value. No automatic pagination. |
+| `entity(resource, id, options = {})` | required ID and shared read options | Promise of one canonical/view entity. |
+| `batch(resource, ids, options = {})` | required readonly string array and shared read options | 1–100 submitted IDs, counting duplicates before server deduplication; empty/over100/invalid ID throws TypeError. Returns `{items: Record<id,T>, missing: string[]}`. Missing entries are successful batch results. |
+| `page(resource, options = {})` | shared read options plus `limit?`, `cursor?` | Returns the envelope below. Requires collection/view entity storage at the endpoint. |
+| `relation(resource, relation, key, options = {})` | relation name has resource-name syntax; key has ID syntax | Returns decoded manifest-defined value. View+relation throws TypeError. Existing empty key result may be `{}`; missing relation404. |
+| `chartImageUrl(songId, difficulty, options = {})` | separate image options below | Returns a URL synchronously. It makes no request and has no cancellation/decoder. |
+
+### Page fields and snapshot rules
+
+`limit?: number` defaults to50 and must be an integer1–100; invalid values throw TypeError before fetching. `cursor?: string` defaults to no cursor. Return a nonempty cursor unchanged; malformed or mismatched values are rejected by the server. A cursor is bound to server/resource/view and the first release. Keep scope consistent, and restart the first page if that retained release becomes unavailable.
+
+| Response field | Type | Use |
+| --- | --- | --- |
+| `items` | readonly `{id:string,value:T}[]` | Up to the requested limit. Eight-shard scan budgets can produce a short or empty page with more data ahead. |
+| `total` | nonnegative safe integer | Manifest count; not this page's length. |
+| `limit` | integer1–100 | Requested effective limit. Client checks it matches the request. |
+| `nextCursor` | nonempty string or null | Only null means completion. |
+| `release.schema` | literal `haneoka-resource-release-identity-v1` | Snapshot envelope version. |
+| `release.server` | string | Must match the requested/default server. |
+| `release.releaseId` | string | Must match explicit release when supplied. |
+| `release.sourceId` | string | Source snapshot ID. Preserve it rather than constructing it. |
+
+The client validates IDs/envelope/snapshot shape. It does not reorder results, auto-follow pages or combine batch and pagination. The method interfaces keep those two forms separate.
+
+### Image URL arguments
+
+| Field | Type/default | Range and meaning |
+| --- | --- | --- |
+| `difficulty` | required path argument | `easy`, `normal`, `hard`, `expert`, `special`, `master`; invalid choice TypeError. Endpoint also requires that difficulty for the song. |
+| `server` | optional string; intl | Same server validation as scope. |
+| `locale` | optional supported Haneoka locale | Caption language query. |
+| `format` | optional `svg`/`png`; svg | Invalid value TypeError. |
+| `height` | optional integer; URL omits it and endpoint defaults720 | 360–1440 panel pixels; invalid value TypeError. Final canvas dimensions come from response headers. |
+| `download` | optional boolean; omitted | true sends1, false sends0. Omission leaves the endpoint's attachment default. |
+
+Image options have no release/view/decode/signal. Fetch the URL separately for bytes; see [chart images](../chart-images/) for rendering errors and deployment/font requirements.
+
+## General HTTP request options and methods
+
+| Field | Type/default | Meaning and constraints |
+| --- | --- | --- |
+| `path` | required string argument | Relative path resolved beneath baseUrl after stripping leading slashes; an absolute HTTP(S) URL keeps its origin. A malformed URL/Request throws the native error. |
+| `method` | optional DELETE/GET/HEAD/PATCH/POST/PUT; GET | `request`/`response` option. `get` forces GET even if JavaScript passes a method. Native Request rejects illegal body/method combinations. |
+| `query` | optional readonly record | Values are string/number/boolean/null/undefined or readonly arrays of them. Keys are appended in sorted order; arrays repeat the key. null/undefined entries are omitted. Existing URL query remains and new values are appended. |
+| `headers` | optional HeadersInit; constructor headers | Per-call values override matching shared headers. |
+| `body` | optional BodyInit or null; omitted | Request body. Encode JSON yourself and set its content type; streams/form data follow native Fetch rules. |
+| `signal` | optional AbortSignal; none | Caller cancellation, including a deadline signal such as AbortSignal.timeout. |
+| `decode` | optional `(unknown)=>T`; no conversion | Available for `get`/`request`. Receives parsed JSON or undefined for HEAD/204/205; decoder errors become invalid_payload. `response` excludes this option. |
+
+`get(path, options)` parses and validates a successful JSON response. `request(path, options)` adds a selectable method. Both reject non-2xx as ApiClientError, require application/json or a `+json` MIME on a body response, and report malformed JSON separately. `response(path, options)` returns the actual Response, including non-success statuses; inspect ok/status and consume its body yourself. `url(path, query)` builds a string with no request.
+
+```ts
+const request = new AbortController();
+const dto = await general.request("songs/100070", {
+  method: "GET", query: { server: "intl", locale: "en" },
+  headers: { Accept: "application/json" }, signal: request.signal,
+});
+const raw = await general.response("songs/100070", { method: "HEAD" });
+console.log(raw.status, raw.headers.get("X-Haneoka-Release-Id"));
+console.log(general.url("songs", { id: ["100001", "100070"] }));
+```
+
+## Complete error object
+
+`ApiClientError` extends Error. Its public fields are `name`, `message`, inherited `cause`, `code`, `details`, `method`, `url`, `status`, optional `requestId`, and `retryable`. HTTP errors use the returned nested error.code/message/details when available; HTML/bad error JSON falls back to http_STATUS while retaining status. Request ID comes from X-Request-Id. Network failure uses status0, network_error and retryabletrue; cancellation uses request_aborted/retryablefalse. HTTP408/429/5xx are marked retryable. Successful response format/decode failures use invalid_content_type/invalid_json/invalid_payload and are not automatically retried.
+
+The class can be constructed with `{code,message,method,url}` required, plus `cause?`, `details?`, `requestId?`, `retryable?` (false) and `status?` (0), for a custom transport's structured failure. Methods have no subscribe/events/dispose interface: results arrive through Promise/Response, and the caller owns AbortControllers and response streams.
+
+The package `./browser` source entry combines createApiClient, ApiClientError and createHaneokaClient; it adds no separate options or browser-only side effects. Hosted facade exports are selected by the release manifest.

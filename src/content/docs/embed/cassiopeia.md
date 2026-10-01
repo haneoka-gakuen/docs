@@ -8,7 +8,7 @@ Mount a Cassiopeia chart player inside an ordinary website. The default player u
 
 ## Release candidate installation
 
-The examples use package imports resolved by your application. These embed packages are prepared as `0.1.0` source/local artifacts; registry publication and an official hosted ESM endpoint are pending. Install the matching local tarballs and required peers as explained in [JavaScript embeds](../). The package-name commands below describe the dependencies for a registry distribution once available.
+The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/cassiopeia.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js`. The package imports below describe a bundled host application; npm publication remains separate.
 
 ## Install and mount the default player
 

@@ -289,3 +289,40 @@ mobile-starlight-toc .toggle {
     transition-delay: 0ms;
   }
 }
+
+/* Runnable documentation examples use the site's existing MD3 roles. */
+.docs-demo {
+  display: grid;
+  gap: var(--md-sys-spacing-3);
+  padding: var(--md-sys-spacing-4);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-low);
+  min-width: 0;
+}
+.docs-demo > * { margin-block: 0; min-width: 0; }
+.docs-demo label { display: grid; gap: var(--md-sys-spacing-2); }
+.docs-demo :is(input[type="text"], textarea) {
+  width: 100%; box-sizing: border-box;
+  padding: var(--md-sys-spacing-3);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+}
+.docs-demo textarea { resize: vertical; font-family: var(--sl-font-mono); font-size: var(--sl-text-sm); }
+.docs-demo :is(.docs-demo__presets, .docs-demo__actions, .docs-demo__languages) { display: flex; flex-wrap: wrap; gap: var(--md-sys-spacing-2); }
+.docs-demo fieldset { border: 0; padding: 0; }
+.docs-demo__languages label { display: flex; align-items: center; min-height: var(--md-comp-control-height-touch); }
+.docs-demo button {
+  min-height: var(--md-comp-control-height-touch);
+  padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  font: inherit; color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high); cursor: pointer;
+}
+.docs-demo button[data-demo-run] { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border-color: transparent; }
+.docs-demo button:disabled { opacity: .5; cursor: default; }
+.docs-demo__output { min-height: 8rem; max-height: 28rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--md-sys-spacing-3); background: var(--md-sys-color-surface); }

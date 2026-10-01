@@ -18,7 +18,7 @@ Each visual host also has a `/haneoka` adapter for current public content. The a
 
 ## Distribution status and local installation
 
-The `0.1.0` embed packages are release candidates in the [Haneoka repository](https://github.com/haneoka-gakuen/haneoka/tree/main/packages). These guides describe their source interfaces. Registry publication and an official hosted ESM URL are pending; use matching local package tarballs and your own bundled output today. The CDN examples below use paths chosen by your application.
+Official browser modules are hosted at `https://haneoka.org/embed/{core,vega,cassiopeia,home-spot,vega-theme}.js`. Pin the already-published r22 modules beneath `/embed/r-22bfe102f7deb73f/`, or resolve a later verified release from the manifest. The [repository](https://github.com/haneoka-gakuen/haneoka/tree/main/packages) contains package source; generated SDK chunks/assets are deployment build outputs. npm publication remains a separate step. The self-hosted paths below are examples chosen by your application.
 
 Use Node.js 24 or later for the complete chart/story toolchain. Obtain the embed, core and required peer tarballs from the same prepared revision. Install those files into your host application:
 

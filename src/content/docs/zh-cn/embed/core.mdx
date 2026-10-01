@@ -1,0 +1,220 @@
+---
+title: 数据源与资源加载
+description: 从本站、内存、HTTP JSON 和本地文件加载独立宿主需要的数据。
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+
+
+`@haneoka/embed-core` 为剧情、谱面和场景宿主提供数据源、URL 解析、资源字节、进度与取消。它保留调用方的数据结构，渲染和播放由具体宿主负责。主入口没有运行时依赖，适合浏览器、Worker 和 Node.js；导入时不访问 DOM 或网络。
+
+官方浏览器 ESM 已托管在 https://haneoka.org/embed/core.js；包安装与自托管方法见 [JavaScript 嵌入](../)。本站适配器需要可选 peer `@haneoka/api-client`。
+
+## 读取本站当前资料
+
+```js
+import { createEmbedLoader } from "@haneoka/embed-core";
+import { haneokaDataSource } from "@haneoka/embed-core/haneoka";
+const loader = createEmbedLoader({
+  source: haneokaDataSource({ resource: "songs", id: "100070" }),
+  server: "intl",
+  locale: "en",
+});
+try {
+  const song = await loader.load();
+  const jacket = await loader.resourceUrl(song.jacketUrl);
+  console.log(song.musicTitle, jacket);
+} finally {
+  await loader.dispose();
+}
+```
+
+适配器请求 `/api/v1/{resource}/{id}?server={server}`；省略 `id` 读取索引，提供 `view` 读取相应投影。默认 server 为 `intl`，语言默认 `en` 并经 `Accept-Language` 协商，返回目录保留完整多语值。无需登录或 release ID。重复 `load()` 会重新请求当前数据。
+
+`apiBase` 可以设置为另一个兼容服务的绝对 API 根地址，例如 `https://archive.example/api/v1/`。相对资源默认使用该服务 origin；loader 的 `assetsBase` 可以指定另一个资源目录。沿用响应中的素材路径，它们遵循服务当前快照语义。
+
+## 自带内存、HTTP 或文件
+
+```js
+import { createEmbedLoader, memoryDataSource, httpDataSource } from "@haneoka/embed-core";
+const authored = { language: "fr", title: "Une promenade", background: "背景/夕暮れ.png" };
+const loader = createEmbedLoader({
+  source: memoryDataSource(authored),
+  locale: "fr",
+  assetsBase: "https://cdn.example/projects/promenade/",
+});
+const data = await loader.load(); // 原对象，保留 identity 和字段。
+console.log(await loader.resourceUrl(data.background));
+await loader.dispose();
+
+const remote = createEmbedLoader({
+  source: httpDataSource({
+    url: "https://author.example/projects/promenade/story.json",
+    decode(value) {
+      if (!value || typeof value !== "object" || !Array.isArray(value.lines)) {
+        throw new TypeError("Expected lines");
+      }
+      return value;
+    },
+  }),
+  locale: "fr",
+});
+try { console.log(await remote.load()); }
+finally { await remote.dispose(); }
+```
+
+HTTP 相对资源基于配置的 JSON URL 目录，重定向不会改变这个基准。`assetsBase` 显式覆盖它。`decode` 负责运行时校验或转换；TypeScript 泛型只声明期望类型，不替代校验。最终数据必须符合所选宿主的文档格式。
+
+```js
+import { createEmbedLoader, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
+const createLocalLoader = (jsonFile, backgroundFile) => createEmbedLoader({
+  source: fileDataSource(jsonFile),
+  resolveResource: fileResourceResolver(new Map([["背景/夕暮れ.png", backgroundFile]])),
+  locale: "fr",
+});
+```
+
+文件来自宿主文件选择器或桌面应用，类型为 `File`/`Blob`。本地 JSON 没有隐含网络目录，Map 按完整 Unicode key 匹配；缺失 key 会拒绝操作。loader 为同一 Blob 复用 URL，销毁时撤销自己创建的 URL。先销毁使用这些资源的播放器，再销毁 loader；调用方创建的 URL 由调用方回收。
+
+## URL、传输与预算
+
+`resourceUrl(key)` 解析 URL，不下载素材；`resourceBytes(key)` 解析并读取字节。`resolveResource(key, context)` 可异步返回 string、URL 或 Blob，context 含 server、locale、signal、fetcher 和 maxBytes。resolver 完全负责 key 映射。
+
+相对路径使用 `assetsBase`，`/` 开头从其 origin 根解析，绝对地址保持自身 origin。base 应为绝对 HTTP(S) 目录，具体 query/fragment 放资源 URL。支持 HTTP、HTTPS、Blob 和 data URL；SSR 不会猜测当前页面地址。
+
+```js
+const loader = createEmbedLoader({
+  source: memoryDataSource(authored),
+  assetsBase: "https://cdn.example/project/",
+  credentials: "omit",
+  maxBytes: 64 * 1024 * 1024,
+  fetcher: (request) => fetch(request),
+});
+```
+
+fetcher 接收携带 signal、headers、credentials 和 CORS mode 的 `Request`。默认原生 fetch、omit；有 cookie 的服务可配置 same-origin/include，但跨域服务需显式允许宿主 origin 和凭据。把 URL 交给 image/audio/video 元素后，由该元素的加载器处理，未经过 loader fetcher。
+
+预算默认每个 JSON 或字节请求 64 MiB。进度计算实际解码字节；未知或压缩响应长度不会虚报 total。内存加载和仅 URL 解析没有字节进度。
+
+## 事件、取消、错误与销毁
+
+```js
+const controller = new AbortController();
+const unsubscribe = loader.subscribe(event => {
+  if (event.type === "progress") console.log(event.operation, event.key, event.loaded, event.total);
+});
+try { await loader.load({ signal: controller.signal }); }
+finally { unsubscribe(); await loader.dispose(); }
+```
+
+每个操作依次产生 start、读取时的 progress，以及 ready/error/cancelled。`operation` 区分并发，`key` 为 `$data` 或资源键。HTTP 非成功状态使用 `EmbedHttpError` 并保留 status/url；本站错误保留 `ApiClientError`。JSON、decode、缺文件、超预算和传输失败均拒绝对应 Promise。观察者异常交给可选 `onListenerError`。
+
+单次 signal 取消该操作；`cancel()` 取消当前全部操作，之后可以重试。`dispose()` 禁止新操作，取消在途请求，撤销 Blob URL，移除监听并只调用一次 source cleanup，其 Promise 等待 cleanup。并发请求各自独立，自动重试和数据缓存由调用方策略决定。
+
+自定义 `DataSource<T>` 实现 `load(context)`，可提供 `assetsBase` 和 `dispose()`。使用 `context.signal` 停止自己的工作；loader 会抑制已取消操作的迟到结果。带 cleanup 的 source 按单一 loader 所有权使用。
+
+## 实际运行四种数据源
+
+预设直接导入已上线的 core ESM。内存使用单语法语原创对象；HTTP JSON 读取本站[小文档](/examples/promenade.json)；本地文件读取你选择的 JSON File，或把原创对象构造成真实 Blob，并将示例 SVG 映射成 Blob；本站资料读取真实公开歌曲。修改 JSON 构造参数，再使用资源 URL/bytes、取消和销毁。resourceField 是演示选择 DTO 属性的字段，不是 SDK 参数。
+
+<DemoData kind="core" locale="zh-CN" />
+
+```js
+import { createEmbedLoader, memoryDataSource, haneokaDataSource } from "https://haneoka.org/embed/r-22bfe102f7deb73f/core.js";
+const loader = createEmbedLoader({ source: memoryDataSource({ title: "Bonjour" }), locale: "fr" });
+console.log(await loader.load());
+await loader.dispose();
+```
+
+稳定地址 https://haneoka.org/embed/core.js 已可用。固定版本时将 manifest.modules.core 基于 https://haneoka.org/embed/ 解析；r22 固定模块不会自动获得后续源码选项。npm 是独立的分发步骤。
+
+## createEmbedLoader 全部参数
+
+| 字段 | 类型/必填/默认 | 作用、组合和错误 |
+| --- | --- | --- |
+| source | 必填 DataSource&lt;T&gt; | 提供 load(context)，每次 load 调用；可选 source.assetsBase 为素材目录，dispose 清理一次。数据格式应符合消费宿主。 |
+| server | 可选 string，undefined | 原样传给 source/resolver；本站 adapter 默认intl并用公开客户端校验 slug，与语言独立。 |
+| locale | 可选 string，en | 原样保留 fr/pt-BR 等作者语言；本站通过 Accept-Language 协商支持语言。 |
+| assetsBase | 可选 string，source.assetsBase→无 | 覆盖 source base，绝对 HTTP(S) 目录，不含 query/fragment，补斜线；构造时非法 TypeError，无base相对key URL构造失败。 |
+| resolveResource | 可选 (key,DataContext)=&gt;string/URL/Blob 或其Promise，默认原key | 完整映射key，相对结果基于base；拒绝即资源失败，Map缺key不回落网络。 |
+| fetcher | 可选 (Request)=&gt;Promise&lt;Response&gt;，默认fetch | 接收cors、配置headers/credentials/signal的Request，文档和资源共同使用；媒体元素有独立加载器。拒绝传递为操作失败。 |
+| credentials | omit/same-origin/include，omit | 跨域带cookie需服务允许origin与credentials；非法值由Request拒绝。 |
+| headers | 可选 HeadersInit，无 | 共用头，source逐次header覆盖同名值；本站以locale设Accept-Language，校验遵循Fetch。 |
+| maxBytes | 可选正safe integer，67108864 | 每项解码JSON/资源bytes预算，不是总场景/cache/URL预算。构造非法RangeError，超预算read RangeError（本站包装response_too_large）。 |
+| onListenerError | 可选 (unknown)=&gt;void，忽略 | 接收observer异常，自身异常隔离，不影响操作结果。 |
+
+构造无signal/timeout/decode/自动重试cache选项；使用逐次signal、source decoder和宿主策略。resourceUrl仅解析，不下载，也不约束之后媒体元素的字节量。
+
+## 全部 source factory
+
+| Factory | 必填 | 可选/默认 | 路径与校验 |
+| --- | --- | --- | --- |
+| memoryDataSource(data) | 任意T | 无 | 返回同一值/对象identity，不复制校验，无默认素材目录。 |
+| httpDataSource(\{url,decode?\}) | 绝对HTTP(S) string/URL | decode(unknown)=&gt;T，默认JSON | factory校验URL/protocol，base为配置URL目录；redirect不改变base。读取遵循signal/budget，JSON/decoder失败拒绝。 |
+| fileDataSource(file,decode?) | File或Blob | decoder同上 | 无网络base，实际Blob bytes受预算/进度控制，坏JSON/decoder拒绝。 |
+| fileResourceResolver(files) | ReadonlyMap&lt;string,Blob&gt; | 无 | Unicode完整key字面查找，不规范化；缺项Error。URL生成owned BlobURL，bytes直接读Blob。 |
+| haneokaDataSource(options) | resource:string | 下述字段 | 当前公开目录，不填账号/release。 |
+
+本站source全部字段：resource 使用manifest资源语法；id?:string 有值取entity，省略取index；view?:string 选manifest投影；apiBase?:string 默认 https://haneoka.org/api/v1/，绝对HTTP(S)目录不含query/fragment；decode? 校验index/entity，默认JSON值。语法/不存在等load错误沿[客户端](../../servers/client/)。source默认素材base是API的origin根，可由loader.assetsBase覆盖；server/locale来自loader。
+
+## 自定义 source/resolver 的完整 context
+
+DataSource&lt;T&gt; 包含 load(context):T|Promise&lt;T&gt;、可选 assetsBase?:string、dispose():void|Promise&lt;void&gt;。loader销毁时清理一次并等待，cleanup失败拒绝dispose；拥有资源的source按单loader所有权使用。
+
+| DataContext字段 | 类型 | 含义 |
+| --- | --- | --- |
+| server | 可选string | 原样registry。 |
+| locale | string | 作者语言或默认值。 |
+| signal | AbortSignal | 当前操作取消，底层工作应跟随。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt; | 配置后的传输。 |
+| maxBytes | number | 有效解码预算，自定义解析也应遵守。 |
+| progress | (\{loaded:number,total?:number\})=&gt;void | 实际字节，未知总量省略total。 |
+
+Resolver同步/异步返回string、URL、Blob。绝对HTTP/HTTPS/Blob/data保留origin，相对基于assetsBase，/开头用origin根；其他protocol TypeError，不猜SSR/页面base。
+
+```ts
+const source = {
+  assetsBase: "https://author.example/project/",
+  async load(context) {
+    context.signal.throwIfAborted();
+    const response = await context.fetcher(new Request("https://author.example/project/story.json", { signal: context.signal }));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json(); // 接入自己的格式校验和预算读取。
+  },
+  dispose() { /* 回收source拥有的资源 */ },
+};
+const loader = createEmbedLoader({ source, locale: "pt-BR", resolveResource: key => key });
+```
+
+## handle 的全部属性和方法
+
+| 成员 | 参数/结果 | 生命周期 |
+| --- | --- | --- |
+| locale | readonly string | 有效语言。 |
+| server | readonly string/undefined | 显式server，adapterfallback前。 |
+| disposed | readonly boolean | dispose开始即true。 |
+| load(options=\{\}) | 可选signal，Promise&lt;T&gt; | 每次独立source操作，key为$data。 |
+| resourceUrl(key,options=\{\}) | 必填string，可选signal；Promise&lt;string&gt; | 不下载，每个Blob复用一个URL直到销毁。 |
+| resourceBytes(key,options=\{\}) | key/可选signal；Promise&lt;Uint8Array&gt; | status/budget/progress真实读取。 |
+| subscribe(listener) | 必填(event)=&gt;void；返回unsubscribe | 后续事件，不重放；已销毁抛Error。 |
+| cancel() | void | 取消当前全部操作，loader可重用。 |
+| dispose() | 共用Promise&lt;void&gt; | 立即禁止新工作、abort、revoke、disposed事件、清监听、source清理一次；幂等，不能重用。 |
+
+忽略signal的source也不能迟到ready/progress覆盖已取消操作；底层source仍应主动停止。cancel可继续，dispose结束loader。先销毁consumer，再撤销loader拥有的URL；作者自行创建的URL自行管理。
+
+## 全部事件和错误
+
+| type | 字段 | 时机 |
+| --- | --- | --- |
+| start/ready | operation:number,key:string | 开始/成功。 |
+| progress | operation/key/loaded:number/total?:number | 实际解码字节，内存或仅URL无自动bytes进度；压缩或未知length不填total。 |
+| error/cancelled | operation/key/error:unknown | 失败/取消。 |
+| disposed | 仅type | 销毁，销毁后的取消错误不继续发出。 |
+
+operation按loader增长，key为$data或原资源名。observer异常不拒绝操作，并发独立、不自动重试或去重；演示只保留32条显示记录，不改变SDK事件流。
+
+EmbedHttpError(status,url) 扩展Error，带name/message/status/url。URL/base/protocol非法TypeError，预算RangeError，JSON SyntaxError，作者source/resolver/decode原错误保留。本站保留ApiClientError，预算为response_too_large及HTTPstatus，默认不可重试。abort拒绝signal.reason，通常AbortError/TimeoutError。dispose后调用为Error，sourcecleanup失败拒绝dispose。
+
+## branding子入口全部参数
+
+createHaneokaBranding(document,options=\{\}) 在官方core facade和包/branding入口可用。document必填DOM Document；corner?:top-left/top-right/bottom-left/bottom-right，默认top-left。返回HTMLAnchorElement，不自动append，不请求图像。宿主在有定位/预留48px角落的容器append并在清理时remove。固定https://haneoka.org/、_blank/noopener、原inlineSVG、48px触控与focus；可视embed自动管理，data-only core导入不碰DOM。

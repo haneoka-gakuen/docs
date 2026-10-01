@@ -9,12 +9,16 @@ hero:
     - text: 发出第一个请求
       link: /zh-cn/quickstart/
       icon: right-arrow
+    - text: 访问 Haneoka
+      link: https://haneoka.org/
+      icon: external
+      variant: minimal
     - text: OpenAPI
       link: /zh-cn/reference/openapi/
       variant: minimal
 ---
 
-Haneoka 在 `https://haneoka.org` 提供已发布的游戏资料目录和社区服务。使用 `songs`、`events`、`characters` 或 `stories` 等资源名称发出请求：
+Haneoka 在 [haneoka.org](https://haneoka.org/) 提供已发布的游戏资料目录和社区服务。使用 `songs`、`events`、`characters` 或 `stories` 等资源名称发出请求：
 
 ```bash
 curl --fail-with-body https://haneoka.org/api/v1/songs
@@ -57,7 +61,7 @@ curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
 }
 ```
 
-各资源的字段及数据结构见接口参考。媒体路径以 `https://haneoka.org` 为基准解析。
+各资源的字段及数据结构见接口参考。媒体路径以 [haneoka.org](https://haneoka.org/) 为基准解析。
 
 ## 公开接口和登录接口
 

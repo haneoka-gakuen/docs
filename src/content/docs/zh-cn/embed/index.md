@@ -18,7 +18,7 @@ Haneoka 的嵌入组件直接挂载到你提供的 DOM 容器。Vega 播放剧�
 
 ## 分发状态与安装
 
-`0.1.0` 嵌入包目前以 [Haneoka 仓库](https://github.com/haneoka-gakuen/haneoka/tree/main/packages) 的源码和本地候选产物提供。这些文档描述真实源码接口；npm 发布和官方托管 ESM 地址待发布。目前使用同一准备版本的本地 tarball，将组件打包到自己的静态站或 CDN。下文的 CDN 路径由宿主自行选择。
+官方浏览器模块已托管在 `https://haneoka.org/embed/{core,vega,cassiopeia,home-spot,vega-theme}.js`。可固定已发布 `/embed/r-22bfe102f7deb73f/`，或按实际 manifest 选择后续已验证版本。[仓库](https://github.com/haneoka-gakuen/haneoka/tree/main/packages) 提供源码，SDK chunks/assets 在部署时正常生成；npm 是独立发布步骤。下文自托管 CDN 路径由宿主选择。
 
 完整工具链使用 Node.js 24 或更新版本。将 embed、core 与实际渲染 peer 的本地包安装到你的应用中：
 
