@@ -8,7 +8,7 @@ Use the [stamp maker](https://haneoka.org/en/stamp-maker/) to add your own text 
 ## Make your first stamp
 
 1. Open **Choose stamp**.
-2. In the chooser, select Japanese, English, Simplified Chinese, Traditional Chinese, Korean, or **Textless**. Click a stamp card to use it and close the chooser.
+2. In the chooser, select Japanese, English, Traditional Chinese, Simplified Chinese, Korean, or **Textless**. Click a stamp card to use it and close the chooser.
 3. Enter a short caption in **Text**. Select its writing direction, font, size, and color.
 4. Drag the text in the preview to place it. Open **Position and outline** for exact position, rotation, and outline settings.
 5. Choose **Export size**, then click **Export PNG**.
