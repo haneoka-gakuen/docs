@@ -1,0 +1,120 @@
+---
+title: Chart images
+description: Request a current chart overview as SVG or PNG and read its actual dimensions.
+---
+
+import DemoChartImage from "../../../components/DemoChartImage.astro";
+
+
+The chart image handler renders a published score through Cassiopeia's static overview renderer. The handler supports SVG and registered PNG rasterization; a PNG deployment includes the matching Fontsource manifest and files. The application below reports the actual public Worker response.
+
+## Request an image
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs/100070/charts/expert/image.svg?server=intl&locale=en&height=720&download=1' \
+  -o chart.svg
+```
+
+Use `.png` for PNG. The explicit equivalent is `/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}`. Both select current data; neither accepts `release`. Choose the difficulty that the song DTO actually advertises.
+
+| Parameter | Values | Meaning |
+| --- | --- | --- |
+| `server` | Active resource-server slug; default `intl` on the alias | Source catalog |
+| `difficulty` | easy, normal, hard, expert, special, master | Path segment; must exist for the song |
+| `locale` | ja, en, zh-TW, zh-CN, ko | Caption language; otherwise negotiated from Accept-Language |
+| `height` | Integer 360–1440; default 720 | Height of a chart panel, excluding the header |
+| `download` | 1 or 0; default 1 | Attachment or inline Content-Disposition |
+| `format` | svg or png | File extension and response MIME |
+
+Repeated or empty query values reject with 400. Chart data and output have renderer budgets; oversized inputs/output reject with 413 rather than producing an unbounded image.
+
+## Dimensions and conditional requests
+
+The resulting canvas includes a header and enough panels for the chart. Increasing panel height changes the number of panels and the final width. Read `X-Haneoka-Image-Width` and `X-Haneoka-Image-Height`; use those dimensions for a stable image placeholder. They match SVG width/height or PNG IHDR, rather than the requested panel height.
+
+Responses include `Content-Type`, `Content-Length`, `Content-Disposition`, `Content-Language`, `ETag`, `X-Haneoka-Server`, `X-Haneoka-Release-Id` and `X-Haneoka-Chart-Renderer`. GET returns the image, HEAD returns the headers without a body, and `If-None-Match` can return 304 without Content-Length. The public endpoint allows anonymous CORS. OPTIONS returns 204; unsupported methods return 405 with Allow.
+
+```js
+const url = "https://haneoka.org/api/v1/songs/100070/charts/expert/image.png?locale=en&download=0";
+const response = await fetch(url, { credentials: "omit" });
+if (!response.ok) {
+  const failure = await response.json();
+  throw new Error(`${response.status}: ${failure.error.code}`);
+}
+const width = Number(response.headers.get("X-Haneoka-Image-Width"));
+const height = Number(response.headers.get("X-Haneoka-Image-Height"));
+const imageUrl = URL.createObjectURL(await response.blob());
+// Set your image element's dimensions and src; revoke imageUrl on teardown.
+console.log(width, height, imageUrl);
+```
+
+## Failure handling
+
+Errors use `{error:{code,message,requestId}}`, `X-Request-Id` and `Cache-Control: no-store`. Typical codes include invalid_height/invalid_locale/invalid_download/release_not_supported (400), song_not_found/difficulty_not_found/chart_not_found (404), format_not_supported (406), chart_too_large/chart_render_budget (413), chart_image_failed (502), and release_unavailable (503). Missing or invalid deployed PNG fonts produce chart_image_failed; a font budget failure produces chart_render_budget. A deployment without a registered rasterizer can report 501 png_renderer_unavailable. Retain the request ID and fix the parameter or deployment cause before retrying.
+
+## Make and inspect a real request
+
+Change server/song/difficulty/format/locale/panel height/download and choose GET, HEAD or OPTIONS. The application fetches the actual endpoint only on a click. Successful GET responses display the real image at its returned dimensions inside a scrollable preview and offer those same bytes for download. Error responses show HTTP status and their actual body; no local image is substituted for an unavailable endpoint.
+
+<DemoChartImage />
+
+`scoped` selects the explicit server path. `apiBase` selects an alternate compatible API; `acceptLanguage` and `ifNoneMatch` set request headers. `$last` for ifNoneMatch uses the last response ETag. These are application transport controls; the API parameters themselves are below. HEAD/OPTIONS/304 contain no new image body. A cache consumer should reuse its stored representation for304; this inspector displays headers. Clear/replacement/page exit revokes owned Blob URLs. Reading UI requires no SDK/GPU import and does not preload images.
+
+## Complete route and query contract
+
+Use GET/HEAD `/api/v1/songs/{songId}/charts/{difficulty}/image.{format}` with optional server query, or `/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}`. Public reads require no account. The handler supports OPTIONS204 before loading source data; unsupported methods405 with Allow.
+
+| Parameter | Type/required/default | Exact validation and effect |
+| --- | --- | --- |
+| songId | required string path segment |1–256 characters; first alphanumeric, remaining also `. _ : ~ -`. Encode as one segment. Invalid syntax/absent song404 song_not_found. |
+| difficulty | required lowercase path segment | easy/normal/hard/expert/special/master. Must exist in DTO; otherwise404 difficulty_not_found. |
+| format | required extension | svg/png lowercase. A matching unsupported lowercase extension returns406 format_not_supported; malformed routes can return404. SVG MIME image/svg+xml, PNG image/png. |
+| server | required scoped segment; alias query defaults intl | Active lowercase alphanumeric/hyphen slug1–40 with alphanumeric ends. Duplicate alias server400 invalid_server; bad/unknown slug404 server_not_found. A scoped server query, if supplied, must match the path. |
+| locale | optional query; negotiated | ja/en/zh-TW/zh-CN/ko. Empty/unsupported/repeated400 invalid_locale. Caption language independently from server. |
+| height | optional query;720 | Decimal integer digits1–4, value360–1440. Empty/decimal/outside/repeated400 invalid_height. Each chart panel height, excluding header. |
+| download | optional query;1 | String0/1 only, once.0 inline,1 attachment; empty/other/repeated400 invalid_download. |
+| release | unsupported | Any supplied release query400 release_not_supported; current data only. Catalog release pinning remains a separate interface. |
+
+There are no width/song-title/band/note-speed/jacket override parameters in this HTTP endpoint. Title/band/chart data come from the current song DTO and actual score. Queries retain their case-sensitive names. A nonempty request body is400 body_not_allowed.
+
+## All headers and binary semantics
+
+| Header | Direction/default | Meaning |
+| --- | --- | --- |
+| Accept-Language | optional request | Used when locale query absent; supports normal BCP47 negotiation. |
+| If-None-Match | optional request | Prior ETag; matching strong/weak tags or `*` yield304 without Content-Length. |
+| Content-Type | response | SVG UTF-8 or PNG, JSON on errors. |
+| Content-Length |200/HEAD response | Actual encoded image bytes; absent on304. |
+| Content-Disposition | response | attachment default or inline; filename includes Haneoka/server/song/difficulty/locale/extension. |
+| Content-Language | response | Selected caption locale. |
+| ETag | response | Hash of representation plus selected server/release/song/language/renderer identity. |
+| X-Haneoka-Server | response | Selected registry. |
+| X-Haneoka-Release-Id | response | Actual current release. |
+| X-Haneoka-Chart-Renderer | response | Static overview renderer version. |
+| X-Haneoka-Image-Width/Height | response | Final canvas dimensions, including header and panel layout. |
+| Cache-Control | success public,max-age300,must-revalidate | Errors no-store. |
+| Vary | success Accept-Language | Negotiated caption cache distinction. |
+| X-Request-Id | dispatcher response | Correlation identifier; JSON API errors also include requestId. |
+| Allow |405 response | GET,HEAD,OPTIONS. |
+
+Anonymous CORS allows origin `*`, GET/HEAD/OPTIONS and Content-Type/Accept/Accept-Language/If-None-Match request headers. Exposed image metadata includes Content-Disposition/Length, renderer/release/server/dimensions/ETag. Browser-readable headers depend on this exposure; preserve the JSON error requestId when the header is not exposed. HEAD has identical representation headers and no body. Range is not an image API option; fetch the complete rendered representation or use ETag revalidation.
+
+## Exact budgets and error recovery
+
+The handler reads at most2MiB raw chart and1MiB optional jacket. Missing/unsupported jacket can be omitted while the chart still renders. The renderer caps256 panels,12000000 output pixels and8MiB SVG; PNG validates signature/IHDR, exact dimensions and8MiB byte cap. These are service limits, not extra request knobs. A PNG deployment includes the registered rasterizer and Fontsource manifest/files.
+
+| Status/code | Cause | Action |
+| --- | --- | --- |
+|400 invalid_height/locale/download/server | Bad, repeated or empty permitted parameter | Fix the request. |
+|400 release_not_supported/body_not_allowed | Unsupported release/body | Use current bodyless read. |
+|404 server_not_found/song_not_found/difficulty_not_found/chart_not_found | Registry, entity or score unavailable | Read catalog and select an available entry. |
+|405 method_not_allowed | Nonread method | GET/HEAD/OPTIONS. |
+|406 format_not_supported | Unsupported matching extension | svg/png. |
+|413 chart_too_large/chart_render_budget | Input/font/output budget | Choose a smaller available chart or report provider budget; do not repeat an unchanged oversized request. |
+|501 png_renderer_unavailable | Deployment has no PNG rasterizer | Use SVG or deploy the renderer. |
+|502 chart_path_invalid/chart_invalid/release_invalid | Invalid source identity/path/score | Retain requestId and report current data. |
+|502 png_invalid/chart_image_failed | Wrong PNG signature/size or image/font failure | Fix the matching deployment/font assets. |
+|503 release_unavailable | No active release | Retry later with bounded backoff. |
+
+Errors are `{error:{code,message,requestId}}` at the public dispatcher, X-Request-Id and no-store. Native fetch/CORS/abort errors are transport failures before this envelope; display them separately. Public readiness is determined by the actual deployed Worker response: the inline application records it, rather than treating a documentation deployment as an API deployment.

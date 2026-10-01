@@ -1,0 +1,298 @@
+---
+title: Home Spot scene embed
+description: Mount a Three/Spine scene, bring your own resources, select characters and export a PNG.
+---
+
+import DemoHomeSpot from "../../../components/DemoHomeSpot.astro";
+
+
+`@haneoka/embed-home-spot` mounts a Three/Spine scene inside a container on your website. It accepts a scene you author or a current public Home Spot selected by ID. The public scene provider owns the camera, authored animation, layer composition, hit testing, decoded assets and WebGL lifecycle. The embed connects portable data sources and encoded resource bytes to that provider.
+
+
+## Browser modules and package imports
+
+The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/home-spot.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/home-spot.js`. The package imports below describe a bundled host application; npm publication remains separate.
+
+## Install and mount a public scene
+
+Use an ESM bundler such as Vite. Install the embed and its scene runtime peers:
+
+```sh
+npm install @haneoka/embed-home-spot @haneoka/embed-core @haneoka/api-client \
+  @haneoka/vega-plugin-haneoka three@0.184.0 @esotericsoftware/spine-threejs@4.2.119
+```
+
+The public scene provider accepts the encoded resource port and exposes the controller’s `exportPng` method. Build the provider and embed together from the same source revision.
+
+The Spine runtime is supplied by the application and carries its own [runtime license](https://esotericsoftware.com/spine-runtimes-license). Scene data and artwork retain their authors' licenses.
+
+```html
+<div id="spot"></div>
+```
+
+```js
+import { mountHaneokaHomeSpot } from "@haneoka/embed-home-spot/haneoka";
+
+const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
+  spotId: 40002,
+  server: "intl",
+  locale: "en",
+  ariaLabel: "Garage scene",
+  onEvent(event) {
+    if (event.type === "error") console.error(event.error);
+  },
+});
+
+await spot.ready;
+spot.update({ selectedCharacterId: 31 });
+spot.replay();
+const png = await spot.exportPng({ width: 1920, height: 1080 });
+// Use the PNG Blob in a preview, upload, or download chosen by your application.
+// At the end of the page/component lifetime:
+await spot.dispose();
+```
+
+The public adapter reads the latest `stories` document and selects `homeSpots[spotId].spine`. It needs a server and Spot ID, with no account or release selection. The API currently supplies this data as one document; the adapter selects the scene after that request. Asset references are used as returned. The public mount sends requests with `referrerPolicy: "no-referrer"`, so image hosting accepts the external page without receiving its URL. Your custom `fetcher` receives that Request with its credentials and signal preserved. When combining `haneokaHomeSpotSource` with the main mount manually, set the same referrer policy in your fetcher for public assets. `locale` controls request language independently of `server` and remains a string for authored content.
+
+An application can use `haneokaHomeSpotSource({ spotId, apiBase })` with the main `mountHomeSpot` entry when it wants to manage its own source selection. The `/haneoka` entry requires the optional API client peer; the main entry supports authored data without it.
+
+## Author one scene
+
+Provide the descriptor consumed by the public Home Spot scene provider. One scene needs its GLB background, background transform, atlas and Spine layer. Each atlas page and skeleton is supplied through the resource resolver. A self-contained GLB embeds its background images and buffers.
+
+```js
+import { mountHomeSpot } from "@haneoka/embed-home-spot";
+import { fileResourceResolver } from "@haneoka/embed-core";
+
+const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+const scene = {
+  supported: true,
+  backgroundScene: "room.glb",
+  backgroundTransform: identity,
+  atlas: "actors/actor.atlas",
+  scale: 0.01,
+  camera: {
+    position: [0, 0, -5],
+    startPosition: [0, 0, -5],
+    target: [0, 0, 0],
+    fieldOfView: 20,
+    introDuration: 0,
+  },
+  layers: [
+    {
+      key: "actor",
+      runtime: { json: "actors/actor.json" },
+      animation: "idle",
+      sortingOrder: 0,
+      transform: identity,
+    },
+  ],
+};
+const resources = new Map([
+  ["room.glb", roomGlbFile],
+  ["actors/actor.atlas", atlasFile],
+  ["actors/actor.json", skeletonFile],
+  // The name written in actor.atlas is resolved in its own directory.
+  ["actors/actor.png", textureFile],
+]);
+const spot = mountHomeSpot(document.querySelector("#spot"), {
+  document: scene,
+  resolveResource: fileResourceResolver(resources),
+  locale: "fr",
+  ariaLabel: "Une scène originale",
+});
+await spot.ready;
+```
+
+The file variables above are `File` or `Blob` objects obtained by your application. Their literal resource keys can contain Unicode. Author the scene in one language; no Haneoka page shell, catalog, release manifest or translation set is needed. JSON skeletons use `runtime.json`; binary skeletons use `runtime.skel`. Use data compatible with the installed Spine 4.2 runtime and an animation that exists in that skeleton.
+
+Camera vectors and layer transforms use the provider's scene conventions: vectors and row-major layer matrices follow Unity coordinates, while `backgroundTransform` is the column-major matrix for the converted GLB. Identity matrices work for a scene authored around the origin. A `characterId` and local `hitPolygon` can be added to a layer for pointer selection. Distinct layers retain their authored sorting order. The provider applies camera entrance, mouse follow and selection alpha when those fields are present.
+
+## Load a scene from another origin
+
+The HTTP source uses the scene document's directory as the asset base. For example, a page at `https://gallery.example/` can read a scene from `https://media.example/projects/cafe/scene.json`:
+
+```js
+import { mountHomeSpot } from "@haneoka/embed-home-spot";
+import { httpDataSource } from "@haneoka/embed-core";
+
+const spot = mountHomeSpot(document.querySelector("#spot"), {
+  source: httpDataSource({
+    url: "https://media.example/projects/cafe/scene.json",
+  }),
+  ariaLabel: "Cafe",
+});
+await spot.ready;
+```
+
+With this document, `room.glb` resolves to `https://media.example/projects/cafe/room.glb`. An atlas at `actors/actor.atlas` resolves its `actor.png` page in `projects/cafe/actors/`. A root-relative `/art/room.glb` uses the media origin, and an absolute URL keeps its own origin. Set `assetsBase` to an absolute HTTP(S) directory when resources live elsewhere. A custom `resolveResource` can map keys to URLs or Blobs; `fetcher(request)` can integrate your application's transport. All requests use CORS mode and omit credentials by default.
+
+The data and asset origins must permit browser requests from the page origin. Public anonymous assets can send `Access-Control-Allow-Origin: *`. Credentialed resources need an explicit page origin and credential permission; set `credentials` only when that service requires it. Custom request headers may need a successful OPTIONS preflight. An HTTP failure, unavailable scene, incompatible skeleton or blocked CORS request rejects `ready` and emits an error. The embed's byte budget defaults to 64 MiB per document or resource and can be set with `maxBytes`.
+
+For local JSON, use `fileDataSource(sceneFile)` together with `fileResourceResolver(resources)`. Relative authored keys then match the local map directly. Resource bytes use the same resolver and transport as the document loader. The original scene provider creates textures and model instances, and releases them with the scene.
+
+## Instance lifetime and events
+
+`mountHomeSpot` returns synchronously. Attach a rejection handler to `ready` and keep the handle available to your component cleanup even while the network is loading:
+
+```js
+const spot = mountHomeSpot(host, { source, signal: componentSignal });
+spot.ready.catch(showLoadError);
+// Component cleanup can run before ready settles.
+await spot.dispose();
+```
+
+`cancel()` cancels the current loading generation; after cancellation, call `load({ document })` or `load({ source })` to start another scene. A completed scene stays available when `cancel()` is called. `load` disposes the previous scene and source, rejects its pending load, then mounts the new generation. `ready` always refers to the latest load, and the promise returned by `load` refers to that particular generation. Treat a source with a `dispose` method as owned by one load; create a fresh source when loading again. `dispose()` is idempotent, removes the embed's element and listeners, cancels loading and disposes the source. A disposed handle cannot be reused. Cleanup failures reject `dispose()` with an aggregate error; cancelled `ready` promises reject promptly while cleanup finishes.
+
+`update({ selectedCharacterId })` changes the selected character without rebuilding resources. `update({ replay: true })` restarts the authored entrance and animation; `replay()` does the same after `ready`. `resize()` asks the provider to update its viewport; the scene also observes its container. Use `load` when replacing scene geometry, assets or camera data.
+
+Events include `loading`, `ready`, `cancelled`, `error`, `selection`, `contextlost`, `contextrestored` and `disposed`. Network events appear as `{ type: 'resource', event }`, preserving the embed-core operation ID, key and byte progress. Progress is per resource and includes a total only when the response supplies a reliable decoded length. `subscribe(listener)` returns an unsubscribe function. Event observers cannot change the load outcome; `onListenerError` can receive their errors.
+
+`exportPng({ width, height })` returns a PNG Blob for the current scene frame. Capture is rendered by the scene provider at the requested dimensions, with its GPU limits, then the interactive viewport is restored. Keep the requested proportions equal to the displayed scene when preserving composition. A failed capture rejects the promise. Export creates no permanent download URL; your application should revoke URLs it creates after their previews or downloads finish.
+
+## Layout and controls
+
+The embed reserves a 16:9 area from the moment it mounts, so scene loading does not change the page layout. Override `aspectRatio` to reserve another ratio. The canvas fills that area at the renderer's supported pixel ratio. The embed owns one child element and leaves other container children to the host. A corner link displays the original Haneoka icon and opens `https://haneoka.org/`; it stays outside the game canvas and PNG export.
+
+Use your existing Material controls for replay, selection and export. The embed exposes a scene canvas and lifecycle events; labels, progress indicators and toolbars belong to your application. An MD3 host can provide `--md-sys-color-surface`; the scene clear color follows that token unless `clearColor` is supplied. Localize button text and the `ariaLabel` in the author's language. Selection can also be driven through keyboard-accessible host buttons calling `update`, alongside the canvas's pointer hit testing.
+
+The scene uses original PNG resources. Native compressed Spine textures and PMA need explicit support in the scene provider and its asset data. The embed forwards the existing descriptor and creates no model-specific rendering rules.
+
+## Run and edit a complete scene
+
+Load the small original scene below. The initial document is editable JSON, with one rotating Spine attachment, a self-contained GLB and a tiny atlas image. HTTP reads [the actual scene JSON](/examples/home-spot/scene.json); file mode reads a chosen JSON/asset folder, or the original sample as local Blobs. Haneoka ID calls the actual public convenience mount. Choose a character, replay, replace a generation, resize and export512×288 PNG.
+
+<DemoHomeSpot />
+
+The module/renderer loads only after a click. Existing instances are disposed before another scene mounts. `input`/`url` are the application's source-selection fields; `options` contains actual mount arguments. The download link owns an export Blob URL and revokes it on replacement/exit. Callback/module objects are executable integrations described below, rather than JSON values. UI language choices are ordered ja/en/zh-TW/zh-CN/ko; author locale remains an editable string.
+
+```js
+import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
+const scene = mountHaneokaHomeSpot(element, { spotId: "40002", server: "intl", locale: "en" });
+await scene.ready;
+scene.update({ selectedCharacterId: 31 });
+scene.replay();
+const png = await scene.exportPng({ width: 512, height: 288 });
+await scene.dispose();
+```
+
+Stable aliases adopt the actual deployed SDK. Pin a verified release through manifest.modules; immutable r22 remains available with its own source/layout behavior. Current shared branding uses a transparent background and55% icon opacity in the scene corner, over the full viewport. Capture exports only the scene canvas. SDK artifacts are produced during deployment from source; npm is a separate publication step.
+
+## Every mountHomeSpot / public mount option
+
+Required positional host is an HTMLElement with ownerDocument (TypeError otherwise). Choose exactly one document/source for mountHomeSpot and each load call; both/neither throw TypeError. The host owns its scene child and stable aspect-ratio area, and leaves unrelated host children intact.
+
+| Field | Type/default | Meaning, constraints and failures |
+| --- | --- | --- |
+| document | HomeSpotDocument; required alternative | Authored descriptor below; unsupported/incomplete shape rejects ready. |
+| source | DataSource&lt;HomeSpotDocument&gt;; required alternative | memory/http/file/custom source, same core contracts; source failure rejects ready. |
+| server | optional string;undefined, public mount intl | Resource registry independent from locale. |
+| locale | optional string;en | Author/request language, not limited to UI's five suggestions. |
+| assetsBase | optional absolute HTTP(S) directory;source base | Directory override without query/fragment; invalid TypeError. |
+| resolveResource | optional (key,DataContext)→URL/string/Blob/Promise;key | Literal Unicode resource mapper. Atlas image names resolve relative to that atlas. Missing local key Error. |
+| fetcher | optional (Request)→Promise&lt;Response&gt;;fetch | Encoded-byte transport. Public convenience mount applies no-referrer preserving signal/headers/credentials. |
+| credentials | omit/same-origin/include;omit | Core requests; origin/credential server permission needed. |
+| headers | HeadersInit;none | Core shared headers. Source-request headers take precedence by name. |
+| maxBytes | positive safe integer;67108864 | Each JSON/byte response budget, not aggregate decoded/GPU memory. Illegal RangeError. |
+| onListenerError | optional (unknown)→void | Observer or detached-cleanup error sink. |
+| signal | optional AbortSignal | Abort disposes the mounted handle even when ready. No built-in scene-wide timeout; supply a host deadline. |
+| ariaLabel | string/Home Spot | Accessible canvas name in author language. |
+| clearColor | optional CSS color | Computed host MD3 surface, then Canvas system fallback. Provider color parse errors can reject ready; missing usable computed color Error. |
+| aspectRatio | finite positive number;16/9 | Loading/ready host ratio. Nonpositive/nonfinite RangeError. Changing the descriptor's camera.aspect does not override host resizing. |
+| selectedCharacterId | optional number;no selection (provider0) | Selected layer emphasis;0 clears. Other nonmatching characters get .3 alpha, matched/unspecified1. |
+| modules | optional HaneokaHomeSpotRuntimeModules | Default lazy Three/GLTFLoader/Spine imports. Must use compatible module constructors; missing capability TypeError. Full shape below. |
+| onEvent | optional (HomeSpotEvent)→void | Registered before first generation. |
+| spotId | required string/number for mountHaneokaHomeSpot | Stringified nonempty ID; missing scene Error, empty ID TypeError. Not part of authored mount options. |
+| apiBase | optional string for public mount/source | Defaults https://haneoka.org/api/v1/; core absolute directory validation. |
+
+`mountHaneokaHomeSpot(host,options)` supplies its source automatically, so do not add document/source there. It reads the current stories document and selects homeSpots[id].spine; a source ID is not a release ID. No account/release selection. `haneokaHomeSpotSource({spotId,apiBase?})` supplies the same DataSource for manual mount composition; give no-referrer to public asset transport when composing it manually. The manual source does not itself create a renderer.
+
+## Entire scene descriptor
+
+| Field | Type/default | Requirements and effect |
+| --- | --- | --- |
+| supported | optional boolean in type; must be true at runtime | False/omitted rejects this Three/Spine provider. |
+| atlas | string;required at runtime | Default atlas key for layers. Empty/missing rejects ready. |
+| backgroundScene | string;required at runtime | GLB resource; a self-contained GLB carries its own buffers/images. Missing or invalid GLB rejects load. |
+| backgroundTransform | number[];required16 entries | Column-major converted GLB transform. Wrong length rejects provider creation; use finite matrix values. |
+| animation | optional string;empty | Fallback animation for layers. An available authored animation is required for intended movement. |
+| scale | optional number;.01 provider fallback | Default Spine units scale, overridden by runtime.scale. Zero falls back rather than hiding. |
+| fadeInDuration | optional number;0 | Seconds for character entrance opacity, negative clamped0. |
+| camera | optional camera object;defaults below | Unity-coordinate camera entrance and pointer-follow settings. |
+| layers | readonly layer[];required nonempty | Ordered skeleton/atlas entries; empty rejects provider. |
+
+The public shape permits source extension fields. The provider consumes known fields rather than treating every arbitrary field as another mount setting.
+
+### All camera and mouseFollow fields
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| position | [0,0,-1] | Unity coordinate base camera vector. |
+| startPosition | [0,0,-2] | Unity entrance start. |
+| target | [0,0,0] | Camera target. |
+| fieldOfView |20 | Degrees; use finite positive values below180. Zero uses fallback. |
+| aspect |16/9 | Initial camera aspect; resize replaces it with actual viewport ratio. |
+| orbitRatio |0 | Camera forward-axis offset in scene units. |
+| introDuration |0 | Entrance seconds; negative clamped0. |
+| introEase |0 |9 uses cubic-out, other values use linear progress. |
+| mouseFollow |undefined | Optional pointer-angle settings below. |
+| mouseFollow.sensitivity |undefined | Preserved source metadata; current pointer math uses maxima/threshold directly, not this field. |
+| mouseFollow.threshold |0 | Angular deadzone, clamped nonnegative. |
+| mouseFollow.maxLeft |0 | Left pointer yaw extent in degrees. |
+| mouseFollow.maxRight |0 | Right pointer yaw extent. |
+| mouseFollow.maxUp |0 | Upper pitch extent. |
+| mouseFollow.maxDown |0 | Lower pitch extent. |
+| mouseFollow.smoothTime |.1 | Seconds; minimum .001. |
+
+Camera vectors are3 numbers; layer matrices are Unity row-major, while backgroundTransform is GLB column-major. Missing/invalid vector components follow the provider's numeric fallback. Use identity matrices for an origin-authored scene, and authored source transforms for real game data.
+
+### All layer/runtime fields
+
+| Field | Type/default | Meaning and selection |
+| --- | --- | --- |
+| key | required string in layer type | Author layer identity; literal, can contain Unicode. |
+| characterId | optional number;0 | Selection ID. |
+| sortingOrder | optional number;0 | Ascending painter order; stable input order for ties. |
+| animation | optional string;descriptor.animation | Runtime animation takes precedence. |
+| skeleton | optional string | Input for provider normalization; use explicit runtime.json/skel for a new scene. |
+| transform | optional number[] | Unity row-major layer transform, normally16 finite entries. |
+| hitPolygon | optional readonly [x,y,z][] | Local polygon for pointer selection. |
+| format | optional unknown metadata | Normalized by the Spine-entry adapter. |
+| runtime | optional Readonly&lt;Record&lt;string,unknown&gt;&gt; | Exact supported resource keys below. |
+| runtime.json | optional string | First skeleton source candidate; JSON skeleton data. |
+| runtime.skel | optional string | Binary skeleton source; also selects binary parsing. |
+| runtime.model | optional string | Fallback skeleton source. |
+| runtime.atlas | optional string;descriptor atlas | Layer atlas override. |
+| runtime.format | optional string | spine-binary selects binary; .skel URL extension also selects binary. |
+| runtime.scale | optional number;descriptor.scale then .01 | Spine parser scale. |
+| runtime.animation | optional string;layer then descriptor | Animation name. |
+
+A missing normalized skeleton throws TypeError. Skeleton version must match installed Spine4.2, atlas must include the referenced regions/pages, and named animation must exist for animation playback. HTTP, parse, texture and module errors reject ready. Native compressed/PMA handling follows provider data; no new renderer/format is selected by this embed.
+
+## Complete modules injection object
+
+modules has three:object, GLTFLoader:constructor, spine:object. spine must provide TextureAtlas, ThreeJsTexture, AtlasAttachmentLoader, SkeletonBinary, SkeletonJson and SkeletonMesh constructors. The Three namespace must provide WebGLRenderer, Color, Scene, PerspectiveCamera, Vector2, Vector3, Euler, Matrix4 and MeshBasicMaterial used by the provider. Public package types intentionally keep these opaque and runtime-check consumed constructors. Use one compatible Three instance and Spine4.2.119; importing the embed alone does not initialize WebGL. Licensed runtime distribution stays with the application.
+
+## Every handle, update and export field
+
+| Member | Arguments/result | Behavior/errors |
+| --- | --- | --- |
+| ready | latest Promise&lt;void&gt; | Changes with load. Each returned load Promise is tied to that generation. |
+| state | loading/ready/cancelled/error/disposed | Live phase. |
+| element | HTMLElement | Owned scene/branding wrapper. |
+| canvas | HTMLElement/undefined | Available once provider is ready. |
+| document | HomeSpotDocument/undefined | Latest successfully loaded descriptor, not a copied catalog. |
+| update | \{selectedCharacterId?:number,replay?:boolean\}→void | Applies selection/replay without rebuilding; supplied undefined selection clears it. Disposed Error. |
+| load | \{document\} or \{source\}→Promise&lt;void&gt; | Strictly one input, TypeError otherwise. Dispose previous scene/source and cancel its generation. New source owns its cleanup. |
+| replay | ()=&gt;void | Requires ready; Error if not ready/disposed. |
+| resize | ()=&gt;void | Requires ready; also automatic ResizeObserver. |
+| exportPng | \{width?:number,height?:number\}→Promise&lt;Blob&gt; | Requires ready/intact context. Defaults drawing-buffer size; one omitted dimension preserves current ratio. |
+| subscribe | listener→unsubscribe | Future events, disposed Error. |
+| cancel | ()=&gt;void | Current loading generation only; ready scene remains. Reload with fresh source after cancellation. |
+| dispose | shared Promise&lt;void&gt; | Idempotent, immediate detach/abort, await source cleanups; failures AggregateError. |
+
+PNG width/height must be positive safe integers, within min(maxTextureSize,MAX_RENDERBUFFER_SIZE), and total pixels≤16777216 (RangeError). It renders the current frame without advancing time, temporarily resizes the render target, then restores interactive size/pixel ratio/aspect. Unavailable2D copy context/encoding or lost WebGL context rejects Error. The Blob creates no permanent URL: caller owns preview/download URLs. PNG contains scene pixels, not the host overlay.
+
+Events are resource\{event:EmbedEvent\}, loading/ready/cancelled\{generation:number\}, error\{generation,error\}, selection\{characterId:number\}, contextlost,contextrestored,disposed. Resource events belong to the loading generation; core operation/key/progress fields retain their semantics. Listener errors are isolated. Cancellation uses AbortError; external signal disposes; decode/HTTP/provider errors keep their actual causes. Never reuse a disposed handle/source with released resources.
+
+The application-only `sdkBase` field selects an absolute HTTP(S) directory for your compatible self-hosted core.js/home-spot.js distribution. It defaults to the official /embed/ directory; it is not a mountHomeSpot option. Use Load to apply constructor/resource-mapping changes; Replace passes only document/source to the existing handle.

@@ -1,0 +1,256 @@
+---
+title: Home Spot 场景嵌入
+description: 挂载本站或自带 Three/Spine 场景，选择角色、重播并导出 PNG。
+---
+
+import DemoHomeSpot from "../../../../components/DemoHomeSpot.astro";
+
+
+`@haneoka/embed-home-spot` 在宿主容器创建场景，沿用公开 scene provider 的相机、动画、图层、hit testing、解码和 WebGL 生命周期。嵌入层接入 core 数据源及 encoded bytes。候选包分发见 [嵌入入口](../)。provider 与 embed 应来自匹配版本，运行依赖为 Three 0.184.x 和 Spine 4.2.119；Spine 使用其自身 runtime license。
+
+## 用 ID 挂载本站场景
+
+```js
+import { mountHaneokaHomeSpot } from "@haneoka/embed-home-spot/haneoka";
+const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
+  spotId: 40002,
+  server: "intl",
+  locale: "en",
+  ariaLabel: "Garage scene",
+  onEvent(event) { if (event.type === "error") console.error(event.error); },
+});
+try {
+  await spot.ready;
+  spot.update({ selectedCharacterId: 31 });
+  spot.replay();
+  const png = await spot.exportPng({ width: 1920, height: 1080 });
+  // png 为 Blob，宿主可以预览、上传或下载。
+} finally {
+  await spot.dispose();
+}
+```
+
+容器由宿主提供，例如 `<div id="spot"></div>`。适配器读取 latest stories 文档并选 `homeSpots[spotId].spine`；现有 API 以一个文档提供这些数据。使用返回的资源路径，无需账号或 release。便捷 mount 为公开传输设置 no-referrer，保留 credentials、signal 与自定义 fetcher；手动组合低级 source 时也可设置此公开资源策略。语言与 server 独立。
+
+## 自带完整场景
+
+自带 scene 包含 GLB 背景、背景矩阵、atlas、Spine layer 与相机。自包含 GLB 内嵌 image/buffer，atlas 页面和 skeleton 经 resolver 提供。
+
+```js
+import { mountHomeSpot } from "@haneoka/embed-home-spot";
+import { fileResourceResolver } from "@haneoka/embed-core";
+const identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+const scene = {
+  supported: true,
+  backgroundScene: "room.glb",
+  backgroundTransform: identity,
+  atlas: "actors/actor.atlas",
+  scale: 0.01,
+  camera: {
+    position: [0,0,-5], startPosition: [0,0,-5], target: [0,0,0],
+    fieldOfView: 20, introDuration: 0,
+  },
+  layers: [{
+    key: "actor", runtime: { json: "actors/actor.json" },
+    animation: "idle", sortingOrder: 0, transform: identity,
+  }],
+};
+const resources = new Map([
+  ["room.glb", roomGlbFile],
+  ["actors/actor.atlas", atlasFile],
+  ["actors/actor.json", skeletonFile],
+  ["actors/actor.png", textureFile],
+]);
+const spot = mountHomeSpot(element, {
+  document: scene,
+  resolveResource: fileResourceResolver(resources),
+  locale: "fr",
+  ariaLabel: "Une scène originale",
+});
+await spot.ready;
+```
+
+File 变量由文件选择器或桌面宿主取得，key 支持 Unicode。JSON skeleton 使用 runtime.json，二进制使用 runtime.skel，与安装的 Spine 4.2 匹配；animation 名称必须存在于 skeleton。相机向量和 row-major layer transform 使用 provider 的 Unity 坐标，GLB backgroundTransform 为 column-major。场景围绕原点制作时可用 identity。layer 可加 characterId 和本地 hitPolygon，保留独立 sortingOrder。
+
+## HTTP 与资源路径
+
+```js
+import { httpDataSource } from "@haneoka/embed-core";
+const spot = mountHomeSpot(element, {
+  source: httpDataSource({ url: "https://media.example/projects/cafe/scene.json" }),
+  ariaLabel: "Cafe",
+});
+await spot.ready;
+```
+
+room.glb 基于 scene.json 目录解析，actors/actor.atlas 的 actor.png 基于 atlas 目录解析。根路径使用资源 origin，绝对地址保留自身 origin。assetsBase 可以覆盖为另一个绝对目录，resolveResource 可返回 URL/string/Blob。HTTP/file/内存数据使用相同资源端口。
+
+默认 cors/omit，每项 64 MiB，可设置 maxBytes、fetcher 与 credentials。跨域公开资源允许宿主 origin；cookie 资源需显式允许 origin 和凭据。HTTP 失败、scene 不可用、skeleton 不兼容与 CORS 拒绝会拒绝 ready 并产生 error。
+
+## 替换、取消与释放
+
+mount 立即返回 handle，ready 指向最新 load：
+
+```js
+const spot = mountHomeSpot(host, { source, signal: componentSignal });
+spot.ready.catch(showLoadError);
+// 加载途中也可以：await spot.dispose()。
+await spot.ready;
+spot.update({ selectedCharacterId: 31 });
+spot.replay();
+await spot.load({ document: anotherScene });
+await spot.dispose();
+```
+
+load 取消并清理上一代，返回本代 Promise。cancel 只取消当前加载代次；已完成场景保留，之后可用新 source/document 再 load。带 dispose 的 source 按单 load 所有权使用，每次创建新的 source。dispose 幂等、拆除 DOM/监听/场景/source，已销毁 handle 不能复用；清理失败以 aggregate error 拒绝。
+
+update 选择或重播，不重建资源；resize 请求更新视口，provider 也观察容器。修改几何、相机或资源使用 load。
+
+## 事件、导出与布局
+
+事件包括 loading、ready、cancelled、error、selection、contextlost、contextrestored、disposed；resource 事件包裹 core operation/key/loaded/total。subscribe 返回取消监听函数，onListenerError 隔离观察者异常。
+
+exportPng 返回当前帧 PNG Blob，按 GPU 限制渲染指定尺寸后恢复互动视口。保持比例可保留构图；它不推进动画，调用方创建的预览 URL 自行 revoke。
+
+组件从挂载开始预留 16:9 空间，可用 aspectRatio 指定其他比例。canvas 填满区域，clearColor 默认读取宿主 MD3 surface token。组件只拥有自己的子元素，页面的其他子节点由宿主保留。
+
+Haneoka 原图标链接位于宿主边角，在游戏 canvas 和 PNG 之外。用已有 Material 按钮提供 replay、selection、export 与加载状态，本地化 ariaLabel 和按钮文字；键盘选择可通过宿主按钮调用 update。场景使用原 PNG，压缩纹理与 PMA 支持由 scene provider 和实际 descriptor 决定。
+
+## 实际加载并修改完整场景
+
+下面先加载微小原创场景：一个旋转Spine attachment、自包含GLB和小atlas。HTTP读取[实际scene JSON](/examples/home-spot/scene.json)；file读取所选JSON/素材目录，或把原创样本当真实Blob。本站ID使用实际公开便捷mount。选择角色、replay、替换load代次、resize、导出512×288 PNG均调用真实controller。
+
+<DemoHomeSpot locale="zh-CN" />
+
+点击才import/create，同一应用重建先dispose。input/url为应用输入字段，options为SDK参数；exportURL由应用创建并在替换/退出revoke。callback/modules是实际函数/对象，见下表。五语顺序ja/en/繁/简/ko，作者locale可自由输入。
+
+```js
+import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
+const scene = mountHaneokaHomeSpot(element, {spotId:"40002",server:"intl",locale:"en"});
+await scene.ready;
+scene.update({selectedCharacterId:31});
+scene.replay();
+const png = await scene.exportPng({width:512,height:288});
+await scene.dispose();
+```
+
+稳定alias随实际SDK部署更新，固定版本用manifest.modules；r22保留该版源码/布局。当前共用署名透明底、55%图标透明度角落悬浮，完整画面无额外row；PNG只含canvas。SDK产物部署从源码生成，npm独立发布。
+
+## mountHomeSpot/便捷mount完整参数
+
+host必填HTMLElement且有ownerDocument，否则TypeError。手动mount/load严格document或source二选一，否则TypeError。创建owned child与稳定比例，保留宿主其它子节点。
+
+| 字段 | 类型/默认 | 作用/组合/错误 |
+| --- | --- | --- |
+| document | HomeSpotDocument，替代source必填 | 下述完整scene，unsupported/不完整拒绝ready。 |
+| source | DataSource&lt;HomeSpotDocument&gt;，替代document必填 | memory/http/file/custom，source失败传递。 |
+| server | string/undefined，便捷intl | registry，与locale独立。 |
+| locale | string/en | 作者/请求语言，不限五语建议值。 |
+| assetsBase | 可选绝对HTTP(S)目录/sourcebase | 不含query/fragment，非法TypeError。 |
+| resolveResource | (key,DataContext)=&gt;URL/string/Blob/Promise，原key | Unicode字面key，atlas图基于atlas目录；Map缺key Error。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt;，fetch | bytes传输，便捷公共mount加no-referrer且保留signal/headers/credentials。 |
+| credentials | omit/same-origin/include，omit | core请求，跨域服务允许origin/credentials。 |
+| headers | HeadersInit/无 | 共用头，source逐请求同名覆盖。 |
+| maxBytes | 正safe integer/67108864 | 每JSON/bytes预算，非decoded/GPU总量；非法RangeError。 |
+| onListenerError | (unknown)=&gt;void，可选 | observer/ detachedcleanup错误。 |
+| signal | AbortSignal，可选 | abort销毁，包括ready后；无内置整scene timeout。 |
+| ariaLabel | string/Home Spot | 作者语言canvas可访问名。 |
+| clearColor | 可选CSScolor | 宿主MD3surface→Canvas系统色；解析错误可拒绝ready，无可计算色Error。 |
+| aspectRatio | finite正数/16÷9 | 加载及ready比例，非法RangeError；resize以宿主比率为准。 |
+| selectedCharacterId | 可选number，provider0 |0清除，未匹配角色alpha.3，匹配/未选1。 |
+| modules | 可选runtimeModules | 默认lazy Three/GLTFLoader/Spine，构造能力缺失TypeError。 |
+| onEvent | (HomeSpotEvent)=&gt;void | 首load前登记。 |
+| spotId | 便捷mount必填string/number | String非空，空TypeError，不存在Error；非作者mount字段。 |
+| apiBase | 便捷mount/source可选string | 默认https://haneoka.org/api/v1/，core目录校验。 |
+
+便捷mount自动给source，不同时填document/source。读取current stories→homeSpots[id].spine，无账号/release。haneokaHomeSpotSource(\{spotId,apiBase?\})同数据源但不创建renderer，手动组合时公开素材传输可用no-referrer。
+
+## scene descriptor全部字段
+
+| 字段 | 类型/默认 | runtime要求/作用 |
+| --- | --- | --- |
+| supported | boolean，必须true | false/省略拒绝provider。 |
+| atlas | string，runtime必填 | 默认atlas，空/缺拒绝。 |
+| backgroundScene | string，runtime必填 | GLB，selfcontained内嵌buffer/images，缺/坏拒绝。 |
+| backgroundTransform |16项number[]必填 | GLB column-major，错长度拒绝，使用finite。 |
+| animation | string/空 | layer fallback animation。 |
+| scale | number/.01 fallback | Spine单位，runtime.scale优先，0用fallback。 |
+| fadeInDuration | number/0 | 秒，非负。 |
+| camera | 可选object | 下表完整。 |
+| layers | readonly layer[]，非空 | skeleton/atlas图层，空拒绝。 |
+
+source扩展字段保持，但不把任意字段当mount新开关。
+
+### camera/mouseFollow全部字段
+
+| 字段 | 默认 | 含义 |
+| --- | --- | --- |
+| position |[0,0,-1] | Unity basecamera。 |
+| startPosition |[0,0,-2] | 入口起点。 |
+| target |[0,0,0] | 目标。 |
+| fieldOfView |20 | 度，建议finite正且&lt;180；0fallback。 |
+| aspect |16/9 | 初始，resize按实际viewport替换。 |
+| orbitRatio |0 | forward轴位移。 |
+| introDuration |0 | 秒，负clamp0。 |
+| introEase |0 |9 cubic-out，其它linear。 |
+| mouseFollow |undefined | 下述pointer参数。 |
+| sensitivity |undefined | source metadata保留，当前math用max/threshold，不用此项。 |
+| threshold |0 | 角度deadzone，非负。 |
+| maxLeft |0 | 左yaw角。 |
+| maxRight |0 | 右yaw角。 |
+| maxUp |0 | 上pitch角。 |
+| maxDown |0 | 下pitch角。 |
+| smoothTime |.1 | 秒，最低.001。 |
+
+vectors为3数，layer matrix为Unity row-major，backgroundTransform为GLB column-major。缺/坏vector项用provider数字fallback；原点作者场景可identity，游戏数据沿真实source矩阵。
+
+### layer/runtime全部字段
+
+| 字段 | 类型/默认 | 选择与作用 |
+| --- | --- | --- |
+| key | 必填string | 字面identity，Unicode可用。 |
+| characterId | number/0 | 选择ID。 |
+| sortingOrder | number/0 | 递增painterorder，同值输入稳定顺序。 |
+| animation | string/descriptor.animation | runtime.animation优先。 |
+| skeleton | 可选string | normalization输入，新scene显式runtime.json/skel。 |
+| transform | 可选number[] | Unity row-major，通常16finite数。 |
+| hitPolygon | readonly[x,y,z][] | 本地选择polygon。 |
+| format | unknown可选 | Spine adapter normalize。 |
+| runtime | readonly record可选 | 使用下述资源keys。 |
+| runtime.json | string可选 | 首 skeleton候选。 |
+| runtime.skel | string可选 | binary source/解析。 |
+| runtime.model | string可选 | fallback source。 |
+| runtime.atlas | string/descriptor.atlas | layeroverride。 |
+| runtime.format | string可选 | spine-binary，.skel后缀也选binary。 |
+| runtime.scale | number/descriptor.scale→.01 | parser scale。 |
+| runtime.animation | string/layer→descriptor | animation名。 |
+
+缺normalized skeleton TypeError。Spine4.2版本与atlasregion/page必须匹配，动画名应存在；HTTP/parse/texture/module拒绝ready。压缩/PMA沿provider数据，不引入新渲染规则。
+
+## modules完整注入对象
+
+three:object、GLTFLoader:constructor、spine:object。spine需TextureAtlas/ThreeJsTexture/AtlasAttachmentLoader/SkeletonBinary/SkeletonJson/SkeletonMesh；Three namespace提供WebGLRenderer/Color/Scene/PerspectiveCamera/Vector2/Vector3/Euler/Matrix4/MeshBasicMaterial等实际构造器。类型有意opaque，runtime校验，使用匹配Three/Spine4.2.119；import本身不创建WebGL，许可runtime由应用供应。
+
+## 全部handle/update/export参数
+
+| 成员 | 参数/结果 | 行为/错误 |
+| --- | --- | --- |
+| ready | 最新Promise&lt;void&gt; | 随load改变，各load Promise只属本代。 |
+| state | loading/ready/cancelled/error/disposed | 实际phase。 |
+| element | HTMLElement | ownedwrapper。 |
+| canvas | HTMLElement/undefined | ready后。 |
+| document | descriptor/undefined | 本代成功scene。 |
+| update | \{selectedCharacterId?,replay?\} | 选择/replay不重建，显式undefined清除选择；disposed Error。 |
+| load | \{document\}或\{source\}→Promise | 严格一个，错误TypeError，dispose前代scene/source并取消；source单代所有权。 |
+| replay | ()=&gt;void | 需ready，否则Error。 |
+| resize | ()=&gt;void | 需ready，另有ResizeObserver。 |
+| exportPng | \{width?,height?\}→Promise&lt;Blob&gt; | ready/context，默认drawingbuffer，缺一维按比率补。 |
+| subscribe | listener→unsubscribe | 未来事件，disposed Error。 |
+| cancel | ()=&gt;void | 仅loading，ready保留；新source重load。 |
+| dispose | 共用Promise&lt;void&gt; | 幂等，立即detach/abort，等待source，失败AggregateError。 |
+
+PNG尺寸正safe integer，≤min(maxTextureSize,MAX_RENDERBUFFER_SIZE)，总像素≤16777216，否则RangeError。捕获当前帧不推进时间，暂改target后恢复viewport/pixelratio/aspect；contextlost、2D/编码不可用Error。Blob不自动生成URL，preview/download URL由作者revoke，PNG不含宿主署名。
+
+events完整为resource\{event:EmbedEvent\}、loading/ready/cancelled\{generation\}、error\{generation,error\}、selection\{characterId\}、contextlost/contextrestored/disposed。resource属loading generation；observer隔离。cancel为AbortError、external signal销毁、HTTP/decoder/provider错误保留原因，不复用已释放source。
+
+应用字段sdkBase可指定兼容自托管core.js/home-spot.js的绝对HTTP(S)目录，默认官方/embed/，不是mount参数。构造/资源映射变更用加载按钮；替换仅把document/source传入已有handle。
