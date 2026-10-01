@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Haneoka Public API",
-    "version": "2026-09-30",
+    "version": "2026-10-01",
     "description": "Public HTTP contracts served by haneoka.org. Manifest-driven catalog DTOs and provider projections retain their published fields; stable envelopes and transport behavior are described explicitly."
   },
   "servers": [
@@ -12,6 +12,14 @@
     }
   ],
   "tags": [
+    {
+      "name": "Chart images",
+      "description": "Current chart SVG/PNG overview, dimensions and bounded rendering."
+    },
+    {
+      "name": "Game records",
+      "description": "Public rankings and profiles by game region."
+    },
     {
       "name": "Latest resource API",
       "description": "Current catalog aliases with intl as the default server and an optional server query."
@@ -1721,8 +1729,57 @@
           "required": false,
           "description": "Repeat for an entity batch.",
           "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            }
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
             "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Enable pagination. Defaults to 50 when cursor is present. Only collection/view entity storage supports it; do not combine with id.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "description": "Opaque continuation returned by the previous page. Retains its release and server/resource/view scope.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
           },
           "style": "form",
           "explode": true
@@ -1814,7 +1871,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       },
       "head": {
         "summary": "Read a resource index or batch",
@@ -1902,7 +1960,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       }
     },
     "/api/v1/servers/{server}/{resource}/{id}": {
@@ -1942,6 +2001,24 @@
           "schema": {
             "type": "string",
             "pattern": "^r-[a-f0-9]{20}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
           },
           "style": "form",
           "explode": true
@@ -2099,8 +2176,57 @@
           "required": false,
           "description": "Repeat for a view entity batch.",
           "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            }
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
             "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Enable pagination. Defaults to 50 when cursor is present. Only collection/view entity storage supports it; do not combine with id.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "description": "Opaque continuation returned by the previous page. Retains its release and server/resource/view scope.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
           },
           "style": "form",
           "explode": true
@@ -2192,7 +2318,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       },
       "head": {
         "summary": "Read a view index or batch",
@@ -2280,7 +2407,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       }
     },
     "/api/v1/servers/{server}/{resource}/views/{view}/{id}": {
@@ -2329,6 +2457,24 @@
           "schema": {
             "type": "string",
             "pattern": "^r-[a-f0-9]{20}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
           },
           "style": "form",
           "explode": true
@@ -2485,6 +2631,24 @@
           "schema": {
             "type": "string",
             "pattern": "^r-[a-f0-9]{20}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
           },
           "style": "form",
           "explode": true
@@ -3173,8 +3337,57 @@
           "required": false,
           "description": "Repeat for an entity batch.",
           "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            }
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
             "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Enable pagination. Defaults to 50 when cursor is present. Only collection/view entity storage supports it; do not combine with id.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "description": "Opaque continuation returned by the previous page. Retains its release and server/resource/view scope.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
           },
           "style": "form",
           "explode": true
@@ -3266,7 +3479,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       },
       "head": {
         "summary": "Read the current resource index or an entity batch",
@@ -3354,7 +3568,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       }
     },
     "/api/v1/{resource}/{id}": {
@@ -3388,6 +3603,24 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
         }
       ],
       "get": {
@@ -3533,8 +3766,57 @@
           "required": false,
           "description": "Repeat for a view entity batch.",
           "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            }
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
             "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$"
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "description": "Enable pagination. Defaults to 50 when cursor is present. Only collection/view entity storage supports it; do not combine with id.",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "description": "Opaque continuation returned by the previous page. Retains its release and server/resource/view scope.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
           },
           "style": "form",
           "explode": true
@@ -3626,7 +3908,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       },
       "head": {
         "summary": "Read a current resource view or view batch",
@@ -3714,7 +3997,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release."
       }
     },
     "/api/v1/{resource}/views/{view}/{id}": {
@@ -3757,6 +4041,24 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
         }
       ],
       "get": {
@@ -3904,6 +4206,24 @@
           "schema": {
             "type": "string"
           }
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
         }
       ],
       "get": {
@@ -16431,6 +16751,2269 @@
           }
         }
       }
+    },
+    "/api/v1/songs/{songId}/charts/{difficulty}/image.{format}": {
+      "parameters": [
+        {
+          "name": "server",
+          "in": "query",
+          "required": false,
+          "description": "Active server slug. Omit this parameter to read the default intl server. Static top-level groups such as releases, servers, account, me, community, and garupa are separate routes.",
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "songId",
+          "in": "path",
+          "required": true,
+          "description": "Catalog song ID.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "difficulty",
+          "in": "path",
+          "required": true,
+          "description": "Must be present in the song DTO.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "normal",
+              "hard",
+              "expert",
+              "special",
+              "master"
+            ]
+          }
+        },
+        {
+          "name": "format",
+          "in": "path",
+          "required": true,
+          "description": "Output representation.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "svg",
+              "png"
+            ]
+          }
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "Accept-Language",
+          "in": "header",
+          "required": false,
+          "description": "Caption language when locale is absent.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "height",
+          "in": "query",
+          "required": false,
+          "description": "Chart panel height excluding the header; final canvas dimensions are response headers.",
+          "schema": {
+            "type": "integer",
+            "minimum": 360,
+            "maximum": 1440,
+            "default": 720
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "download",
+          "in": "query",
+          "required": false,
+          "description": "0 inline; 1 attachment.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "0",
+              "1"
+            ],
+            "default": "1"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "If-None-Match",
+          "in": "header",
+          "required": false,
+          "description": "Prior representation ETag.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Render a current chart image",
+        "description": "Prepared Worker update. Uses current data only; release is unsupported. SVG and PNG have bounded inputs/output and share layout dimensions. Repeated/empty query values reject.",
+        "operationId": "getChartImage",
+        "tags": [
+          "Chart images"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current chart overview. PNG requires deployed Fontsource manifest/files.",
+            "headers": {
+              "Content-Length": {
+                "description": "Length of the returned representation or range.",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              },
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; Content-Length absent.",
+            "headers": {
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid/repeated/empty parameters, request body, or unsupported release query.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server/song/difficulty/chart not found.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Format not supported.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Chart/font/render budget exceeded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Deployment has no PNG rasterizer.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Chart parsing or image/font rendering failed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Current release unavailable.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read chart image headers",
+        "operationId": "getChartImageHead",
+        "tags": [
+          "Chart images"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current chart overview. PNG requires deployed Fontsource manifest/files.",
+            "headers": {
+              "Content-Length": {
+                "description": "Length of the returned representation or range.",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              },
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; Content-Length absent.",
+            "headers": {
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid/repeated/empty parameters, request body, or unsupported release query.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server/song/difficulty/chart not found.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Format not supported.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Chart/font/render budget exceeded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Deployment has no PNG rasterizer.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Chart parsing or image/font rendering failed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Current release unavailable.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "summary": "Chart image CORS preflight",
+        "operationId": "getChartImageOptions",
+        "tags": [
+          "Chart images"
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}": {
+      "parameters": [
+        {
+          "name": "server",
+          "in": "path",
+          "required": true,
+          "description": "Active resource-server slug.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "songId",
+          "in": "path",
+          "required": true,
+          "description": "Catalog song ID.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "difficulty",
+          "in": "path",
+          "required": true,
+          "description": "Must be present in the song DTO.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "normal",
+              "hard",
+              "expert",
+              "special",
+              "master"
+            ]
+          }
+        },
+        {
+          "name": "format",
+          "in": "path",
+          "required": true,
+          "description": "Output representation.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "svg",
+              "png"
+            ]
+          }
+        },
+        {
+          "name": "locale",
+          "in": "query",
+          "required": false,
+          "description": "UI language; catalog values retain all supplied localized fields.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ja",
+              "en",
+              "zh-TW",
+              "zh-CN",
+              "ko"
+            ]
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "Accept-Language",
+          "in": "header",
+          "required": false,
+          "description": "Caption language when locale is absent.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "height",
+          "in": "query",
+          "required": false,
+          "description": "Chart panel height excluding the header; final canvas dimensions are response headers.",
+          "schema": {
+            "type": "integer",
+            "minimum": 360,
+            "maximum": 1440,
+            "default": 720
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "download",
+          "in": "query",
+          "required": false,
+          "description": "0 inline; 1 attachment.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "0",
+              "1"
+            ],
+            "default": "1"
+          },
+          "style": "form",
+          "explode": true
+        },
+        {
+          "name": "If-None-Match",
+          "in": "header",
+          "required": false,
+          "description": "Prior representation ETag.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Render a current chart image",
+        "description": "Prepared Worker update. Uses current data only; release is unsupported. SVG and PNG have bounded inputs/output and share layout dimensions. Repeated/empty query values reject.",
+        "operationId": "getScopedChartImage",
+        "tags": [
+          "Chart images"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current chart overview. PNG requires deployed Fontsource manifest/files.",
+            "headers": {
+              "Content-Length": {
+                "description": "Length of the returned representation or range.",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              },
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; Content-Length absent.",
+            "headers": {
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid/repeated/empty parameters, request body, or unsupported release query.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server/song/difficulty/chart not found.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Format not supported.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Chart/font/render budget exceeded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Deployment has no PNG rasterizer.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Chart parsing or image/font rendering failed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Current release unavailable.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read chart image headers",
+        "operationId": "getScopedChartImageHead",
+        "tags": [
+          "Chart images"
+        ],
+        "responses": {
+          "200": {
+            "description": "Current chart overview. PNG requires deployed Fontsource manifest/files.",
+            "headers": {
+              "Content-Length": {
+                "description": "Length of the returned representation or range.",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              },
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Unchanged representation; Content-Length absent.",
+            "headers": {
+              "ETag": {
+                "description": "Representation validator.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Release-Id": {
+                "description": "Immutable release selected for this server-scoped response.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^r-[a-f0-9]{20}$"
+                }
+              },
+              "X-Haneoka-Server": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Chart-Renderer": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Haneoka-Image-Width": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "X-Haneoka-Image-Height": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Language": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid/repeated/empty parameters, request body, or unsupported release query.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server/song/difficulty/chart not found.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Format not supported.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Chart/font/render budget exceeded.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Deployment has no PNG rasterizer.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Chart parsing or image/font rendering failed.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Current release unavailable.",
+            "headers": {
+              "X-Request-Id": {
+                "description": "Request correlation identifier.",
+                "schema": {
+                  "$ref": "#/components/schemas/RequestIdHeader"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "summary": "Chart image CORS preflight",
+        "operationId": "getScopedChartImageOptions",
+        "tags": [
+          "Chart images"
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/songs/{musicId}/ranking": {
+      "parameters": [
+        {
+          "name": "region",
+          "in": "path",
+          "required": true,
+          "description": "Game region, independent of catalog server and UI language.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          }
+        },
+        {
+          "name": "musicId",
+          "in": "path",
+          "required": true,
+          "description": "Positive decimal music ID.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read public song ranking",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsSongRanking",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read public song ranking",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsSongRankingHead",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/players/{profileId}": {
+      "parameters": [
+        {
+          "name": "region",
+          "in": "path",
+          "required": true,
+          "description": "Game region, independent of catalog server and UI language.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          }
+        },
+        {
+          "name": "profileId",
+          "in": "path",
+          "required": true,
+          "description": "Region-specific public profile ID from a ranking result.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read public game profile",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsGamePlayerProfile",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamePlayerProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read public game profile",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsGamePlayerProfileHead",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GamePlayerProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/events/current": {
+      "parameters": [
+        {
+          "name": "region",
+          "in": "path",
+          "required": true,
+          "description": "Game region, independent of catalog server and UI language.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read current tracked event",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsEventTracker",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventTracker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read current tracked event",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsEventTrackerHead",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventTracker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/events/{eventId}/latest": {
+      "parameters": [
+        {
+          "name": "region",
+          "in": "path",
+          "required": true,
+          "description": "Game region, independent of catalog server and UI language.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          }
+        },
+        {
+          "name": "eventId",
+          "in": "path",
+          "required": true,
+          "description": "Positive decimal event ID.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read event point ranking",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsEventRanking",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read event point ranking",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsEventRankingHead",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/events/{eventId}/challenges/{challengeId}/ranking": {
+      "parameters": [
+        {
+          "name": "region",
+          "in": "path",
+          "required": true,
+          "description": "Game region, independent of catalog server and UI language.",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          }
+        },
+        {
+          "name": "eventId",
+          "in": "path",
+          "required": true,
+          "description": "Positive decimal event ID.",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "challengeId",
+          "in": "path",
+          "required": true,
+          "description": "Positive decimal challenge ID.",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "summary": "Read event challenge ranking",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsEventRankingChallenge",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "summary": "Read event challenge ranking",
+        "description": "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update.",
+        "operationId": "getGameRecordsEventRankingChallengeHead",
+        "tags": [
+          "Game records"
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventRanking"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "JSON response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameRecordsError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -17080,6 +19663,9 @@
           },
           {
             "$ref": "#/components/schemas/CatalogBatch"
+          },
+          {
+            "$ref": "#/components/schemas/CatalogPage"
           }
         ]
       },
@@ -17090,6 +19676,9 @@
           },
           {
             "$ref": "#/components/schemas/CatalogBatch"
+          },
+          {
+            "$ref": "#/components/schemas/CatalogPage"
           }
         ]
       },
@@ -19443,6 +22032,638 @@
       "BetterAuthResponse": {
         "type": "object",
         "additionalProperties": true
+      },
+      "CatalogPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "value": {}
+              },
+              "required": [
+                "id",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release": {
+            "$ref": "#/components/schemas/ReleaseIdentity"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "nextCursor",
+          "release"
+        ],
+        "additionalProperties": false
+      },
+      "GameProfileCard": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slot": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "thumbnailUrls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "slot",
+          "thumbnailUrls"
+        ],
+        "additionalProperties": false
+      },
+      "GameRankingCard": {
+        "type": "object",
+        "properties": {
+          "slot": {
+            "type": "integer"
+          },
+          "memberCardId": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "memberExp": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "memberAwakeCount": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "memberRank": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "supportCardId": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "supportExp": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "supportRank": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "slot",
+          "memberCardId",
+          "memberExp",
+          "memberAwakeCount",
+          "memberRank",
+          "supportCardId",
+          "supportExp",
+          "supportRank"
+        ],
+        "additionalProperties": false
+      },
+      "GameRankingRow": {
+        "type": "object",
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tied": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "playerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profileId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deckName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rankExp": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "favoriteMemberCardId": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "deckId": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "totalPower": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "profileCard": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GameProfileCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cards": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/GameRankingCard"
+            }
+          }
+        },
+        "required": [
+          "rank",
+          "tied",
+          "name",
+          "playerId",
+          "profileId",
+          "deckName",
+          "rankExp",
+          "favoriteMemberCardId",
+          "score",
+          "deckId",
+          "totalPower",
+          "profileCard",
+          "cards"
+        ],
+        "additionalProperties": false
+      },
+      "SongRanking": {
+        "type": "object",
+        "properties": {
+          "region": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          },
+          "fetchedAtMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "serverTimeMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "musicId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameRankingRow"
+            }
+          }
+        },
+        "required": [
+          "region",
+          "fetchedAtMs",
+          "serverTimeMs",
+          "stale",
+          "musicId",
+          "rows"
+        ],
+        "additionalProperties": false
+      },
+      "GamePlayerProfile": {
+        "type": "object",
+        "properties": {
+          "region": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          },
+          "fetchedAtMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "serverTimeMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "level": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "rankExp": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "totalFavorite": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "lastUpdatedAtMs": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "profileCard": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GameProfileCard"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "favoriteMemberCard": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "cardId": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "awakeCount": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "cardRank": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "liveSkillLevel": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "performanceSkillLevel": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "cardId",
+                      "awakeCount",
+                      "cardRank",
+                      "liveSkillLevel",
+                      "performanceSkillLevel"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "level",
+              "rankExp",
+              "totalFavorite",
+              "lastUpdatedAtMs",
+              "profileCard",
+              "favoriteMemberCard"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "region",
+          "fetchedAtMs",
+          "serverTimeMs",
+          "stale",
+          "profileId",
+          "profile"
+        ],
+        "additionalProperties": false
+      },
+      "GameRecordsError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "retryAfter": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "retryAfter"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "EventTracker": {
+        "type": "object",
+        "properties": {
+          "region": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          },
+          "fetchedAtMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "event": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "startAtMs": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "endAtMs": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "pointRankingEnabled": {
+                    "type": "boolean"
+                  },
+                  "pointRankingStatus": {
+                    "type": "string"
+                  },
+                  "challenges": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "musicId": {
+                          "type": "string"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "status": {
+                          "type": "string"
+                        },
+                        "startAtMs": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "endAtMs": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "rewardRanks": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "musicId",
+                        "enabled",
+                        "status",
+                        "startAtMs",
+                        "endAtMs",
+                        "rewardRanks"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "startAtMs",
+                  "endAtMs",
+                  "status",
+                  "pointRankingEnabled",
+                  "pointRankingStatus",
+                  "challenges"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "region",
+          "fetchedAtMs",
+          "stale",
+          "event"
+        ],
+        "additionalProperties": false
+      },
+      "EventRanking": {
+        "type": "object",
+        "properties": {
+          "region": {
+            "type": "string",
+            "enum": [
+              "jp",
+              "tw",
+              "en",
+              "kr"
+            ]
+          },
+          "fetchedAtMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "serverTimeMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "challengeId": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameRankingRow"
+            }
+          }
+        },
+        "required": [
+          "region",
+          "fetchedAtMs",
+          "serverTimeMs",
+          "stale",
+          "eventId",
+          "rows"
+        ],
+        "additionalProperties": false
       }
     }
   }

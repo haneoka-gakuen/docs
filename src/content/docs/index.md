@@ -1,10 +1,10 @@
 ---
-title: Haneoka API
+title: Haneoka Docs
 description: Read current songs, events, stories, characters, media, and community data from haneoka.org.
 template: splash
 hero:
-  title: Haneoka API
-  tagline: Current game data in direct, readable HTTP requests.
+  title: Haneoka Docs
+  tagline: Current game data and standalone story, chart and scene hosts.
   actions:
     - text: Make a request
       link: /quickstart/
@@ -29,6 +29,8 @@ The direct resource API uses the current catalog for the `intl` server by defaul
 
 | What you are building | Read this |
 | --- | --- |
+| Embed a story, chart or Home Spot scene | [JavaScript embeds](./embed/) |
+| Use pagination, typed clients, chart images and rankings | [Catalog data](./servers/catalog/) |
 | Browse songs, bands, cards, stories, or events | [Catalog data](./servers/catalog/) |
 | Read current in-game operational announcements | [Operational announcements](./servers/announcements/) |
 | Download an image, audio file, video, or chart referenced by a DTO | [Media and files](./servers/media/) |

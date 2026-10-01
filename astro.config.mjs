@@ -6,9 +6,9 @@ export default defineConfig({
   legacy: { collections: true },
   integrations: [
     starlight({
-      title: "Haneoka API",
+      title: "Haneoka Docs",
       description:
-        "Public API documentation for haneoka.org resource servers and community services.",
+        "Public API and JavaScript embedding guides for Haneoka catalogs, stories, charts, scenes and community services.",
       favicon: "/favicon.svg",
       customCss: ["./src/styles/md3.css"],
       social: [
@@ -32,7 +32,12 @@ export default defineConfig({
         {
           label: "Catalog data",
           translations: { "zh-CN": "资料目录" },
-          items: ["servers/catalog"],
+          items: ["servers/catalog", "servers/client", "servers/chart-images", "servers/records"],
+        },
+        {
+          label: "JavaScript embeds",
+          translations: { "zh-CN": "JavaScript 嵌入" },
+          items: ["embed", "embed/core", "embed/vega", "embed/cassiopeia", "embed/home-spot"],
         },
         {
           label: "Operational data",

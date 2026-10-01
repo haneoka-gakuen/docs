@@ -488,7 +488,7 @@ const paths = {
         releaseQuery,
         query(
           "id",
-          { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" },
+          { type: "array", minItems: 1, maxItems: 100, items: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" } },
           "Repeat for an entity batch.",
         ),
       ],
@@ -534,7 +534,7 @@ const paths = {
         releaseQuery,
         query(
           "id",
-          { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" },
+          { type: "array", minItems: 1, maxItems: 100, items: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" } },
           "Repeat for a view entity batch.",
         ),
       ],
@@ -664,7 +664,7 @@ Object.assign(paths, {
       parameters: [
         query(
           "id",
-          { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" },
+          { type: "array", minItems: 1, maxItems: 100, items: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" } },
           "Repeat for an entity batch.",
         ),
       ],
@@ -694,7 +694,7 @@ Object.assign(paths, {
         pathParam("view", "View name declared in the resource manifest."),
         query(
           "id",
-          { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" },
+          { type: "array", minItems: 1, maxItems: 100, items: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:~-]{0,255}$" } },
           "Repeat for a view entity batch.",
         ),
       ],
@@ -2094,10 +2094,10 @@ const schemas = {
     additionalProperties: false,
   },
   CatalogResourceIndexOrBatch: {
-    anyOf: [ref("CatalogResourceIndex"), ref("CatalogBatch")],
+    anyOf: [ref("CatalogResourceIndex"), ref("CatalogBatch"), ref("CatalogPage")],
   },
   CatalogViewDocumentOrBatch: {
-    anyOf: [ref("CatalogViewDocument"), ref("CatalogBatch")],
+    anyOf: [ref("CatalogViewDocument"), ref("CatalogBatch"), ref("CatalogPage")],
   },
   CatalogRelationResponse: {
     anyOf: [
@@ -3205,6 +3205,173 @@ const schemas = {
   BetterAuthResponse: { ...anyObject },
 };
 
+// Public catalog/embedding release contracts. Existing non-paged indexes retain their shape.
+const catalogLocaleQuery = query(
+  "locale", { type: "string", enum: ["ja", "en", "zh-TW", "zh-CN", "ko"] },
+  "UI language; catalog values retain all supplied localized fields.",
+);
+for (const path of [
+  "/api/v1/{resource}", "/api/v1/{resource}/{id}",
+  "/api/v1/{resource}/views/{view}", "/api/v1/{resource}/views/{view}/{id}",
+  "/api/v1/{resource}/relations/{relation}/{key}",
+  "/api/v1/servers/{server}/{resource}", "/api/v1/servers/{server}/{resource}/{id}",
+  "/api/v1/servers/{server}/{resource}/views/{view}",
+  "/api/v1/servers/{server}/{resource}/views/{view}/{id}",
+  "/api/v1/servers/{server}/{resource}/relations/{relation}/{key}",
+]) paths[path].parameters.push(catalogLocaleQuery);
+for (const path of [
+  "/api/v1/{resource}", "/api/v1/{resource}/views/{view}",
+  "/api/v1/servers/{server}/{resource}", "/api/v1/servers/{server}/{resource}/views/{view}",
+]) {
+  paths[path].parameters.push(
+    query("limit", { type: "integer", minimum: 1, maximum: 100 },
+      "Enable pagination. Defaults to 50 when cursor is present. Only collection/view entity storage supports it; do not combine with id."),
+    query("cursor", { type: "string", minLength: 1, maxLength: 2048 },
+      "Opaque continuation returned by the previous page. Retains its release and server/resource/view scope."),
+  );
+  paths[path].get.description = "Without limit/cursor returns the provider index or id batch. Pagination scans at most eight shards per request; short/empty pages can continue. End only when nextCursor is null. Direct aliases reject release; explicit server routes accept an immutable release.";
+}
+schemas.CatalogPage = {
+  type: "object",
+  properties: {
+    items: { type: "array", maxItems: 100, items: {
+      type: "object", properties: { id: { type: "string" }, value: {} },
+      required: ["id", "value"], additionalProperties: false,
+    } },
+    total: { type: "integer", minimum: 0 },
+    limit: { type: "integer", minimum: 1, maximum: 100 },
+    nextCursor: { type: ["string", "null"] },
+    release: ref("ReleaseIdentity"),
+  },
+  required: ["items", "total", "limit", "nextCursor", "release"],
+  additionalProperties: false,
+};
+const imageHeaders = {
+  "Content-Length": rangeHeaders["Content-Length"], ETag: rangeHeaders.ETag,
+  "X-Haneoka-Release-Id": releaseHeaders["X-Haneoka-Release-Id"],
+  "X-Haneoka-Server": { schema: { type: "string" } },
+  "X-Haneoka-Chart-Renderer": { schema: { type: "string" } },
+  "X-Haneoka-Image-Width": { schema: { type: "integer", minimum: 1 } },
+  "X-Haneoka-Image-Height": { schema: { type: "integer", minimum: 1 } },
+  "Content-Disposition": { schema: { type: "string" } },
+  "Content-Language": { schema: { type: "string" } },
+};
+for (const scoped of [false, true]) {
+  const path = scoped
+    ? "/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}"
+    : "/api/v1/songs/{songId}/charts/{difficulty}/image.{format}";
+  const parameters = [
+    scoped ? pathParam("server", "Active resource-server slug.") : currentServerQuery,
+    pathParam("songId", "Catalog song ID."),
+    pathParam("difficulty", "Must be present in the song DTO.", { type: "string", enum: ["easy", "normal", "hard", "expert", "special", "master"] }),
+    pathParam("format", "Output representation.", { type: "string", enum: ["svg", "png"] }),
+    catalogLocaleQuery,
+    headerParam("Accept-Language", { type: "string" }, "Caption language when locale is absent."),
+    query("height", { type: "integer", minimum: 360, maximum: 1440, default: 720 }, "Chart panel height excluding the header; final canvas dimensions are response headers."),
+    query("download", { type: "string", enum: ["0", "1"], default: "1" }, "0 inline; 1 attachment."),
+    headerParam("If-None-Match", { type: "string" }, "Prior representation ETag."),
+  ];
+  const responses = {
+    200: { description: "Current chart overview. PNG requires deployed Fontsource manifest/files.", headers: imageHeaders,
+      content: { "image/svg+xml": { schema: { type: "string" } }, "image/png": { schema: { type: "string", format: "binary" } } } },
+    304: noContent("Unchanged representation; Content-Length absent.", Object.fromEntries(Object.entries(imageHeaders).filter(([name]) => name !== "Content-Length"))),
+    400: error("Invalid/repeated/empty parameters, request body, or unsupported release query."),
+    404: error("Server/song/difficulty/chart not found."),
+    405: error("Method not allowed."), 406: error("Format not supported."),
+    413: error("Chart/font/render budget exceeded."),
+    501: error("Deployment has no PNG rasterizer."),
+    502: error("Chart parsing or image/font rendering failed."), 503: error("Current release unavailable."),
+  };
+  const id = scoped ? "getScopedChartImage" : "getChartImage";
+  paths[path] = {
+    parameters,
+    get: operation("Render a current chart image", responses, {
+      operationId: id, tags: ["Chart images"],
+      description: "Prepared Worker update. Uses current data only; release is unsupported. SVG and PNG have bounded inputs/output and share layout dimensions. Repeated/empty query values reject.",
+    }),
+    head: operation("Read chart image headers", Object.fromEntries(Object.entries(responses).map(([status, response]) => {
+      const { content, ...headersOnly } = response;
+      return [status, headersOnly];
+    })), { operationId: `${id}Head`, tags: ["Chart images"] }),
+    options: operation("Chart image CORS preflight", { 204: noContent() }, { operationId: `${id}Options`, tags: ["Chart images"] }),
+  };
+}
+const nullableNumber = { type: ["number", "null"] };
+const nullableText = { type: ["string", "null"] };
+schemas.GameProfileCard = {
+  type: "object", properties: { name: nullableText, slot: nullableNumber, thumbnailUrls: { type: "array", items: { type: "string", format: "uri" } } },
+  required: ["name", "slot", "thumbnailUrls"], additionalProperties: false,
+};
+schemas.GameRankingCard = {
+  type: "object", properties: Object.fromEntries(["slot", "memberCardId", "memberExp", "memberAwakeCount", "memberRank", "supportCardId", "supportExp", "supportRank"].map(name => [name, name === "slot" ? { type: "integer" } : nullableNumber])),
+  required: ["slot", "memberCardId", "memberExp", "memberAwakeCount", "memberRank", "supportCardId", "supportExp", "supportRank"], additionalProperties: false,
+};
+schemas.GameRankingRow = {
+  type: "object", properties: {
+    rank: { type: "integer", minimum: 1 }, tied: { type: "boolean" }, name: { type: "string" },
+    playerId: nullableText, profileId: nullableText, deckName: nullableText,
+    ...Object.fromEntries(["rankExp", "favoriteMemberCardId", "score", "deckId", "totalPower"].map(name => [name, nullableNumber])),
+    profileCard: { anyOf: [ref("GameProfileCard"), { type: "null" }] },
+    cards: { type: "array", maxItems: 5, items: ref("GameRankingCard") },
+  },
+  required: ["rank", "tied", "name", "playerId", "profileId", "deckName", "rankExp", "favoriteMemberCardId", "score", "deckId", "totalPower", "profileCard", "cards"], additionalProperties: false,
+};
+const recordsRegion = { type: "string", enum: ["jp", "tw", "en", "kr"] };
+const recordsFreshness = { region: recordsRegion, fetchedAtMs: nullableNumber, serverTimeMs: nullableNumber, stale: { type: "boolean" } };
+schemas.SongRanking = {
+  type: "object", properties: { ...recordsFreshness, musicId: { type: "integer", minimum: 1 }, rows: { type: "array", items: ref("GameRankingRow") } },
+  required: ["region", "fetchedAtMs", "serverTimeMs", "stale", "musicId", "rows"], additionalProperties: false,
+};
+schemas.GamePlayerProfile = {
+  type: "object", properties: { ...recordsFreshness, profileId: { type: "string" }, profile: {
+    type: "object", properties: {
+      name: nullableText, level: nullableNumber, rankExp: nullableNumber, totalFavorite: nullableNumber, lastUpdatedAtMs: nullableNumber,
+      profileCard: { anyOf: [ref("GameProfileCard"), { type: "null" }] },
+      favoriteMemberCard: { anyOf: [{ type: "null" }, { type: "object",
+        properties: Object.fromEntries(["cardId", "awakeCount", "cardRank", "liveSkillLevel", "performanceSkillLevel"].map(name => [name, nullableNumber])),
+        required: ["cardId", "awakeCount", "cardRank", "liveSkillLevel", "performanceSkillLevel"], additionalProperties: false,
+      }] },
+    }, required: ["name", "level", "rankExp", "totalFavorite", "lastUpdatedAtMs", "profileCard", "favoriteMemberCard"], additionalProperties: false,
+  } }, required: ["region", "fetchedAtMs", "serverTimeMs", "stale", "profileId", "profile"], additionalProperties: false,
+};
+schemas.GameRecordsError = {
+  type: "object", properties: { error: { type: "object", properties: {
+    kind: { type: "string" }, retryAfter: nullableNumber,
+  }, required: ["kind", "retryAfter"], additionalProperties: true } }, required: ["error"], additionalProperties: false,
+};
+schemas.EventTracker = {
+  type: "object", properties: {
+    region: recordsRegion, fetchedAtMs: nullableNumber, stale: { type: "boolean" },
+    event: { anyOf: [{ type: "null" }, { type: "object", properties: {
+      id: { type: "string" }, startAtMs: nullableNumber, endAtMs: nullableNumber, status: { type: "string" },
+      pointRankingEnabled: { type: "boolean" }, pointRankingStatus: { type: "string" },
+      challenges: { type: "array", items: { type: "object", properties: {
+        id: { type: "string" }, musicId: { type: "string" }, enabled: { type: "boolean" }, status: { type: "string" },
+        startAtMs: nullableNumber, endAtMs: nullableNumber, rewardRanks: { type: "array", items: { type: "integer" } },
+      }, required: ["id", "musicId", "enabled", "status", "startAtMs", "endAtMs", "rewardRanks"], additionalProperties: false } },
+    }, required: ["id", "startAtMs", "endAtMs", "status", "pointRankingEnabled", "pointRankingStatus", "challenges"], additionalProperties: false }] },
+  }, required: ["region", "fetchedAtMs", "stale", "event"], additionalProperties: false,
+};
+schemas.EventRanking = {
+  type: "object", properties: { ...recordsFreshness, eventId: { type: "string" }, challengeId: { type: "string" }, rows: { type: "array", items: ref("GameRankingRow") } },
+  required: ["region", "fetchedAtMs", "serverTimeMs", "stale", "eventId", "rows"], additionalProperties: false,
+};
+for (const [tail, summary, schema, extra] of [
+  ["songs/{musicId}/ranking", "Read public song ranking", "SongRanking", [pathParam("musicId", "Positive decimal music ID.")]],
+  ["players/{profileId}", "Read public game profile", "GamePlayerProfile", [pathParam("profileId", "Region-specific public profile ID from a ranking result.")]],
+  ["events/current", "Read current tracked event", "EventTracker", []],
+  ["events/{eventId}/latest", "Read event point ranking", "EventRanking", [pathParam("eventId", "Positive decimal event ID.")]],
+  ["events/{eventId}/challenges/{challengeId}/ranking", "Read event challenge ranking", "EventRanking", [pathParam("eventId", "Positive decimal event ID."), pathParam("challengeId", "Positive decimal challenge ID.")]],
+]) {
+  paths[`/api/v1/game/records/{region}/${tail}`] = readPath(
+    [pathParam("region", "Game region, independent of catalog server and UI language.", recordsRegion), ...extra],
+    summary,
+    { 200: json(ref(schema)), 400: json(ref("GameRecordsError")), 401: json(ref("GameRecordsError")), 403: json(ref("GameRecordsError")), 404: json(ref("GameRecordsError")), 429: json(ref("GameRecordsError")), 502: json(ref("GameRecordsError")), 504: json(ref("GameRecordsError")) },
+    { operationId: `getGameRecords${schema}${tail.includes("challenges") ? "Challenge" : ""}`, tags: ["Game records"],
+      description: "Public Moenotes projection. Honor stale/timestamps and visibility. Record failures use error.kind/retryAfter; dispatcher failures use code/message/requestId. Event tracking is a prepared Worker update." },
+  );
+}
+
 for (const [path, item] of Object.entries(paths)) {
   if (item.get && !path.startsWith("/api/auth/") && !item.head)
     item.head = { ...item.get, operationId: `${item.get.operationId}Head` };
@@ -3214,12 +3381,14 @@ const document = {
   openapi: "3.1.0",
   info: {
     title: "Haneoka Public API",
-    version: "2026-09-30",
+    version: "2026-10-01",
     description:
       "Public HTTP contracts served by haneoka.org. Manifest-driven catalog DTOs and provider projections retain their published fields; stable envelopes and transport behavior are described explicitly.",
   },
   servers: [{ url: "https://haneoka.org", description: "Production" }],
   tags: [
+    { name: "Chart images", description: "Current chart SVG/PNG overview, dimensions and bounded rendering." },
+    { name: "Game records", description: "Public rankings and profiles by game region." },
     {
       name: "Latest resource API",
       description:

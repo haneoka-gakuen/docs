@@ -1,6 +1,6 @@
-# Haneoka API docs
+# Haneoka docs
 
-Independent Astro + Starlight documentation for the public `haneoka.org` API.
+Independent Astro + Starlight documentation for the public `haneoka.org` API and standalone JavaScript embeds.
 
 ```bash
 pnpm install
@@ -14,6 +14,8 @@ The build generates [`public/openapi.json`](./public/openapi.json) from the rout
 The consumer path starts with the current-data aliases: `GET /api/v1/songs`, `GET /api/v1/songs/100001`, and `GET /api/v1/events?server=jp`. The aliases use the current catalog for the default `intl` server; add `server=<slug>` for another active server. The same catalog handler is also available under `/api/v1/servers/{server}/{resource}` for applications that need explicit server and historical-release control.
 
 The guides explain request shapes, response fields, media URLs, caching, errors, retries, authentication, and complete community workflows. Advanced pages cover release pinning, catalog storage, source trees, game-client delivery, Sonolus, and provider projections. Release-specific entity DTOs follow the current catalog manifest and the response returned for each resource.
+
+The [embedding guides](https://docs.haneoka.org/embed/) cover portable data sources, Vega stories, Cassiopeia charts and Home Spot scenes, including local release artifacts, self-hosted ESM/CDN bundles, authored data and teardown. Embed registry publication and an official hosted module URL are pending.
 
 ## Published interfaces
 

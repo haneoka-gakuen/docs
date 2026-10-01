@@ -8,8 +8,8 @@ export const GET: APIRoute = async () => {
     return `- [${page.data.title}](https://docs.haneoka.org/${slug ? `${slug}/` : ""}): ${page.data.description || ""}`;
   });
   return new Response([
-    "# Haneoka API",
-    "> Public APIs for Our Notes resource catalogs, release-pinned media, Sonolus, GBP data and community integrations.",
+    "# Haneoka Docs",
+    "> Public API contracts and standalone JavaScript embeds for Our Notes catalogs, stories, charts, scenes, Sonolus and community integrations.",
     "",
     "## Machine-readable contract",
     "- [OpenAPI 3.1](https://docs.haneoka.org/openapi.json): Routes, request parameters, response schemas and authentication requirements.",

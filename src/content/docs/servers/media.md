@@ -63,3 +63,7 @@ HEAD /api/v1/community/attachments/{attachmentId}/content
 ```
 
 The endpoint may require the viewer to be able to read the post that owns the attachment. Media processor variants can be requested with `?variant=media`, `poster`, or `thumb` when the attachment response advertises the corresponding URL.
+
+## Render a chart image
+
+A score file can also be rendered by the prepared [chart image API](../chart-images/) as SVG or PNG. Choose the actual difficulty name, use panel height independently from final canvas dimensions, and retain the response ETag. For playback inside your page, see [Cassiopeia embeds](../../embed/cassiopeia/).

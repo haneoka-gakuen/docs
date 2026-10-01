@@ -63,3 +63,7 @@ HEAD /api/v1/community/attachments/{attachmentId}/content
 ```
 
 该 endpoint 可能要求查看者有权读取拥有附件的帖子。当附件响应公布对应 URL 时，可以使用 `?variant=media`、`poster` 或 `thumb` 请求媒体处理变体。
+
+## 谱面图片与播放器
+
+准备发布的 [谱面图片接口](../chart-images/) 可将谱面呈现为 SVG/PNG。选择歌曲实际提供的难度，区分段高与最终画布尺寸，并保留 ETag。网页内播放使用 [Cassiopeia 嵌入](../../embed/cassiopeia/)。

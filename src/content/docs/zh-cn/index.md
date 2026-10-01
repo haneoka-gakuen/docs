@@ -1,10 +1,10 @@
 ---
-title: Haneoka API
+title: Haneoka Docs
 description: 读取 haneoka.org 上的当前乐曲、活动、剧情、角色、媒体和社区数据。
 template: splash
 hero:
-  title: Haneoka API
-  tagline: 用直接、清晰的 HTTP 请求读取当前游戏资料。
+  title: Haneoka Docs
+  tagline: 读取当前游戏资料，将剧情、谱面与场景接入自己的网页。
   actions:
     - text: 发出第一个请求
       link: /zh-cn/quickstart/
@@ -28,6 +28,8 @@ curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
 
 | 目标 | 文档 |
 | --- | --- |
+| 嵌入剧情、谱面或 Home Spot 场景 | [JavaScript 嵌入](./embed/) |
+| 使用分页、类型化客户端、谱面图片和排行 | [资料目录](./servers/catalog/) |
 | 浏览歌曲、乐队、卡牌、剧情或活动 | [资料目录](./servers/catalog/) |
 | 读取当前游戏运营公告 | [运营公告](./servers/announcements/) |
 | 下载 DTO 返回的图片、音频、视频或谱面 | [媒体与文件](./servers/media/) |

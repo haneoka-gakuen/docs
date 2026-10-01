@@ -49,6 +49,50 @@ curl --fail-with-body https://haneoka.org/api/v1/songs/100001
 
 Entity 可能比 index 项目包含更多字段，例如本地化创作者、发布日期、combo rewards、谱面路径和 video IDs。保留未知字段，并把 `null` 视为 source 当前没有值。其他 resource 有自己的 shape；events document 使用 `entries` 和 `hasGameEvents`，而不是歌曲字段。
 
+## 可选分页
+
+Collection 和已声明的 view 可通过 `limit` 获取分页 envelope。这项接口属于准备发布的 Worker 更新，采用时应同时部署对应客户端。
+
+```http
+GET /api/v1/songs?server=intl&limit=20
+GET /api/v1/{resource}/views/{view}?server=intl&limit=20
+```
+
+```json
+{
+  "items": [{ "id": "100070", "value": { "musicId": 100070 } }],
+  "total": 84,
+  "limit": 20,
+  "nextCursor": "opaque-cursor-from-the-response",
+  "release": {
+    "schema": "haneoka-resource-release-identity-v1",
+    "server": "intl",
+    "releaseId": "r-0123456789abcdef0123",
+    "sourceId": "source-snapshot-id"
+  }
+}
+```
+
+示例缩略了实体字段，实际条目与 count 来自所选 catalog。limit 为 1–100，仅传 cursor 时默认 50。每次最多扫描 8 个实体分片，因此页长可能小于 limit，空页也可能仍有 nextCursor。只在 `nextCursor === null` 时结束。顺序按分片和分片内 ID 字典序，不是游戏顺序或数字 ID 顺序。
+
+用 URLSearchParams 原样传回 cursor。它固定第一页 release，并绑定 server/resource/view；当前指针推进后仍继续原快照。错误或不匹配的 cursor 返回 400 invalid_cursor，快照不可用返回 404 release_not_found；后者应重新读取第一页。只有有实体存储的 collection/view 支持分页。省略 limit/cursor 保留完整 index；id 批量不能与分页混用。
+
+```js
+const scope = { server: "intl", limit: "20" };
+let cursor;
+do {
+  const query = new URLSearchParams(scope);
+  if (cursor) query.set("cursor", cursor);
+  const response = await fetch(`https://haneoka.org/api/v1/songs?${query}`);
+  if (!response.ok) throw new Error(`Catalog HTTP ${response.status}`);
+  const page = await response.json();
+  for (const { id, value } of page.items) console.log(id, value);
+  cursor = page.nextCursor;
+} while (cursor !== null);
+```
+
+[类型化客户端](../client/) 提供 envelope 校验与实体 decode。
+
 ## Batch 读取
 
 重复 `id` 读取一组 entity：
@@ -69,7 +113,7 @@ curl --fail-with-body \
 }
 ```
 
-`items` 使用请求的 ID 作为 key；没有 entity 的 ID 出现在 `missing`。API 会排序并去重 ID，以稳定缓存。
+`items` 使用请求的 ID 作为 key；没有 entity 的 ID 出现在 `missing`。提交 1–100 个 id 参数，去重前计算参数数量。API 会排序并去重 ID，以稳定缓存。
 
 ## View 和 relation
 
@@ -116,4 +160,4 @@ GET /api/v1/servers/{server}/{resource}
 GET /api/v1/servers/{server}/{resource}/{id}
 ```
 
-只有可重现 build 或 archive 需要固定 catalog 时，才添加 `release=r-<20 lowercase hex characters>`。[高级服务器接口](./releases/) 介绍 release、source、media 和 storage surface。
+只有可重现 build 或 archive 需要固定 catalog 时，才添加 `release=r-<20 lowercase hex characters>`。[高级服务器接口](../releases/) 介绍 release、source、media 和 storage surface。
