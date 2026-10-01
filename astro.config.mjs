@@ -11,6 +11,7 @@ export default defineConfig({
         "Public API and JavaScript embedding guides for Haneoka catalogs, stories, charts, scenes and community services.",
       favicon: "/favicon.svg",
       customCss: ["./src/styles/md3.css"],
+      components: { SocialIcons: "./src/components/MainSiteSocialLinks.astro" },
       social: [
         {
           icon: "github",
@@ -24,6 +25,7 @@ export default defineConfig({
       },
       defaultLocale: "root",
       sidebar: [
+        { label: "Haneoka.org", link: "https://haneoka.org/", translations: { "zh-CN": "Haneoka 主站" } },
         {
           label: "Start here",
           translations: { "zh-CN": "开始使用" },
