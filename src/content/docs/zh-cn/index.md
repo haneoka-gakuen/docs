@@ -28,6 +28,7 @@ curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
 
 | 目标 | 文档 |
 | --- | --- |
+| 制作多文字区表情并导出 PNG | [表情制作](./creation/stamp-maker/) |
 | 嵌入剧情、谱面或 Home Spot 场景 | [JavaScript 嵌入](./embed/) |
 | 使用分页、类型化客户端、谱面图片和排行 | [资料目录](./servers/catalog/) |
 | 浏览歌曲、乐队、卡牌、剧情或活动 | [资料目录](./servers/catalog/) |

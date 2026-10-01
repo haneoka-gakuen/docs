@@ -29,6 +29,7 @@ The direct resource API uses the current catalog for the `intl` server by defaul
 
 | What you are building | Read this |
 | --- | --- |
+| Make a stamp with independent text layers and PNG export | [Stamp maker](./creation/stamp-maker/) |
 | Embed a story, chart or Home Spot scene | [JavaScript embeds](./embed/) |
 | Use pagination, typed clients, chart images and rankings | [Catalog data](./servers/catalog/) |
 | Browse songs, bands, cards, stories, or events | [Catalog data](./servers/catalog/) |

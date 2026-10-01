@@ -30,6 +30,11 @@ export default defineConfig({
           items: ["quickstart", "conventions", "errors"],
         },
         {
+          label: "Creation tools",
+          translations: { "zh-CN": "创作工具" },
+          items: ["creation/stamp-maker"],
+        },
+        {
           label: "Catalog data",
           translations: { "zh-CN": "资料目录" },
           items: ["servers/catalog", "servers/client", "servers/chart-images", "servers/records"],
