@@ -1,6 +1,6 @@
 ---
 title: Stamp maker
-description: Choose a stamp version, compose independent text layers, and download a PNG at its original size or a smaller size.
+description: Choose a stamp version, compose independent text layers, and download a square PNG up to 512 × 512 pixels.
 ---
 
 Use the [stamp maker](https://haneoka.org/en/stamp-maker/) to add your own text to the site's stamp images. Choose the image version, arrange one or more text layers, and download the composition as a PNG. The tool runs in your browser and needs no project installation.
@@ -13,9 +13,11 @@ Use the [stamp maker](https://haneoka.org/en/stamp-maker/) to add your own text 
 4. Drag the text in the preview to place it. Open **Position and outline** for exact position, rotation, and outline settings.
 5. Choose **Export size**, then click **Export PNG**.
 
-On a phone, the image selector and preview remain visible while the editing panel scrolls. Scroll inside that panel to reach the remaining controls. Save a PNG before refreshing or leaving the page: the editable layers belong to the current page, and the PNG saves their combined appearance.
+On a phone, the image selector and preview remain visible while the editing panel scrolls. Scroll inside that panel to reach the remaining controls. Edits are saved as a local draft in this browser. Reopening the tool restores the image and text layers; downloading a PNG saves their combined appearance.
 
 ## Choose the image and its language
+
+New compositions start with **Textless**. When choosing a language version, the default follows the page language; a language you choose explicitly is retained. Close the chooser with the top-right button or Escape.
 
 Language and **Textless** are alternatives in the same selector inside **Choose stamp**. They select the image you edit; the interface language stays unchanged. For example, you can use an English stamp while keeping the interface in Chinese.
 
@@ -25,22 +27,24 @@ The site's source image stays intact when you add text. Changing the text field 
 
 Images come from the site's stamp catalog. The tool does not accept image uploads. You can import a local font through the command beside **Font**.
 
-## Work with independent text layers
+## Work with image and text layers
 
 Each text layer has its own caption, font and usable weight, color, outline, position, rotation, writing direction, and optional background. Use separate layers for captions in different parts of the image.
 
 | Control | What it does |
 | --- | --- |
-| **Text layer** | Select a layer by its number and caption. The list presents the foreground layers first. |
+| **Layer** | Select a layer by its number and caption. The list presents the foreground layers first. |
 | **Add text** | Create and select an empty layer using the current text style, with its background off. |
 | **Layer actions → Duplicate layer** | Copy the selected layer's text and style, including its background. The copy is slightly offset so you can separate it from the original. |
-| **Layer actions → Delete layer** | Remove the selected layer. The tool keeps at least one layer. |
+| **Layer actions → Delete layer** | Remove the selected text layer. The tool keeps at least one text layer. |
 | **Bring forward / Send backward** | Move the selected layer by one position in the drawing order. |
-| **Reset selected text style** | Reset the current layer's style while preserving its text and the other layers. |
+| **Reset selected layer** | Reset the selected text style while preserving its caption, or restore the image's centered position, 100% scale, and zero rotation. |
 
-The editor supports up to 12 layers, with up to 500 characters in each text field. Click a text area in the preview to select and drag its layer. When areas overlap, the upper layer receives the click; use **Text layer** to select one underneath.
+Select **Stamp image** in **Layer** to move, rotate, or scale the image. Image scale ranges from 10% to 300%, and 100% uses its effective source dimensions within the 512-pixel square canvas. Smaller sources are centered with transparent padding. The image can move forward or backward among the text layers; the preview and exported PNG use that same order. The tool retains one image layer and at least one text layer.
 
-For precise positioning, open **Position and outline**. Horizontal and vertical positions are percentages of the image canvas, and rotation is in degrees. With the preview focused, arrow keys move the selected layer by one percentage point; hold Shift to move by five. **Center text** places its anchor at the center.
+The editor supports up to 12 text layers, with up to 500 characters in each text field. Click a text area in the preview to select and drag its layer. When areas overlap, the upper layer receives the click; use **Layer** to select one underneath.
+
+For precise positioning, open **Position and outline**. Horizontal and vertical positions are percentages of the image canvas, and rotation is in degrees. With the preview focused, arrow keys move the selected layer by one percentage point; hold Shift to move by five. **Center layer** places its anchor at the center.
 
 ## Horizontal and vertical writing
 
@@ -67,7 +71,7 @@ Variable families expose a **Font weight** control and start at the strongest av
 
 The Sekai fonts identify the referenced tool's typography. Pretendard identifies a runtime UI face. The original Our Notes stamp lettering is part of its images; its authoring font has not been identified, so neither label establishes the typeface of that baked lettering.
 
-Use **Import local font** beside the font field to load WOFF2, WOFF, TTF, or OTF from your device. The imported font appears by filename and is used in the current page. Individual font files can be up to 32 MiB. Import it again when starting a new page session.
+Use **Import local font** beside the font field to load WOFF2, WOFF, TTF, or OTF from your device. The imported font appears by filename and is used in the current page. Individual font files can be up to 32 MiB. Reimport the file when restoring a draft that uses it.
 
 **Text color** provides character presets with a name, portrait, and actual color swatch. A stamp's associated character can supply the initial color; you can choose any listed character or **Custom color**. Color selections belong to the selected text layer.
 
@@ -83,23 +87,27 @@ The background follows that layer's position and rotation. Place it over the old
 
 Outline color and width are in the same secondary panel. The preview selection guide is an editing aid and does not appear in the downloaded PNG.
 
-## Export at the original size or downsample
+## Save and restore a local draft
 
-**Export size** shows **Original size** with its actual width and height, plus smaller dimensions that fit the source. The available choices change with the selected image.
+After editing, the tool saves the selected stamp, image language, image position and scale, text-layer styles and drawing order in this browser. Reopen the tool and wait for its resources to load to restore the draft. The draft menu can also restore the last saved content or clear the local draft.
 
-For a 346 × 398 source, for example, the menu offers 128 × 147, 192 × 221, 256 × 294, 320 × 368, and the original 346 × 398. A 512 × 512 source can offer smaller square choices such as 128, 192, 256, 320, and 384 pixels, plus its original size.
+The draft belongs to this device's browser. Clearing site data deletes it; it does not sync to other devices. Reimport any local font files when the missing-font notice appears. If the original stamp resource is unavailable, check the image notice and choose another stamp; the text layers remain editable. PNG export saves the combined image, while the draft saves editable settings.
 
-A smaller choice renders a genuinely smaller PNG. The image, text, outline, and background retain their relative positions and proportions. **Original size** preserves a non-square source's dimensions and aspect ratio. The preview's display size does not determine the export limit, and an enlarged derivative does not raise the effective original-size limit.
+## Export a square PNG
 
-Export includes every text layer in its drawing order, not just the selected layer, and retains the composition's transparency. The export captures the layer settings when it starts. Download the finished PNG to save the result; it is a flattened image rather than an editable project.
+**Export size** offers 128 × 128, 256 × 256, 384 × 384, and 512 × 512 pixels. Every composition uses the same square canvas. The largest download is 512 × 512 regardless of the source image dimensions.
+
+A 346 × 398 source starts centered at that size on the 512 × 512 canvas, surrounded by transparent padding. Larger source images fit within the canvas. You can deliberately enlarge an image with **Image scale** when composing it; scaling changes its size without adding source detail.
+
+Smaller exports scale the complete composition, including its image, text, outline, and background. Export captures every layer's settings and order when it starts, keeps transparency, and omits the selection guide. The downloaded PNG saves the combined image.
 
 ## Example: a caption and a side note
 
 1. Choose an available textless stamp in **Choose stamp**.
 2. Write a short horizontal caption in the first layer. Pick a font and character color, then drag it above the character.
 3. Use **Add text**, enter a side note, and choose **Vertical ←**. Place it beside the character without changing the first caption.
-4. If the captions overlap, select the intended layer from **Text layer** and use **Bring forward** or **Send backward**.
-5. Export **Original size** for your main copy, or a smaller size for an application that needs a compact PNG.
+4. If the captions overlap, select the intended layer from **Layer** and use **Bring forward** or **Send backward**.
+5. Export **512 × 512 px** for your main copy, or a smaller size for an application that needs a compact PNG.
 
 ## When something needs adjustment
 
@@ -108,7 +116,7 @@ Export includes every text layer in its drawing order, not just the selected lay
 | An image fails to load | Use **Retry**. You can reopen the chooser and pick another available image. |
 | A font fails to load | Retry or choose another font. Font loading finishes before export is enabled. |
 | A glyph looks missing or different | Select a family covering that script, or import a suitable local font. |
-| Text sits outside the picture | Select its layer, reduce the size, adjust its position, or use **Center text**. |
-| You cannot pick the lower caption | Select it from **Text layer**, or change the layer order. |
+| Text sits outside the picture | Select its layer, reduce the size, adjust its position, or use **Center layer**. |
+| You cannot pick the lower caption | Select it from **Layer**, or change the layer order. |
 | The old caption remains visible | Choose a textless image, or place an opaque text background over the old lettering. |
-| A larger download size is absent | Use **Original size** for the full effective source resolution. |
+| A larger download size is absent | Choose **512 × 512 px**, the maximum composition size. |

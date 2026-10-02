@@ -15,7 +15,7 @@ The consumer path starts with the current-data aliases: `GET /api/v1/songs`, `GE
 
 The guides explain request shapes, response fields, media URLs, caching, errors, retries, authentication, and complete community workflows. Advanced pages cover release pinning, catalog storage, source trees, game-client delivery, Sonolus, and provider projections. Release-specific entity DTOs follow the current catalog manifest and the response returned for each resource.
 
-The [embedding guides](https://docs.haneoka.org/embed/) cover portable data sources, Vega stories, Cassiopeia charts and Home Spot scenes, including local release artifacts, self-hosted ESM/CDN bundles, authored data and teardown. Embed registry publication and an official hosted module URL are pending.
+The [embedding guides](https://docs.haneoka.org/embed/) cover portable data sources, Vega stories, Cassiopeia charts and Home Spot scenes, including local release artifacts, self-hosted ESM/CDN bundles, authored data and teardown. Official browser ESM modules are available under `https://haneoka.org/embed/`; npm registry publication remains pending. The Vega guide includes complete JSON and HTML starter files with no npm prerequisite.
 
 ## Published interfaces
 

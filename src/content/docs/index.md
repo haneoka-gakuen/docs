@@ -43,7 +43,7 @@ The direct resource API uses the current catalog for the `intl` server by defaul
 | Use Bestdori-shaped Garupa data | [Bestdori provider](./providers/bestdori/) |
 | Read or publish posts and comments | [Community](./community/) |
 | Sign in and manage a profile | [Authentication](./auth/) |
-| Reproduce a historical catalog or inspect storage | [Advanced server contracts](./servers/releases/) |
+| Reproduce a historical catalog or inspect storage | [Advanced server contracts](/servers/releases/) |
 
 ## What responses look like
 

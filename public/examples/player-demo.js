@@ -1,11 +1,11 @@
 import { activate, release } from "./demo-lifecycle.js";
 const epoch = "https://haneoka.org/embed/";
 const exampleBase = new URL("./", import.meta.url).href;
-const ownStory = () => ({ localization: { locales: ["en"], defaultLocale: "en" }, commands: [
+const ownStory = (zh = false) => ({ localization: { locales: [zh ? "zh-CN" : "en"], defaultLocale: zh ? "zh-CN" : "en" }, commands: [
   { command: 25, background: { url: "garden.svg" } },
-  { command: 2, targetName: "Mira", text: "Welcome to this original garden." },
-  { command: 2, targetName: "Mira", text: "Change locale, text, or resource paths in the document." },
-  { command: 2, targetName: "Mira", text: "Seek backwards or exit to release the player." },
+  { command: 2, targetName: zh ? "小遥" : "Mira", text: zh ? "欢迎来到这个原创花园。" : "Welcome to this original garden." },
+  { command: 2, targetName: zh ? "小遥" : "Mira", text: zh ? "这份 JSON 就是完整剧情。修改 text 里的话，再重新加载试试。" : "Change locale, text, or resource paths in the document." },
+  { command: 2, targetName: zh ? "小遥" : "Mira", text: zh ? "你也可以拖动进度，回到前一句。" : "Seek backwards or exit to release the player." },
 ] });
 const ownChart = () => ({ version: 1, bpmChanges: [{ tick: 0, beat: 0, timeMs: 0, bpm: 120 }], signatureChanges: [], timeScaleChanges: [], timeline: { skills: [], fever: [], callChanges: [] }, lines: [], durationMs: 8000, notes: Array.from({ length: 12 }, (_, i) => ({ id: i, tick: i * 240, timeMs: 500 + i * 500, beat: i, pos: i % 6 * 4, size: 4, laneX: (i % 6 * 4 + 2) / 12 - 1, width: 4 / 12, operateType: 1, judgementType: 1, judgementAreaOffsetType: 0, direction: 0, critical: false, judged: true, visible: true, lineIds: [], slideAlong: false, indexInLine: null, easeL: null, easeR: null })) });
 const tone = () => {
@@ -39,8 +39,16 @@ export function install(root) {
   const text = (en, cn) => zh ? cn : en;
   const read = () => { const value = JSON.parse(field("config").value); if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Expected a configuration object"); return value; };
   const write = value => { field("config").value = JSON.stringify(value, null, 2); field("locale").value = value.options?.locale ?? "en"; for (const radio of root.querySelectorAll("[data-player-language]")) radio.checked = radio.value === field("locale").value; };
-  const controls = ready => { for (const name of ["play", "pause", "next", "seek", "set-options", "set-skin"]) if (field(name)) field(name).disabled = !ready; };
+  const controls = ready => { for (const name of ["play", "pause", "next", "seek", "progress", "set-options", "set-skin"]) if (field(name)) field(name).disabled = !ready; };
+  const progress = snapshot => {
+    if (!snapshot) return;
+    const value = kind === "story" ? snapshot.progress : snapshot.time;
+    if (kind === "chart" && snapshot.duration > 0) field("progress").max = String(snapshot.duration);
+    if (document.activeElement !== field("progress")) field("progress").value = String(value ?? 0);
+    field("progress-label").textContent = kind === "story" ? `${Math.round((value ?? 0) * 100)}%` : `${(value ?? 0).toFixed(1)}s`;
+  };
   const show = event => {
+    if (event.snapshot) progress(event.snapshot);
     if (event.type === "state" && performance.now() - lastLogAt < 200) return;
     lastLogAt = performance.now(); records.push(event); records = records.slice(-24);
     if (!renderFrame) renderFrame = requestAnimationFrame(() => { renderFrame = 0; output.textContent = JSON.stringify(records, (_, value) => value instanceof Error ? { name: value.name, message: value.message } : value, 2).slice(0, 48000); });
@@ -52,14 +60,14 @@ export function install(root) {
     release(root);
   };
   const preset = input => {
-    const options = { locale: field("locale").value || "en" };
+    const options = { locale: field("locale").value || (zh ? "zh-CN" : "en") };
     const value = { input, options };
-    if (input === "author") options.document = kind === "story" ? ownStory() : { chart: ownChart(), audio: "original-tone.wav" };
-    if (input === "http") value.url = new URL(kind === "story" ? "story.json" : "chart.json", exampleBase).href;
+    if (input === "author") options.document = kind === "story" ? ownStory(zh) : { chart: ownChart(), audio: "original-tone.wav" };
+    if (input === "http") value.url = new URL(kind === "story" ? (zh ? "story-zh.json" : "story.json") : "chart.json", exampleBase).href;
     if (input === "haneoka") {
-      value.publicSource = kind === "story" ? { id: "afterlive_10109" } : { songId: "100070", difficulty: "expert" };
+      value.publicSource = kind === "story" ? { id: "millsage_004_1_02" } : { songId: "100070", difficulty: "expert" };
       if (kind === "story") value.cubism = {
-        moduleUrl: "https://haneoka.org/cubism-runtime/vega-cubism-web-runtime.mjs?v=17dbf57920551d6c06812e286395c07b6527db5d183f0bdcfeaad373c32f5596",
+        moduleUrl: "https://haneoka.org/cubism-runtime/vega-cubism-web-runtime.mjs?v=cb42cf512fac467f36a488265c68f996dd4981061c954ff94c649c3e7e30dea3",
         runtime: {
           cubismCoreUrl: "https://haneoka.org/Core/live2dcubismcore.js?v=25ae938cb4fe282ce189b357bcc97e603d1e1f7ec78bf04150d401c23cdc792f",
           cubism2CoreUrl: "https://haneoka.org/Core/live2d.min.js?v=e4ea1f18bdd44b65394ffd5a1bab16982e88757d45134d1bd0737c8a6b3ddd08",
@@ -67,13 +75,20 @@ export function install(root) {
         },
       };
     }
-    if (kind === "story") Object.assign(options, { assetsBase: exampleBase, theme: "portable", brandingCorner: "top-left" });
+    if (kind === "story") { Object.assign(options, { theme: input === "haneoka" ? "haneoka" : "portable", brandingCorner: "top-left" }); if (input === "author" || input === "file") options.assetsBase = exampleBase; }
     else Object.assign(options, { mode: "watch", volume: .3, rate: 1, noteSoundEnabled: false });
     write(value);
+    for (const panel of root.querySelectorAll("[data-player-panel]")) panel.hidden = panel.dataset.playerPanel !== input;
+    for (const button of root.querySelectorAll("[data-player-preset]")) button.setAttribute("aria-pressed", String(button.dataset.playerPreset === input));
+    if (input === "http") field("url").value = value.url;
+    if (input === "haneoka") field("public-id").value = kind === "story" ? value.publicSource.id : value.publicSource.songId;
   };
   for (const button of root.querySelectorAll("[data-player-preset]")) button.addEventListener("click", () => preset(button.dataset.playerPreset));
   for (const radio of root.querySelectorAll("[data-player-language]")) radio.addEventListener("change", () => { const value = read(); value.options.locale = radio.value; write(value); });
   field("locale").addEventListener("change", () => { const value = read(); value.options.locale = field("locale").value; write(value); });
+  field("url").addEventListener("change", () => { const value = read(); value.url = field("url").value; write(value); });
+  field("public-id").addEventListener("change", () => { const value = read(); value.publicSource ??= {}; if (kind === "story") value.publicSource.id = field("public-id").value; else value.publicSource.songId = field("public-id").value; write(value); });
+  field("progress").addEventListener("change", () => { void action("seek", player => player.seek(Number(field("progress").value))); });
   field("dispose").addEventListener("click", () => { void exit().catch(error => { status.textContent = error.message; }); });
   field("cancel").addEventListener("click", () => { controller?.abort(); handle?.cancel(); });
   field("run").addEventListener("click", async () => {

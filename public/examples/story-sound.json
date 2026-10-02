@@ -15,7 +15,15 @@
     {
       "command": 2,
       "targetName": "Mira",
-      "text": "Welcome to this original garden."
+      "text": "Welcome to this original garden.",
+      "voices": [
+        {
+          "soundId": 10000001,
+          "categoryName": "Voice",
+          "playableUrl": "cue-tone.wav",
+          "volume": 0.5
+        }
+      ]
     },
     {
       "command": 2,

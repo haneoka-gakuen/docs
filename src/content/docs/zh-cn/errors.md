@@ -52,4 +52,4 @@ Mutation 需要接口专属规则。只有接口定义了幂等性或操作明�
 - `view_not_found` 或 `relation_not_found`：manifest 没有声明该 view 或 relation。
 - `release_not_found`：高级显式请求使用了不可用的 release ID。
 
-直接 alias 使用当前数据，不需要 release ID。需要固定历史 catalog 时，请阅读[高级服务器接口](./servers/releases/)。
+直接 alias 使用当前数据，不需要 release ID。需要固定历史 catalog 时，请阅读[高级服务器接口](/zh-cn/servers/releases/)。

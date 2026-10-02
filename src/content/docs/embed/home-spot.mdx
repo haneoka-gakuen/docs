@@ -203,7 +203,7 @@ Required positional host is an HTMLElement with ownerDocument (TypeError otherwi
 | modules | optional HaneokaHomeSpotRuntimeModules | Default lazy Three/GLTFLoader/Spine imports. Must use compatible module constructors; missing capability TypeError. Full shape below. |
 | onEvent | optional (HomeSpotEvent)→void | Registered before first generation. |
 | spotId | required string/number for mountHaneokaHomeSpot | Stringified nonempty ID; missing scene Error, empty ID TypeError. Not part of authored mount options. |
-| apiBase | optional string for public mount/source | Defaults https://haneoka.org/api/v1/; core absolute directory validation. |
+| apiBase | optional string for public mount/source | Defaults `https://haneoka.org/api/v1/`; core absolute directory validation. |
 
 `mountHaneokaHomeSpot(host,options)` supplies its source automatically, so do not add document/source there. It reads the current stories document and selects homeSpots[id].spine; a source ID is not a release ID. No account/release selection. `haneokaHomeSpotSource({spotId,apiBase?})` supplies the same DataSource for manual mount composition; give no-referrer to public asset transport when composing it manually. The manual source does not itself create a renderer.
 

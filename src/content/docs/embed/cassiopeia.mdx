@@ -5,6 +5,8 @@ description: Mount a chart player with current or authored data, playback, skin 
 
 import DemoPlayer from "../../../components/DemoPlayer.astro";
 
+The [complete sample chart.json](/examples/chart.json) references the supplied [original-tone.wav](/examples/original-tone.wav). Keep both files together when downloading. The page's original diagram uses its example rendererAdapter; the public game-theme path is shown below.
+
 
 Mount a Cassiopeia chart player inside an ordinary website. The default player uses the existing Vue player, Three renderer, Our Notes plugin and Web audio/input host. A custom renderer can use authored artwork with the kernel and Web host. Each mount owns its DOM, media, input, renderer and resource loader.
 
@@ -241,9 +243,9 @@ Common resource/callback details are in [core](../core/). No autoplay field: awa
 
 Skin fields are typed unions, resolved by the selected theme. Invalid/missing underlying assets reject construction rather than creating a invented fallback skin. labels.player/labels.pause/labels.loading are all optional strings; none changes data locale.
 
-`haneokaChartSource({songId,difficulty,apiBase?})`: songId and difficulty required; difficulty is easy/normal/hard/expert/special/master and must exist in the song DTO. apiBase defaults https://haneoka.org/api/v1/. Source validates song structure, reads its returned score file, parses/builds the standard chart, and uses returned musicUrl. Missing difficulty rejects Error; data/budget/parser errors retain their cause. `server` belongs to mount context.
+`haneokaChartSource({songId,difficulty,apiBase?})`: songId and difficulty required; difficulty is easy/normal/hard/expert/special/master and must exist in the song DTO. apiBase defaults `https://haneoka.org/api/v1/`. Source validates song structure, reads its returned score file, parses/builds the standard chart, and uses returned musicUrl. Missing difficulty rejects Error; data/budget/parser errors retain their cause. `server` belongs to mount context.
 
-`haneokaChartTheme({apiBase?,publicBase?,server?}={})`: API directory defaults https://haneoka.org/api/v1/; publicBase defaults that origin root; server override defaults loader.server then intl. URL fields are resolved separately from author's assetsBase. It discovers actual source/output descriptors; missing/ambiguous required outputs reject Error.
+`haneokaChartTheme({apiBase?,publicBase?,server?}={})`: API directory defaults `https://haneoka.org/api/v1/`; publicBase defaults that origin root; server override defaults loader.server then intl. URL fields are resolved separately from author's assetsBase. It discovers actual source/output descriptors; missing/ambiguous required outputs reject Error.
 
 `ChartThemeContext` has exactly loader:EmbedLoader&lt;ChartEmbedDocument&gt;, signal:AbortSignal, skin:ChartSkin. A custom theme can call loader.resourceBytes with that signal and return the public manifest. No extra context cache or renderer is injected.
 

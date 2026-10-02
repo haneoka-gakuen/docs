@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的第一段剧情</title>
+<style>
+  body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+  #stage { height: 60vh; min-height: 320px; position: relative; }
+  button { font: inherit; min-height: 48px; margin: .25rem; }
+</style>
+<h1>我的第一段剧情</h1>
+<p id="status" role="status" aria-live="polite">点击加载，读取 story.json。</p>
+<div id="stage"></div>
+<button id="load">加载 / 重试</button>
+<button id="play" disabled>播放</button>
+<button id="pause" disabled>暂停</button>
+<button id="next" disabled>下一句</button>
+<button id="close">退出</button>
+<script type="module">
+const button = id => document.getElementById(id);
+const status = document.getElementById("status");
+let handle, controller, generation = 0;
+// Current audio runtime expects a local/data playback URL. Prepare short clips here.
+function audioResolver(base) {
+  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
+  return async (key, context) => {
+    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
+    if (!extension || /^(data|blob):/.test(key)) return key;
+    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
+    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
+    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
+    context.signal.throwIfAborted();
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
+  };
+}
+
+function controls(enabled) {
+  for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
+}
+async function close() {
+  generation++; controller?.abort(); controls(false);
+  const old = handle; handle = undefined;
+  await old?.dispose();
+}
+button("load").onclick = async () => {
+  button("load").disabled = true;
+  let current;
+  try {
+    await close(); current = ++generation;
+    controller = new AbortController(); const signal = controller.signal;
+    status.textContent = "正在加载…";
+    const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+    const response = await fetch("./story.json", { signal });
+    if (!response.ok) throw new Error(`story.json: HTTP ${response.status}`);
+    const storyData = await response.json();
+    signal.throwIfAborted(); if (current !== generation) return;
+    handle = mountStory(document.getElementById("stage"), {
+      document: storyData,
+      locale: storyData.localization?.defaultLocale ?? "en",
+      assetsBase: new URL("./", response.url).href,
+      resolveResource: audioResolver(new URL("./", response.url).href),
+      signal,
+      onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
+    });
+    await handle.ready;
+    if (current !== generation) return;
+    controls(true); status.textContent = "已加载。点击播放，再点下一句。";
+  } catch (error) {
+    if (current === generation) {
+      const failed = handle; handle = undefined; await failed?.dispose().catch(() => {});
+      if (current === generation) status.textContent = `加载失败：${error.message}。检查文件后重试。`;
+    }
+  } finally { button("load").disabled = false; }
+};
+button("play").onclick = () => handle?.play();
+button("pause").onclick = () => handle?.pause();
+button("next").onclick = () => handle?.next();
+button("close").onclick = async () => { await close(); status.textContent = "已退出。可再次点击加载。"; };
+window.addEventListener("pagehide", () => { void close(); }, { once: true });
+</script>
+</html>

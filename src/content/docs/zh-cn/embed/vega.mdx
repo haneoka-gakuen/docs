@@ -1,160 +1,297 @@
 ---
 title: Vega 剧情嵌入
-description: 挂载单语或本站剧情，控制播放、跳转并正确释放资源。
+description: 从创建完整剧情 JSON 到网页载入，再逐步加入背景、声音与 Live2D。
 ---
 
 import DemoPlayer from "../../../../components/DemoPlayer.astro";
 
+先写两句对白，保存成文件，在自己的网页上播放。跑通以后，再依次添加背景、声音和模型。本教程使用已托管的 [Vega 浏览器模块](https://haneoka.org/embed/vega.js)，第一步无需安装 npm 包。
 
-`mountStory` 在你的容器内创建 Vega 播放器，复用 Three renderer、资源 resolver、portable 对白与 richtext。支持内存 `AdvStory`、HTTP、本地文件及本站剧情。候选包与 CDN 构建方法见 [嵌入入口](../)。
+## 1. 先在这里播放一次
 
-## 从单语剧情开始
-
-```html
-<div id="story" style="height:60vh;min-height:320px"></div>
-<button id="play" disabled>播放</button>
-<button id="pause">暂停</button>
-<button id="next">下一句</button>
-```
-
-```js
-import { mountStory } from "@haneoka/embed-vega";
-import { ADV_COMMAND } from "@haneoka/vega/renderer-kit";
-const story = mountStory(document.querySelector("#story"), {
-  document: {
-    localization: { locales: ["fr"], defaultLocale: "fr" },
-    commands: [
-      { command: ADV_COMMAND.Stage, background: { url: "背景/庭園.png" } },
-      { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Bienvenue." },
-      { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Prenez votre temps." },
-    ],
-  },
-  locale: "fr",
-  assetsBase: "https://your.example/stories/garden/",
-  onEvent(event) { if (event.type === "error") console.error(event.error); },
-});
-try {
-  await story.ready;
-  const play = document.querySelector("#play");
-  play.disabled = false;
-  play.onclick = () => story.play();
-  document.querySelector("#pause").onclick = () => story.pause();
-  document.querySelector("#next").onclick = () => story.next();
-} catch (error) {
-  await story.dispose();
-  throw error;
-}
-// 组件离开时 await story.dispose()。
-```
-
-播放器在第一个命令处暂停。`AdvStory` 使用 Vega 公共指令和资源字段，作者语言集合可以只有一种语言；`runtime.fonts` 在 ready 前准备。按钮和播放进度由宿主组织，portable 对白保留既有鼠标、触摸和键盘交互。
-
-## HTTP 与本地素材
-
-```js
-import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
-const remote = mountStory(element, {
-  source: httpDataSource({ url: "https://your.example/stories/episode.json" }),
-  locale: "fr",
-});
-await remote.ready;
-
-const local = mountStory(otherElement, {
-  source: fileDataSource(jsonFile),
-  resolveResource: fileResourceResolver(new Map([
-    ["背景/庭園.png", backgroundFile],
-    ["fonts/author.woff2", fontFile],
-  ])),
-  locale: "fr",
-});
-await local.ready;
-```
-
-提供 `document` 或 `source` 其中一个。HTTP 相对素材以文档目录为基准，显式 `assetsBase` 可覆盖；本地 key 按字面匹配。宿主绝对化声明的媒体、模型、纹理、动画和字体 URL，保留对白和标签。模型 manifest 的 sidecar 仍由 provider 解析，本地 resolver 也需覆盖最终 sidecar key，或提供完整模型 descriptor。
-
-## 播放与跳转
-
-```js
-story.play();
-story.pause();
-const commandIndex = await story.seek(0.75);
-await story.seek(0.25);
-await story.seek(0);
-story.play();
-console.log(commandIndex, story.snapshot);
-```
-
-`seek(ratio)` 的范围是 0–1，映射到当前可达剧情路径的命令边界，包含选项路径。它保持播放/暂停意图，并返回实际恢复的 command index；比例表示剧情进度。高级控制可在 ready 阶段读取 `story.player`。
-
-`subscribe` 返回取消监听函数。load 事件包裹 core start/progress/ready/error/cancelled/disposed，state 含 phase、播放/暂停/完成/跳转、命令位置与 progress，seek 返回落点。状态约每 100 ms 合并发布，操作会立即更新。`onListenerError` 接收观察者错误。
-
-## 取消与释放
-
-挂载立即返回 handle。`ready` 等待 renderer、资源、字体和 seek index；随时保留 handle 以便清理。`cancel()` 终止加载中的构造，重试应先 `await story.dispose()` 再挂载。外部 signal 在 ready 后 abort 会销毁实例。销毁幂等，先关闭 player，再释放 loader 的 Blob URL 和 source cleanup；同一容器再次挂载前等待完成。
-
-## 原有主题与本站剧情
-
-默认 portable 界面包含对白和选项。需要完整 Haneoka theme/shell 时安装相应候选 peer 并接入插件：
-
-```js
-import { haneokaStoryPlugins } from "@haneoka/embed-vega/theme";
-const themed = mountStory(element, {
-  document: myStory,
-  assetsBase: "https://your.example/story/",
-  locale: "fr",
-  theme: "haneoka",
-  plugins: haneokaStoryPlugins,
-  shell: { initialScreen: "game", projectId: "my-story", settingsId: "my-settings" },
-});
-await themed.ready;
-```
-
-保留主题 `assets/` 的字体与 sprite 相对路径。模型和扩展命令通过 Vega 公共 plugin 契约添加。`renderer` 接收现有 Three renderer 参数。
-
-本站适配器读取一个 story、runtime 和声明的 Live2D metadata，接受 `apiBase` 覆盖。模型剧情需要单独供应有许可的 Cubism adapter/Core：
-
-```js
-import { haneokaStorySource, cubismStoryPlugin } from "@haneoka/embed-vega/haneoka";
-const publicStory = mountStory(element, {
-  source: haneokaStorySource({ id: "afterlive_10109" }),
-  server: "intl",
-  locale: "en",
-  plugins: [cubismStoryPlugin({
-    moduleUrl: "https://your.example/cubism-runtime/vega-cubism-web-runtime.mjs",
-    runtime: {
-      cubismCoreUrl: "https://your.example/Core/live2dcubismcore.js",
-      cubism2CoreUrl: "https://your.example/Core/live2d.min.js",
-      motionSyncCoreUrl: "https://your.example/Core/CRI/live2dcubismmotionsynccore.min.js",
-    },
-  })],
-});
-await publicStory.ready;
-```
-
-这些 runtime URL 由你的合法供应流程提供，adapter 与 Core 版本应匹配。根据故事实际内容追加 Haneoka 的模型/命令 provider。
-
-## 传输与署名
-
-文档和资源 bytes 使用 core fetcher：cors、omit、默认每项 64 MiB。`headers`、`credentials`、`resolveResource`、`maxBytes` 可配置，`resourceTimeoutMs` 默认每项 30 秒。模型动态模块/Core 使用自己的 script/module 加载路径；core headers 不配置那些请求。各素材 origin 应允许宿主 CORS。
-
-播放器保留 Haneoka 原图标与 https://haneoka.org/ 链接，默认半透明悬浮在画面角落，不占单独一行或缩小画面。可用 `brandingCorner: "top-right"` 改到右侧；署名保持可见，作者素材权利归作者。给容器足够高度并使用宿主 Material 加载控件、可触摸的播放按钮与可读对白区域。
-
-## 加载并实际修改参数
-
-下面只在点击加载后导入官方稳定播放器alias，默认四条原创指令与本站SVG。HTTP读取[实际剧情JSON](/examples/story.json)，file使用所选File；本站预设调用真实公开adapter，模型剧情需下方独立Cubism配置。options是mount参数，input/url/publicSource/cubism是示例组织输入的字段，会转成实际factory。
+保持选中「完整原创示例」，点击「加载所选内容」，等待就绪，再点「播放」。你会看见庭园背景和第一句对白。「下一句」继续对白；「暂停」暂停播放；进度条可以跳转。「换内容前退出」关闭当前播放器。
 
 <DemoPlayer kind="story" locale="zh-CN" />
 
-播放/暂停/下一句/seek直接调用handle；同页启用另一个player前销毁前一个。JSON编辑scalar/object参数，callback/plugin使用实际示例源码和下述完整签名。
+原创示例使用[这份完整中文 story.json](/examples/story-zh.json) 和 [garden.svg](/examples/garden.svg)。「Our Notes 宝物」读取本站已发布的游戏剧情及它引用的模型、声音素材。「高级参数」里的设置在下次加载时生效。切换语言会选择作者已有的对应文本；单语剧情不会自动翻译。
+
+## 2. 创建自己的剧情文件
+
+新建一个叫 `my-story` 的文件夹。在纯文本编辑器里粘贴下面的**完整 JSON**，以 UTF-8 保存为 **story.json**，放进这个文件夹。确认实际文件名不是 `story.json.txt`。JSON 存的是数据：保留引号和逗号，不要写入 `const`、`import` 等 JavaScript 代码。
+
+```json
+{"localization":{"locales":["zh-CN"],"defaultLocale":"zh-CN"},"commands":[
+  {"command":2,"targetName":"小遥","text":"这是我的第一段剧情。"},
+  {"command":2,"targetName":"小遥","text":"点击下一句继续。"}
+]}
+```
+
+也可以[打开完整对白 JSON](/examples/dialogue-zh.json)，另存为 `story.json`。`commands` 是按顺序执行的剧情动作。这里的 `2` 表示对白，`targetName` 是说话人的名字，`text` 是屏幕上的句子。先改这两句文字，其余字段照示例保留。
+
+## 3. 创建网页并打开
+
+[打开完整入门 HTML](/examples/first-story-zh.html)，保存为 **index.html**，与 `story.json` 放在一起。也可以[下载完整入门文件夹 ZIP](/examples/first-story-zh.zip)，解压即可得到这个目录。下面给出了可以整体复制的源码。
+
+```text
+my-story/
+  index.html
+  story.json
+```
+
+用 HTTP 打开这个文件夹。没有 Python 时先从 [Python 官网](https://www.python.org/downloads/)下载安装。已安装 Python 3 时，在 `my-story` 文件夹里打开终端，运行：
+
+```sh
+python3 -m http.server 8000
+```
+
+Windows 使用 `py -m http.server 8000`。然后在浏览器打开 **http://localhost:8000/**。编辑器提供的本地 HTTP 预览也可以。直接双击文件得到的是 `file://` 地址；读取 JSON 应使用 HTTP 地址。完成后在终端按 Ctrl+C 关闭服务。
+
+点击「加载 / 重试」，等页面显示「已加载」，再点「播放」。第一句会出现，「下一句」会显示完整文字或继续下一句。这份初始剧情没有图片，所以背景是纯色。点「退出」释放播放器后，可以重新加载。
+
+<details>
+<summary>完整 index.html：全部复制到一个文件中</summary>
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的第一段剧情</title>
+<style>
+  body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+  #stage { height: 60vh; min-height: 320px; position: relative; }
+  button { font: inherit; min-height: 48px; margin: .25rem; }
+</style>
+<h1>我的第一段剧情</h1>
+<p id="status" role="status" aria-live="polite">点击加载，读取 story.json。</p>
+<div id="stage"></div>
+<button id="load">加载 / 重试</button>
+<button id="play" disabled>播放</button>
+<button id="pause" disabled>暂停</button>
+<button id="next" disabled>下一句</button>
+<button id="close">退出</button>
+<script type="module">
+const button = id => document.getElementById(id);
+const status = document.getElementById("status");
+let handle, controller, generation = 0;
+// Current audio runtime expects a local/data playback URL. Prepare short clips here.
+function audioResolver(base) {
+  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
+  return async (key, context) => {
+    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
+    if (!extension || /^(data|blob):/.test(key)) return key;
+    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
+    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
+    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
+    context.signal.throwIfAborted();
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
+  };
+}
+
+function controls(enabled) {
+  for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
+}
+async function close() {
+  generation++; controller?.abort(); controls(false);
+  const old = handle; handle = undefined;
+  await old?.dispose();
+}
+button("load").onclick = async () => {
+  button("load").disabled = true;
+  let current;
+  try {
+    await close(); current = ++generation;
+    controller = new AbortController(); const signal = controller.signal;
+    status.textContent = "正在加载…";
+    const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+    const response = await fetch("./story.json", { signal });
+    if (!response.ok) throw new Error(`story.json: HTTP ${response.status}`);
+    const storyData = await response.json();
+    signal.throwIfAborted(); if (current !== generation) return;
+    handle = mountStory(document.getElementById("stage"), {
+      document: storyData,
+      locale: storyData.localization?.defaultLocale ?? "en",
+      assetsBase: new URL("./", response.url).href,
+      resolveResource: audioResolver(new URL("./", response.url).href),
+      signal,
+      onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
+    });
+    await handle.ready;
+    if (current !== generation) return;
+    controls(true); status.textContent = "已加载。点击播放，再点下一句。";
+  } catch (error) {
+    if (current === generation) {
+      const failed = handle; handle = undefined; await failed?.dispose().catch(() => {});
+      if (current === generation) status.textContent = `加载失败：${error.message}。检查文件后重试。`;
+    }
+  } finally { button("load").disabled = false; }
+};
+button("play").onclick = () => handle?.play();
+button("pause").onclick = () => handle?.pause();
+button("next").onclick = () => handle?.next();
+button("close").onclick = async () => { await close(); status.textContent = "已退出。可再次点击加载。"; };
+window.addEventListener("pagehide", () => { void close(); }, { once: true });
+</script>
+</html>
+```
+
+</details>
+
+代码明确做了三步：
 
 ```js
-import { mountStory } from "https://haneoka.org/embed/r-22bfe102f7deb73f/vega.js";
-const story = mountStory(element, { document: myStory, locale: "fr", assetsBase: "https://author.example/story/" });
-await story.ready;
-story.play(); // 按钮点击触发
-await story.seek(.5);
-await story.dispose();
+const response = await fetch("./story.json"); // 请求刚保存的文件
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+const storyData = await response.json(); // 把 JSON 文本读成 JavaScript 对象
+const player = mountStory(document.getElementById("stage"), {
+  document: storyData, // 将这个对象交给播放器
+  locale: "zh-CN",
+  assetsBase: new URL("./", response.url).href,
+});
+await player.ready; // 完成加载后，页面才启用播放按钮
 ```
+
+这段解释的是完整 HTML 中的加载部分。文件名、网址和读出来的对象是不同的输入：
+
+| 你手上有什么 | 怎么交给播放器 |
+| --- | --- |
+| JavaScript 中已经创建好的剧情对象 | `mountStory(container, { document: storyData })` |
+| 指向完整剧情 JSON 的 HTTP 网址 | 如上先 fetch 再读取 JSON；也可用第 6 步的 httpDataSource |
+| 通过文件选择框选中的 JSON 文件 | 使用 fileDataSource，同时指定图片、声音从哪里读取 |
+| 本站游戏剧情 ID | 使用第 7 步的 haneokaStorySource |
+
+## 4. 添加一张背景
+
+把 [garden.svg](/examples/garden.svg) 保存到同一个文件夹。用[完整中文背景剧情](/examples/story-zh.json) 替换 `story.json`，或者在 `commands` 数组**最前面**、第一句对白之前插入这条动作：
+
+```json
+{"command":25,"background":{"url":"garden.svg"}}
+```
+
+`25` 表示切换场景，`background.url` 是图片文件名。这条动作与后面的对白之间需要一个逗号。现在文件夹里有 `index.html`、`story.json`、`garden.svg` 三个文件。重新加载后，庭园会出现在对白后面。入门 HTML 的 `assetsBase` 指向 JSON 所在文件夹，因此能找到旁边的 `garden.svg`。
+
+## 5. 添加一个声音，再集中填写 cue 地址
+
+把 [cue-tone.wav](/examples/cue-tone.wav) 保存到同一文件夹，用[完整中文声音剧情](/examples/story-sound-zh.json) 替换 `story.json`。播放第一句时，会响起一小段音量较低的原创测试音。这是在第一条对白中新增的字段：
+
+```json
+"voices": [{"soundId":10000001,"categoryName":"Voice","playableUrl":"cue-tone.wav","volume":0.5}]
+```
+
+要播放台词录音，就换成自己的音频文件，并把 `playableUrl` 改为准确文件名。`soundId` 标识这个 cue，`playableUrl` 指向能播放的声音。通过点击或触摸「播放」开始，让浏览器允许声音播放。完整 HTML 已包含 `audioResolver`，它通过 `resolveResource` 读取这些短音频并转成当前运行时接受的 data URL。现有音频播放路径会拒绝直接的 HTTP 地址；这段预处理让本教程声音可以实际载入。长音频应使用支持资源租约的音频适配器，避免 base64 的额外内存。
+
+已有剧情里已经写了 cue ID 时，可以在 JavaScript 中集中维护地址，再于挂载前补入声音记录。在入门 HTML 的 `const storyData = await response.json();` 后面加入：
+
+```js
+const sounds = { 10000001: "./cue-tone.wav" };
+for (const command of storyData.commands) {
+  for (const voice of command.voices ?? []) {
+    const key = voice.soundId ?? voice.id;
+    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
+  }
+}
+```
+
+这是针对示例 `commands[].voices` 的网页端预处理，`sounds` 还不是 `mountStory` 参数。背景音乐和音效分别使用动作里的 `bgm.playableUrl`、`se.playableUrl`。本站适配器已经能根据声音资源表，把 `voiceRefs`、`bgmRef`、`seRef` 补成完整记录。其他剧情格式需要适配器转换它们的 cue 字段；时间轴、并行动作里的 cue 也要处理。
+
+## 6. 换成网址或自己选择的文件
+
+[完整来源选择 HTML](/examples/story-player.html) 提供四种读取方式，并包含可见错误、取消、播放和进度条。把它保存为 `index.html`，与上述 JSON 和素材放在一起。选择「Another JSON address」，填入完整网址再加载；选择「A JSON file on my computer」则可以选择保存到电脑的 JSON。
+
+HTTP 也有更短的 SDK 写法，替换入门 HTML 中 fetch、读取 JSON 和挂载的部分：
+
+```js
+const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
+handle = mountStory(document.getElementById("stage"), {
+  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  locale: "zh-CN",
+  resolveResource: audioResolver(new URL("./", location.href).href),
+  signal,
+});
+await handle.ready;
+```
+
+`httpDataSource` 会在内部请求、读取 JSON。相对素材路径以 JSON 所在目录为基准，绝对网址保留自己的来源。只有素材放在其他目录时才需要填写 `assetsBase`。
+
+选择一个 JSON，只授予网页读取这个文件的权限，不会同时选中旁边的图片、模型和音频。完整 HTML 使用 `fileDataSource(file)` 读所选 JSON，素材仍从 HTML 文件夹的 HTTP 地址读取。要完全使用自己选择的本地素材，见 [本地文件与 fileResourceResolver 说明](../core/#自带内存http-或文件)。模型清单引用的其他文件也必须能通过资源映射找到。
+
+## 7. 载入 Our Notes 已发布剧情
+
+在完整来源选择 HTML 中选「Our Notes: Treasure」，然后加载、播放。它读取的是 **millsage_004_1_02「宝物」**。[打开完整公开剧情 JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl)，可以查看其中 728 条动作及素材引用。
+
+这份响应是资料目录中的剧情数据。适配器还会读取剧情运行资料与它声明的模型信息，把素材引用补成可播放的文档。这个入口使用 `haneokaStorySource`；第 3 步的直接 fetch 示例读取的是已填写完整资源记录的作者剧情。
+
+```js
+// 完整 HTML 已声明 options 与 sdk；这几行负责选择本站来源。
+options.source = sdk.haneokaStorySource({ id: "millsage_004_1_02" });
+options.server = "intl";
+options.theme = "haneoka";
+// 保留完整 HTML 提供的主题与 Cubism 插件配置。
+```
+
+完整 HTML 提供实际托管的运行时地址。Cubism runtime 模块负责浏览器渲染，Cubism Core 读取模型二进制；旧版模型需要 Cubism 2 Core，模型使用 MotionSync 时需要对应 Core。剧情 API 返回的是数据与素材地址，显示模型还需要这些执行组件。让本站来源适配器提供素材根地址即可。
+
+## 8. 准备标准 Live2D 模型
+
+Cubism provider 已能读取标准 `*.model3.json` 与旧版 `*.model.json`。标准模型的角色描述可以只指向模型清单：
+
+```json
+{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```
+
+保留导出时的目录结构：
+
+```text
+models/Mira/
+  Mira.model3.json
+  Mira.moc3
+  Mira.2048/texture_00.png
+  motions/...
+  expressions/...
+```
+
+| 文件或组件 | 什么时候需要 |
+| --- | --- |
+| model3.json、它引用的 moc3、所有引用的贴图 | 基础显示所必需，文件名和相对路径必须与清单一致 |
+| Cubism 插件、Web runtime 模块及兼容的 Cubism Core | 执行模型渲染；基础剧情嵌入不会自动安装模型 provider |
+| Physics、Pose、UserData JSON | 清单 FileReferences 声明了它们时需要；提供文件或删除不用的声明 |
+| 动作与表情文件 | 剧情使用时需要；保留模型清单中的名称与文件路径 |
+| 额外 shader JSON 或 shader 目录 | 当前运行时内置渲染着色器，基础模型无需外部 shader 配置 |
+
+文件说明见 Live2D 的[导出数据指南](https://docs.live2d.com/zh-CHS/cubism-editor-manual/export-moc3-motion3-files/)与 [model3.json 规范](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md)。Provider 按模型清单寻找其他文件。
+
+接着把[完整模型剧情模板](/examples/story-model-zh.json)保存为 `story.json`。模板里的 `command: 0` 是入场，`targets` 指定小遥，`positionType: 5` 把角色放在中间，`characterModel` 指向模型。把自己的实际清单路径填进 `runtime.model`，其余模型文件保持原名与目录。使用第 6 步的完整 HTML，展开「Advanced: standard Live2D in my own story」，选中启用 Cubism，再选原创 JSON、加载、播放。这个模板需要你自己的模型导出文件；下载模板并不包含示意目录里的模型。
+
+**目前还没有直接载入 ZIP 的入口。** 先解压、保留相对目录、通过 HTTP 提供这些文件，再把角色描述指向模型清单。已有的模型 ZIP 导出用于下载，不能作为 ZIP 载入功能。公开参数也没有 `shaders`、`shadersDir`；若要载入自定义 shader 包，需要增加运行时扩展，给剧情添加这两个字段不会产生该效果。
+
+## 加载失败时怎么恢复
+
+| 页面显示什么 | 下一步做什么 |
+| --- | --- |
+| story.json: HTTP 404 | 打开 http://localhost:8000/story.json，检查目录、文件名及大小写 |
+| JSON 解析失败 | 先换回完整示例，再一次只改一个文字值；JSON 使用双引号、没有末尾多余逗号 |
+| Failed to fetch | 直接打开 JSON 网址，确认页面使用 HTTP，再查看浏览器实际失败的请求地址 |
+| 其他域名提示 CORS | 把素材与网页放在同一来源，或由素材服务器在响应中允许你的网页来源；客户端请求头不能授予跨域权限 |
+| 对白能读，图片或声音失败 | 检查素材路径与 assetsBase；选择一个 JSON 不会连带选择它的素材 |
+| 模型运行时失败 | 分别检查 runtime 模块、Core、模型清单、二进制和贴图请求；JSON 请求成功只说明剧情文件可读取 |
+| 已取消或已退出 | await player.dispose() 完成后创建新实例重试；完整示例已处理此步骤 |
+
+## 播放、清理与进阶集成
+
+`play()` 开始或恢复，`pause()` 暂停，`next()` 继续对白。`await player.seek(0.5)` 跳到当前可达剧情路径一半的动作边界，包含选项路径，返回实际恢复的动作序号。比例表示剧情进度。`player.snapshot` 提供状态与进度；状态事件约每 100 ms 更新，控制操作立即更新。
+
+`ready` 等待渲染器、所需资源、字体与跳转索引。`cancel()` 停止加载；就绪后取消外部 signal 会销毁播放器。`dispose()` 可重复调用。在同一元素中创建另一个播放器前，等待它完成。加载失败通过 ready 拒绝与 error 事件报告；监听器错误由 onListenerError 隔离处理。
+
+运行时解析已声明的资源网址，保留对白、ID 与来源标签。文件映射按字面路径匹配，也支持 Unicode。Core loader 释放自己创建的 Blob URL，模型 provider 和渲染器释放解码及 GPU 资源。默认传输为 CORS、omit credentials、每项响应 64 MiB、资源请求 30 秒期限。动态 runtime 模块与 Core 脚本使用浏览器自己的加载路径。
+
+播放器默认在左上角悬浮半透明 Haneoka 原图标，链接[主站](https://haneoka.org/)。`brandingCorner: "top-right"` 可放到右上角，浮层保留完整画面面积。你的剧情和素材保留各自作者与许可。
+
+构建工程使用的包名是 `@haneoka/embed-vega`，主题与本站助手另有 package 子入口。公众 npm 安装入口尚未发布，本教程直接使用托管浏览器模块。从[源码仓库](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega)构建时，先安装 workspace 依赖并构建，再打包。主题模块需保留它的字体和图片素材。下面的参考表继续逐项说明全部参数。
 
 ## mountStory 全部参数
 
@@ -215,7 +352,7 @@ core继承参数的路径、预算、transport规则见[core](../core/)；mount�
 | subtitlesEnabled | boolean/true | 可用字幕。 |
 | bgmEnabled | boolean/true | BGM开关。 |
 
-数字非finite用fallback，boolean规范化；set未知key RangeError。webText已进入engine1916c57/theme1d5b20e/shell436ade8源码，需匹配构建或含这些版本的后续CDN receipt；r22示例保持该固定版已有参数，不声称已带新开关。匹配版本可设置shell.initialSettings.webText，或ready后story.player.shell.setSetting("webText",true)。
+数字非finite用fallback，boolean规范化；set未知key RangeError。webText已进入engine1916c57/theme1d5b20e/shell436ade8源码，需匹配构建或含这些版本的后续CDN receipt；若主动固定旧r22，请使用该固定版已有参数。匹配版本可设置shell.initialSettings.webText，或ready后story.player.shell.setSetting("webText",true)。
 
 ## renderer 完整嵌套字段
 
@@ -235,7 +372,7 @@ core继承参数的路径、预算、transport规则见[core](../core/)；mount�
 
 ## 所有 source/Cubism/theme factory
 
-haneokaStorySource(\{id,apiBase?\})的id必填；apiBase默认https://haneoka.org/api/v1/并遵core目录校验。读取story/story-runtime/声明的Live2D metadata，server/locale来自mount；缺数据/坏record拒绝load，无账号/release字段。
+haneokaStorySource(\{id,apiBase?\})的id必填；apiBase 默认 `https://haneoka.org/api/v1/`，并遵core目录校验。读取story/story-runtime/声明的Live2D metadata，server/locale来自mount；缺数据/坏record拒绝load，无账号/release字段。
 
 cubismStoryPlugin(\{moduleUrl,runtime\})需合法供应的module绝对URL与runtime.cubismCoreUrl；runtime.cubism2CoreUrl/motionSyncCoreUrl可选。module需export createCubismWebRuntimeAdapter，缺export或renderer能力拒绝prepare。按模型需要lazy加载，Core不打入SDK；adapter/Core应版本匹配。
 
@@ -258,4 +395,4 @@ AdvStory包含commands（mount要求）、可选runtime/localization及source扩
 
 事件完整为load\{event:EmbedEvent\}、state\{snapshot\}、seek\{commandIndex\}、error\{error\}。core字段按core表；state100ms+操作发布变更，observer异常隔离。取消保留signal.reason，source/resource/plugin保留其错误，没有额外第二套error code。
 
-当前源码的署名背景透明，图标透明度55%，48px角落触控区域悬浮在完整画面上。稳定alias随匹配构建部署采用该行为；固定r22保留旧的预留行布局，显式固定旧版时以该版行为为准。
+本页示例使用稳定 alias。显式固定旧的 r22 时，该版仍采用预留署名行的布局；固定版本应保持 engine、theme、shell 与 runtime 相互匹配。

@@ -1,0 +1,20 @@
+{
+  "localization": {
+    "locales": [
+      "en"
+    ],
+    "defaultLocale": "en"
+  },
+  "commands": [
+    {
+      "command": 2,
+      "targetName": "Mira",
+      "text": "This is my first story."
+    },
+    {
+      "command": 2,
+      "targetName": "Mira",
+      "text": "Press Next line to continue."
+    }
+  ]
+}

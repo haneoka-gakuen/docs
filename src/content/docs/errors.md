@@ -52,4 +52,4 @@ Mutation requests need an operation-specific rule. Retry only when the endpoint 
 - `view_not_found` or `relation_not_found`: the manifest does not define the requested view or relation.
 - `release_not_found`: an advanced explicit request used an unavailable release ID.
 
-The direct aliases use current data and do not require a release ID. See [Advanced server contracts](./servers/releases/) when a build needs to pin a historical release.
+The direct aliases use current data and do not require a release ID. See [Advanced server contracts](/servers/releases/) when a build needs to pin a historical release.

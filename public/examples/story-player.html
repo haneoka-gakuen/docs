@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My first Vega story</title>
+<style>
+  body { margin: 0 auto; max-width: 64rem; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+  button, input, select { font: inherit; } button { min-height: 48px; padding: .5rem 1rem; border-radius: 1.5rem; cursor: pointer; }
+  label { display: inline-flex; align-items: center; gap: .4rem; min-height: 48px; margin-right: 1rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .75rem; }
+  #stage { height: min(65vh, 640px); min-height: 360px; position: relative; overflow: hidden; border: 1px solid GrayText; border-radius: 1rem; }
+  #progress { width: 100%; min-height: 48px; } input[type=url] { width: min(100%, 38rem); }
+  [hidden] { display: none !important; } pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+<h1>My first Vega story</h1>
+<p><a href="https://haneoka.org/">Haneoka</a> · <a href="https://docs.haneoka.org/embed/vega/">Step-by-step guide</a></p>
+<fieldset><legend>1. Choose the story</legend>
+  <label><input type="radio" name="mode" value="own" checked> Original JSON next to this HTML</label>
+  <label><input type="radio" name="mode" value="site"> Our Notes: Treasure</label>
+  <label><input type="radio" name="mode" value="url"> Another JSON address</label>
+  <label><input type="radio" name="mode" value="file"> A JSON file on my computer</label>
+</fieldset>
+<label id="url-label" hidden>JSON address <input id="url" type="url" placeholder="https://example.org/story.json"></label>
+<label id="file-label" hidden>JSON file <input id="file" type="file" accept=".json,application/json"></label>
+<p><a href="./story.json" target="_blank">Open the original JSON</a> · <a href="./story.json" download>Save story.json</a> · <a href="./garden.svg" download>Save garden.svg</a></p>
+<details><summary>Advanced: standard Live2D in my own story</summary><label><input id="models" type="checkbox"> Enable the Cubism provider for my JSON</label><p>Extract the model ZIP first. Keep its manifest and sidecar files together.</p></details>
+<div class="controls"><button id="load">2. Load</button><button id="cancel" disabled>Cancel</button><button id="exit" disabled>Exit this player</button></div>
+<p id="status" role="status" aria-live="polite">No player is loaded yet.</p>
+<div id="stage" aria-busy="false"></div>
+<div class="controls"><button id="play" disabled>Play</button><button id="pause" disabled>Pause</button><button id="next" disabled>Next line</button></div>
+<label for="progress">Story progress <output id="position">0%</output></label><input id="progress" type="range" min="0" max="1" step=".01" value="0" disabled>
+<details><summary>What happened?</summary><pre id="log"></pre></details>
+<script type="module">
+const $ = id => document.getElementById(id);
+let player, controller, generation = 0;
+// Current audio runtime expects a local/data playback URL. Prepare short clips here.
+function audioResolver(base) {
+  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
+  return async (key, context) => {
+    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
+    if (!extension || /^(data|blob):/.test(key)) return key;
+    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
+    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
+    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
+    context.signal.throwIfAborted();
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
+  };
+}
+
+function modelPlugin(sdk) { return sdk.cubismStoryPlugin({
+        moduleUrl: "https://haneoka.org/cubism-runtime/vega-cubism-web-runtime.mjs?v=cb42cf512fac467f36a488265c68f996dd4981061c954ff94c649c3e7e30dea3",
+        runtime: {
+          cubismCoreUrl: "https://haneoka.org/Core/live2dcubismcore.js?v=25ae938cb4fe282ce189b357bcc97e603d1e1f7ec78bf04150d401c23cdc792f",
+          cubism2CoreUrl: "https://haneoka.org/Core/live2d.min.js?v=e4ea1f18bdd44b65394ffd5a1bab16982e88757d45134d1bd0737c8a6b3ddd08",
+          motionSyncCoreUrl: "https://haneoka.org/Core/CRI/live2dcubismmotionsynccore.min.js?v=60e2a8ba9b422a0f8a3d7e066739352e9b903cc1011339984ad922e80a3cd19a"
+        }
+      }); }
+function buttons(ready) { for (const name of ["play", "pause", "next", "progress"]) $(name).disabled = !ready; }
+function event(value) {
+  if (value.type === "state") {
+    if (document.activeElement !== $("progress")) $("progress").value = value.snapshot.progress;
+    $("position").textContent = `${Math.round(value.snapshot.progress * 100)}%`;
+  }
+  if (value.type === "error") $("status").textContent = value.error.message;
+  $("log").textContent = value.type === "load" ? `${value.event.type}: ${value.event.key}` : value.type;
+}
+async function exit() {
+  generation++; controller?.abort(); const old = player; player = undefined;
+  buttons(false); $("cancel").disabled = true; $("exit").disabled = true; $("load").disabled = false;
+  await old?.dispose(); $("stage").setAttribute("aria-busy", "false");
+}
+for (const radio of document.querySelectorAll('[name="mode"]')) radio.onchange = () => {
+  $("url-label").hidden = radio.value !== "url";
+  $("file-label").hidden = radio.value !== "file";
+};
+$("load").onclick = async () => {
+  await exit(); const current = ++generation; controller = new AbortController(); const signal = controller.signal; const loadingController = controller;
+  $("load").disabled = true; $("cancel").disabled = false; $("exit").disabled = false;
+  $("status").textContent = "Loading…"; $("stage").setAttribute("aria-busy", "true");
+  const timer = setTimeout(() => loadingController.abort(), 45000);
+  try {
+    const sdk = await import("https://haneoka.org/embed/vega.js");
+    signal.throwIfAborted(); if (current !== generation) return;
+    const mode = document.querySelector('[name="mode"]:checked').value;
+    const options = { locale: "en", signal, onEvent: event };
+    if (mode === "site") {
+      const theme = await import("https://haneoka.org/embed/vega-theme.js");
+      options.source = sdk.haneokaStorySource({ id: "millsage_004_1_02" });
+      options.server = "intl"; options.theme = "haneoka";
+      options.plugins = [...theme.haneokaStoryPlugins, modelPlugin(sdk)];
+      // The adapter supplies the Haneoka asset origin. Do not replace it with this folder.
+    } else if (mode === "file") {
+      const core = await import("https://haneoka.org/embed/core.js");
+      const file = $("file").files[0]; if (!file) throw new Error("Choose story.json first.");
+      options.source = core.fileDataSource(file);
+      options.assetsBase = new URL("./", location.href).href;
+    } else {
+      // This is the complete fetch → JSON object → document path.
+      const url = mode === "url" ? $("url").value : new URL("./story.json", location.href).href;
+      const response = await fetch(url, { signal });
+      if (!response.ok) throw new Error(`Could not read story.json: HTTP ${response.status}`);
+      const story = await response.json();
+      options.document = story;
+      options.assetsBase = new URL("./", response.url || url).href;
+    }
+    if (mode !== "site") options.resolveResource = audioResolver(options.assetsBase);
+    if (mode !== "site" && $("models").checked) options.plugins = [modelPlugin(sdk)];
+    signal.throwIfAborted(); if (current !== generation) return;
+    player = sdk.mountStory($("stage"), options);
+    await player.ready; signal.throwIfAborted(); if (current !== generation) return;
+    buttons(true); $("status").textContent = "Loaded. Press Play, then Next line to continue.";
+    $("stage").setAttribute("aria-busy", "false");
+  } catch (error) {
+    if (current === generation) { const failed = player; player = undefined; await failed?.dispose().catch(() => {}); if (current !== generation) return; $("status").textContent = `Loading failed: ${error.message}`; buttons(false); $("stage").setAttribute("aria-busy", "false"); }
+  } finally { clearTimeout(timer); if (current === generation) { $("load").disabled = false; $("cancel").disabled = true; } }
+};
+$("play").onclick = () => player?.play();
+$("pause").onclick = () => player?.pause();
+$("next").onclick = () => player?.next();
+$("progress").onchange = async () => { try { await player?.seek(Number($("progress").value)); } catch (error) { $("status").textContent = error.message; } };
+$("cancel").onclick = () => controller?.abort();
+$("exit").onclick = async () => { await exit(); $("status").textContent = "Player closed. Choose another story and Load."; };
+window.addEventListener("pagehide", () => { void exit(); }, { once: true });
+</script>
+</html>

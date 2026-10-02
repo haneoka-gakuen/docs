@@ -77,7 +77,7 @@ An events response can be empty while remaining successful:
 }
 ```
 
-The `server` value is a server slug such as `intl`, `intl-cbt`, `jp`, or `jp-cbt`. Read [`GET /api/v1/releases`](./servers/releases/) when a user needs the active slug list or its display names. Most applications can keep using the default `intl` server and omit this parameter.
+The `server` value is a server slug such as `intl`, `intl-cbt`, `jp`, or `jp-cbt`. Read [`GET /api/v1/releases`](/servers/releases/) when a user needs the active slug list or its display names. Most applications can keep using the default `intl` server and omit this parameter.
 
 ## 4. Batch IDs
 

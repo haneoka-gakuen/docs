@@ -201,7 +201,7 @@ The package `./browser` source entry combines createApiClient, ApiClientError an
 
 ## Current official browser modules
 
-Stable modules use `https://haneoka.org/embed/{name}.js`; pin this verified release with `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`. Available names are api-client,core,vega,cassiopeia,home-spot and vega-theme. The API entry exports createApiClient,ApiClientError and createHaneokaClient. Core handles shared data/resources; visual/theme entries follow their respective guides. For future releases, resolve manifest.modules relative to https://haneoka.org/embed/. Legacy r22 URLs remain preserved.
+Stable modules use `https://haneoka.org/embed/{name}.js`; pin this verified release with `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`. Available names are api-client,core,vega,cassiopeia,home-spot and vega-theme. The API entry exports createApiClient,ApiClientError and createHaneokaClient. Core handles shared data/resources; visual/theme entries follow their respective guides. For future releases, resolve manifest.modules relative to `https://haneoka.org/embed/`. Legacy r22 URLs remain preserved.
 
 ```js
 import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";

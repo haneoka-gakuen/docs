@@ -52,7 +52,15 @@ GET /api/v1/garupa/bestdori/{region}/media/mv/{filename}
 GET /api/v1/garupa/bestdori/{region}/media/stage-challenge/{assetId}
 ```
 
-Chart difficulties are `easy`, `normal`, `hard`, `expert`, or `special`; chart responses are SS text. Media routes pass through range and validator headers where the upstream supplies them.
+Chart difficulties are `easy`, `normal`, `hard`, `expert`, or `special`. A chart response uses `text/plain` and contains an SS document serialized as JSON with `meta` and `score`; `score` contains events and notes. This is input to an SS converter, while `mountChart` expects the converted `ChartEmbedDocument`. Read the text and convert it before playback. Media routes pass through range and validator headers where the upstream supplies them.
+
+```js
+const response = await fetch("https://haneoka.org/api/v1/garupa/bestdori/jp/charts/1/expert");
+if (!response.ok) throw new Error(`Chart HTTP ${response.status}`);
+const scoreText = await response.text();
+const ssDocument = JSON.parse(scoreText);
+console.log(ssDocument.meta.version, ssDocument.score.events);
+```
 
 ## Raw provider assets
 

@@ -13,6 +13,8 @@ GET /api/v1/announcements?server=intl&limit=2
 
 `server` is optional and defaults to `intl`. `limit` is optional, accepts 1–100, and returns up to that many records from the current list. List records omit the detail body's `html` field.
 
+This JSON illustrates a historical response shape. Use IDs, titles and image URLs returned by the current list.
+
 ```json
 {
   "server": "intl",
@@ -48,8 +50,22 @@ GET /api/v1/announcements?server=intl&limit=2
 
 ## Read one announcement
 
-```http
-GET /api/v1/announcements/23?server=intl
+Announcements change. Get an actual `id` from the current list before reading a detail; the historical example ID 23 may no longer be listed. This complete JavaScript performs that read:
+
+```js
+const origin = "https://haneoka.org";
+const response = await fetch(`${origin}/api/v1/announcements?server=intl&limit=1`);
+if (!response.ok) throw new Error(`Announcement list HTTP ${response.status}`);
+const feed = await response.json();
+const first = feed.announcements[0];
+if (first) {
+  const detailResponse = await fetch(`${origin}/api/v1/announcements/${encodeURIComponent(first.id)}?server=intl`);
+  if (!detailResponse.ok) throw new Error(`Announcement detail HTTP ${detailResponse.status}`);
+  const detail = await detailResponse.json();
+  console.log(detail.title, detail.bodyImage);
+} else {
+  console.log("No current announcements.");
+}
 ```
 
 The detail response keeps the snapshot metadata beside the full record:

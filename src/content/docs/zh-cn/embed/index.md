@@ -16,11 +16,15 @@ Haneoka 的嵌入组件直接挂载到你提供的 DOM 容器。Vega 播放剧�
 
 可视组件的 `/haneoka` 子入口读取本站当前公开对象和返回的资源地址。自带内容可以只有一种语言，使用作者自己的 locale 字符串和 Unicode 文件名。`server` 选择资料服务器，`locale` 选择语言，两者独立。
 
-## 分发状态与安装
+## 先创建一段能播放的剧情
 
-官方浏览器模块已托管在 `https://haneoka.org/embed/{core,vega,cassiopeia,home-spot,vega-theme}.js`。可固定已发布 `/embed/r-22bfe102f7deb73f/`，或按实际 manifest 选择后续已验证版本。[仓库](https://github.com/haneoka-gakuen/haneoka/tree/main/packages) 提供源码，SDK chunks/assets 在部署时正常生成；npm 是独立发布步骤。下文自托管 CDN 路径由宿主选择。
+跟着 [Vega 八步教程](./vega/)创建两句对白、保存 JSON、打开完整 HTML，再加背景、声音和模型。[完整入门 HTML](/examples/first-story-zh.html)和[完整对白 JSON](/examples/dialogue-zh.json)已经提供；入门使用托管模块，无需安装 npm。需要读取游戏剧情时，教程也提供真实「宝物」来源。
 
-完整工具链使用 Node.js 24 或更新版本。将 embed、core 与实际渲染 peer 的本地包安装到你的应用中：
+## 分发状态与开发者安装
+
+无需本地构建的官方浏览器模块已托管在 `https://haneoka.org/embed/{core,vega,cassiopeia,home-spot,vega-theme}.js`。可固定已发布 `/embed/r-22bfe102f7deb73f/`，或按实际 manifest 选择后续已验证版本。[仓库](https://github.com/haneoka-gakuen/haneoka/tree/main/packages) 提供源码，SDK chunks/assets 在部署时正常生成；npm 是独立发布步骤。下文自托管 CDN 路径由宿主选择。
+
+下面的自托管步骤面向自行构建源码的开发者。完整工具链使用 Node.js 24 或更新版本。先从源码 workspace 构建、打包所需组件，再将自己生成的 embed、core 与渲染 peer 本地包安装到应用。下列 vendor 文件是待替换的本地产物路径，不是已提供的公众下载：
 
 ```sh
 # 用实际候选产物替换这些文件路径，同时安装所选宿主的渲染依赖。

@@ -45,20 +45,26 @@ GET /api/v1/servers/{server}/release?projection=identity
 }
 ```
 
-`releaseId` 是服务返回的不透明值，客户端不能自行构造。
+`releaseId` 是服务返回的不透明值。上面的 JSON 使用结构示意值；实际请求先读取当前 identity。
 
 ## 固定显式请求
 
 每个 server-scoped catalog、source 和 release route 都接受 release query：
 
-```bash
-curl --fail-with-body \
-  'https://haneoka.org/api/v1/servers/intl/songs/100001?release=r-0123456789abcdef0123'
+```js
+const base = "https://haneoka.org/api/v1/servers/intl/";
+const identityResponse = await fetch(`${base}release?projection=identity`);
+if (!identityResponse.ok) throw new Error(`Identity HTTP ${identityResponse.status}`);
+const identity = await identityResponse.json();
+const query = new URLSearchParams({ release: identity.releaseId });
+const response = await fetch(`${base}songs/100001?${query}`);
+if (!response.ok) throw new Error(`Song HTTP ${response.status}`);
+console.log(await response.json(), response.headers.get("X-Haneoka-Release-Id"));
 ```
 
 响应包含 `X-Haneoka-Release-Id` 和 `X-Haneoka-Source-Id`。需要审计的 archive 应将这些 headers 与下载数据一起保存。无效 release 返回 `404 release_not_found`；未固定请求使用 server 的当前 pointer。
 
-Release media 和 game-client 文件也由活动 server pointer 选择。Content-addressed artifact route 显式使用 source ID。请参阅[媒体与文件](./media/)、[Game-client](./game-client/)和[Source tree](./sources/)。
+Release media 和 game-client 文件也由活动 server pointer 选择。Content-addressed artifact route 显式使用 source ID。请参阅[媒体与文件](/zh-cn/servers/media/)、[Game-client](/zh-cn/servers/game-client/)和[Source tree](/zh-cn/servers/sources/)。
 
 ## 什么时候使用本页
 

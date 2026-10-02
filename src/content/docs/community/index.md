@@ -5,6 +5,10 @@ description: Read and write posts, comments, reactions, follows, tags, notificat
 
 Community JSON lives under `/api/v1/community`. Public reads do not require a session when the requested content is public. Mutations require a Better Auth session, a verified email, an active community profile, and a same-origin request.
 
+## Browser request origin
+
+Public GET responses can be read by a server or by a page on Haneoka. Current community responses do not provide CORS permission for browsers on another site, so a direct cross-origin fetch is blocked. Sessions, private data and mutations follow the same-origin requirements below.
+
 ## Route map
 
 | Method             | Path                                                    | Auth     | Purpose                                    |

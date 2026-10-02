@@ -1,252 +1,297 @@
 ---
 title: Vega story embed
-description: Mount a Vega story, select its resources, control playback and release the player.
+description: Create a complete story JSON, load it in a browser, then add backgrounds, audio and Live2D.
 ---
 
 import DemoPlayer from "../../../components/DemoPlayer.astro";
 
+Create a story in a text file and play it on your own web page. Start with two lines of dialogue, then add a background, sound and a model. These steps use the hosted [Vega browser module](https://haneoka.org/embed/vega.js); you can follow them without installing npm packages.
 
-`@haneoka/embed-vega` mounts a Vega story inside an element you own. It uses the Three renderer, Vega's existing resource resolver, and the portable dialogue UI. Your page controls loading and playback through a small handle. You can supply an in-memory document, HTTP JSON, local files, or a current Haneoka story.
+## 1. Try the player here
 
-
-## Browser modules and package imports
-
-The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/vega.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/vega.js`. The package imports below describe a bundled host application; npm publication remains separate.
-
-## Install and mount
-
-Install the embed and its rendering peers in your application:
-
-```sh
-npm install @haneoka/embed-vega @haneoka/embed-core @haneoka/vega @haneoka/vega-renderer-three @haneoka/vega-ui-portable @haneoka/vega-plugin-richtext three howler
-```
-
-Use a browser bundler that supports ESM, such as Vite. Give the container an explicit height; it can be placed in an article, dialog, or full-screen view. The player starts paused at the first command.
-
-```html
-<div id="story" style="width:100%;height:60vh;min-height:240px"></div>
-<button id="play">Play</button>
-<button id="pause">Pause</button>
-<button id="next">Next</button>
-```
-
-```js
-import { mountStory } from "@haneoka/embed-vega";
-import { ADV_COMMAND } from "@haneoka/vega/renderer-kit";
-
-const document = {
-  localization: { locales: ["en"], defaultLocale: "en" },
-  commands: [
-    { command: ADV_COMMAND.Stage, background: { url: "garden.png" } },
-    { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Welcome to the garden." },
-    { command: ADV_COMMAND.Talk, targetName: "Mira", text: "Take your time." },
-  ],
-};
-const story = mountStory(window.document.querySelector("#story"), {
-  document,
-  locale: "en",
-  assetsBase: "https://your.example/stories/garden/",
-  onEvent(event) {
-    if (event.type === "error") console.error(event.error);
-    if (event.type === "load") console.log(event.event);
-  },
-});
-await story.ready;
-window.document.querySelector("#play").onclick = () => story.play();
-window.document.querySelector("#pause").onclick = () => story.pause();
-window.document.querySelector("#next").onclick = () => story.next();
-```
-
-The document is Vega's public `AdvStory`, with authored opcodes and resolved resource entries. A story can use one language or any author-defined locale set. Text and IDs retain their authored values. `locale` selects the player's text language independently of the asset server. `runtime.fonts` retains Vega's font declarations and prepares them before `ready`.
-
-For a script-based page, bundle this entry once and load the resulting ESM asset:
-
-```html
-<script type="module">
-  import { mountStory } from "/scripts/vega-embed.js";
-  const story = mountStory(document.querySelector("#story"), {
-    document: window.myStory,
-    assetsBase: "https://your.example/story-assets/",
-    locale: "en",
-  });
-  await story.ready;
-  document.querySelector("#play").onclick = () => story.play();
-</script>
-```
-
-`vega-embed.js` is the output of your bundler with `export { mountStory } from '@haneoka/embed-vega'` as its entry. Serve it with JavaScript MIME type. Bundle the required peer packages; browser-native bare package imports need an import map and browser-compatible distribution files.
-
-## HTTP documents and local resources
-
-```js
-import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
-
-const remote = mountStory(element, {
-  source: httpDataSource({ url: "https://your.example/stories/episode.json" }),
-  locale: "en",
-});
-await remote.ready;
-```
-
-Relative resource paths resolve against the HTTP document's directory. A root-relative path resolves against that origin, and an absolute URL keeps its origin. An explicit `assetsBase` overrides the document's directory. It must be an absolute HTTP(S) directory URL. The host resolves declared media, model, texture, animation and font fields before creating the renderer; source labels and dialogue strings remain intact. Provider manifests continue to resolve their own relative sidecar paths through the existing provider.
-
-To load local files, provide a JSON `File` and a map of literal project paths to `Blob` or `File` values:
-
-```js
-const local = mountStory(element, {
-  source: fileDataSource(jsonFile),
-  resolveResource: fileResourceResolver(
-    new Map([
-      ["背景/庭園.png", backgroundFile],
-      ["fonts/author.woff2", fontFile],
-    ]),
-  ),
-  locale: "en",
-});
-await local.ready;
-```
-
-Paths are matched literally, including Unicode. The data loader owns these Blob URLs. The Vega resolver owns encoded resource caching, renderable URLs and leases; model providers and Three own decoded and GPU resources. When using model manifests with local sidecars, resolve the manifest's resulting absolute sidecar URLs in your resolver too, or supply a provider's complete resource descriptor.
-
-## Transport, events and cancellation
-
-The same embed-core transport reads the document and Vega resource bytes. Requests use CORS mode and omit credentials by default. Configure `fetcher`, `headers`, `credentials`, `resolveResource`, or `maxBytes` when your host needs them. `maxBytes` defaults to 64 MiB per document/resource response. Resource adapter calls have a 30-second total deadline, adjustable through `resourceTimeoutMs`. Vega retains its existing cache and lease behavior.
-
-The asset and JSON origins must permit your site's origin with CORS response headers. Credentialed cross-origin requests need an explicit allowed origin and credential permission. Font files, model files, textures and audio all need accessible URLs. Dynamic Cubism modules and Core scripts use their native module/script loading paths; transport headers do not configure those script requests.
-
-`onEvent` is active from the first load. `subscribe` adds a listener and returns an unsubscribe function:
-
-```js
-const unsubscribe = story.subscribe((event) => {
-  if (event.type === "load") {
-    // start / progress / ready / error / cancelled / disposed
-    // Each data/resource operation has its own operation number and key.
-    console.log(event.event);
-  }
-  if (event.type === "state") updateControls(event.snapshot);
-  if (event.type === "seek") console.log("Restored command", event.commandIndex);
-});
-```
-
-Load events describe data and resource transport. The handle's `ready` additionally waits for Vega's renderer, resources, fonts and seek index. State events carry loading/ready/error/cancelled/disposed phase, play/pause/finish/seek flags, command position and reachable-path progress. They are coalesced at 100 ms, with immediate publication for controls. A failing listener is isolated; `onListenerError` can record it.
-
-```js
-const controller = new AbortController();
-const story = mountStory(element, { source, signal: controller.signal });
-// A Cancel loading button can call either:
-story.cancel();
-// controller.abort();
-try {
-  await story.ready;
-} catch (error) {
-  showLoadingError(error);
-}
-await story.dispose();
-```
-
-`cancel()` retires a loading player. Dispose it before retrying with a new handle. Aborting the supplied signal after `ready` disposes the mounted player. `dispose()` is idempotent and releases the player before the data source's URLs and cleanup. Await it before recreating the player in the same element; other children of your container remain in place.
-
-## Playback and seeking
-
-Call `play()` from a click or tap after `ready`; this gives browser audio a user gesture. `pause()` pauses the interpreter and current video, and `next()` advances readable dialogue. The portable dialogue surface also accepts its existing pointer and keyboard interaction. A completed story can be rewound with `seek(0)` and played again.
-
-```js
-story.play();
-story.pause();
-await story.seek(0.75); // forward on the current reachable story path
-await story.seek(0.25); // backward, preserving the paused state
-await story.seek(0);
-story.play();
-await story.dispose();
-const replacement = mountStory(element, { document: nextDocument, assetsBase, locale: "en" });
-await replacement.ready;
-```
-
-The ratio maps to Vega's prepared command boundaries, including its active choice path. It represents story progress rather than elapsed video seconds. The returned number is the restored command boundary. Use `story.snapshot` for the current transport state and `story.player` for advanced Vega APIs while the handle is ready.
-
-## Existing theme, shell and model providers
-
-The default portable player includes dialogue and choices. Your page provides transport buttons and a progress control. The existing Haneoka theme and shell can be selected when you want the full theme UI:
-
-```sh
-npm install @haneoka/vega-theme-haneoka @haneoka/vega-shell-default
-```
-
-```js
-import { haneokaStoryPlugins } from "@haneoka/embed-vega/theme";
-
-const story = mountStory(element, {
-  document,
-  assetsBase,
-  locale: "en",
-  theme: "haneoka",
-  plugins: haneokaStoryPlugins,
-  shell: { initialScreen: "game", projectId: "my-story", settingsId: "my-story-settings" },
-});
-```
-
-For custom models, append their provider plugins to `haneokaStoryPlugins`. Serve the theme's `assets/` files beside its built module as expected by that package's relative asset URLs. Retain its font and sprite files, or configure your bundler to preserve/copy the selected package assets. `renderer` accepts the existing Three plugin options, including an authorized post-texture provider. `plugins` installs existing Vega character and command providers. These keep their public lifecycle contracts.
-
-## Current Haneoka stories
-
-The optional adapter resolves one story, its runtime and its declared Live2D metadata. It uses the public API's current data and returned resource paths. Install the adapter peers and supply a separately provisioned Cubism runtime:
-
-```sh
-npm install @haneoka/api-client @haneoka/vega-plugin-haneoka @haneoka/vega-plugin-cubism
-```
-
-```js
-import { haneokaStorySource, cubismStoryPlugin } from "@haneoka/embed-vega/haneoka";
-
-const story = mountStory(element, {
-  source: haneokaStorySource({ id: "afterlive_10109" }),
-  server: "intl",
-  locale: "en",
-  plugins: [
-    cubismStoryPlugin({
-      moduleUrl: "https://your.example/cubism-runtime/vega-cubism-web-runtime.mjs",
-      runtime: {
-        cubismCoreUrl: "https://your.example/Core/live2dcubismcore.js",
-        cubism2CoreUrl: "https://your.example/Core/live2d.min.js",
-        motionSyncCoreUrl: "https://your.example/Core/CRI/live2dcubismmotionsynccore.min.js",
-      },
-    }),
-  ],
-});
-await story.ready;
-```
-
-The runtime module and Core files are provisioned under their respective licenses. Keep versioned module/Core URLs together so browser caching retains a compatible adapter. An API returning mutable asset paths follows that API's current snapshot behavior. You can also pass `apiBase` to `haneokaStorySource` to use your own compatible API origin.
-
-## Haneoka attribution
-
-Every mounted player displays the Haneoka icon linking to https://haneoka.org/ in a new tab. This identifies the playback engine, including for your own documents; your story and assets retain their own authorship and licenses. The icon floats translucently in the scene corner without reserving a row or shrinking the viewport. Set `brandingCorner: "top-right"` to move it to the other top corner. The attribution is always enabled.
-
-Other embed hosts can reuse `createHaneokaBranding(document, { corner })` from `@haneoka/embed-core/branding`. It returns an anchor for the host to append and remove. Its import leaves the DOM untouched; the icon is inline and makes no asset request.
-
-## Layout and distribution
-
-Use a container that preserves its space while loading. Place accessible, clearly labelled controls outside its interactive stage, with touch targets of at least 48 pixels and a layout that wraps at narrow widths. Your host controls the loading indicator, error presentation and UI language. Reuse your component library and design tokens for these controls; the embed adds no page navigation.
-
-The package ships ESM and TypeScript declarations. Its main entry uses the portable renderer peers; the Haneoka adapter and theme are optional. Import the main entry on the server if needed, and call `mountStory` in the browser after the container exists. Run `npm run build` before packing a local checkout. Source documents and your assets stay under their own licenses; this host module is MPL-2.0.
-
-## Load a player and change its parameters
-
-The application below loads the official stable player alias only after **Load**. Its default is an original four-command story using this site's small SVG background. HTTP reads [the actual story document](/examples/story.json); Local JSON uses your selected File. The Haneoka preset uses the real public source adapter; model stories require the separately configured Cubism runtime shown below. Edit `options` for mount arguments. `input`, `url`, `publicSource` and `cubism` are this application's source-selection fields, translated into the actual factories.
+Keep **Complete original example** selected, click **Load selected content**, then **Play**. You should see a garden and Mira's first line. **Next line** continues; **Pause** stops playback; the slider jumps within the story. **Exit this player** closes it before you load another story.
 
 <DemoPlayer kind="story" />
 
-Play, pause, next and seek call the returned handle directly. Another active player on the same page is disposed before this example mounts. The stage keeps its space during loading. JSON controls cover scalar/object parameters; callbacks/plugins are executable integrations, with their complete signatures below and their code in the example source.
+The original example uses [this complete story.json](/examples/story.json) and [garden.svg](/examples/garden.svg). The **Our Notes: Treasure** option loads a published game story, including its model and sound resources. Settings in **Advanced parameters** take effect on the next load. Choosing a language selects available authored text; it does not translate a single-language story.
+
+## 2. Save your first story
+
+Make a folder called `my-story`. In a plain-text editor, paste the following complete JSON and save it there as **story.json**, using UTF-8. Check that its filename is `story.json`, not `story.json.txt`. JSON contains data: keep the quotation marks and commas, and leave out JavaScript words such as `const` and `import`.
+
+```json
+{"localization":{"locales":["en"],"defaultLocale":"en"},"commands":[
+  {"command":2,"targetName":"Mira","text":"This is my first story."},
+  {"command":2,"targetName":"Mira","text":"Press Next line to continue."}
+]}
+```
+
+You can also [open this complete dialogue JSON](/examples/dialogue.json) and save it as `story.json`. `commands` is the ordered list of story actions. Here, `2` means Talk, `targetName` is the speaker, and `text` is the line shown on screen. Edit the two lines first; keep the other fields as shown.
+
+## 3. Make the web page and open it
+
+[Open the complete starter HTML](/examples/first-story.html), save it as **index.html**, and put it next to `story.json`. You can also [download the complete starter folder ZIP](/examples/first-story.zip) and extract it to obtain this directory. The complete copyable source is below.
+
+```text
+my-story/
+  index.html
+  story.json
+```
+
+Serve the folder over HTTP. If Python is missing, install it from [Python.org](https://www.python.org/downloads/). With Python 3 installed, open a terminal in `my-story` and run:
+
+```sh
+python3 -m http.server 8000
+```
+
+On Windows, use `py -m http.server 8000`. Open **http://localhost:8000/** in your browser. An editor's local HTTP preview also works. Double-clicking a file opens a `file://` address; the JSON request needs an HTTP address. Stop the server with Ctrl+C when finished.
+
+Click **Load / retry**, wait for **Loaded**, then **Play**. The first line appears; **Next line** reveals or advances the dialogue. This initial story has no image, so its background is plain. Closing the player frees its resources; you can load it again.
+
+<details>
+<summary>Complete index.html — copy everything into one file</summary>
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My first story</title>
+<style>
+  body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+  #stage { height: 60vh; min-height: 320px; position: relative; }
+  button { font: inherit; min-height: 48px; margin: .25rem; }
+</style>
+<h1>My first story</h1>
+<p id="status" role="status" aria-live="polite">Press Load to read story.json.</p>
+<div id="stage"></div>
+<button id="load">Load / retry</button>
+<button id="play" disabled>Play</button>
+<button id="pause" disabled>Pause</button>
+<button id="next" disabled>Next line</button>
+<button id="close">Close</button>
+<script type="module">
+const button = id => document.getElementById(id);
+const status = document.getElementById("status");
+let handle, controller, generation = 0;
+// Current audio runtime expects a local/data playback URL. Prepare short clips here.
+function audioResolver(base) {
+  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
+  return async (key, context) => {
+    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
+    if (!extension || /^(data|blob):/.test(key)) return key;
+    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
+    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
+    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
+    context.signal.throwIfAborted();
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
+  };
+}
+
+function controls(enabled) {
+  for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
+}
+async function close() {
+  generation++; controller?.abort(); controls(false);
+  const old = handle; handle = undefined;
+  await old?.dispose();
+}
+button("load").onclick = async () => {
+  button("load").disabled = true;
+  let current;
+  try {
+    await close(); current = ++generation;
+    controller = new AbortController(); const signal = controller.signal;
+    status.textContent = "Loading…";
+    const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+    const response = await fetch("./story.json", { signal });
+    if (!response.ok) throw new Error(`story.json: HTTP ${response.status}`);
+    const storyData = await response.json();
+    signal.throwIfAborted(); if (current !== generation) return;
+    handle = mountStory(document.getElementById("stage"), {
+      document: storyData,
+      locale: storyData.localization?.defaultLocale ?? "en",
+      assetsBase: new URL("./", response.url).href,
+      resolveResource: audioResolver(new URL("./", response.url).href),
+      signal,
+      onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
+    });
+    await handle.ready;
+    if (current !== generation) return;
+    controls(true); status.textContent = "Loaded. Press Play, then Next line.";
+  } catch (error) {
+    if (current === generation) {
+      const failed = handle; handle = undefined; await failed?.dispose().catch(() => {});
+      if (current === generation) status.textContent = `Loading failed: ${error.message}. Check the file, then retry.`;
+    }
+  } finally { button("load").disabled = false; }
+};
+button("play").onclick = () => handle?.play();
+button("pause").onclick = () => handle?.pause();
+button("next").onclick = () => handle?.next();
+button("close").onclick = async () => { await close(); status.textContent = "Closed. Press Load to try again."; };
+window.addEventListener("pagehide", () => { void close(); }, { once: true });
+</script>
+</html>
+```
+
+</details>
+
+The script performs three separate actions:
 
 ```js
-import { mountStory } from "https://haneoka.org/embed/r-22bfe102f7deb73f/vega.js";
-const story = mountStory(element, { document: myStory, locale: "fr", assetsBase: "https://author.example/story/" });
-await story.ready;
-// A real button click:
-story.play();
-await story.seek(.5);
-await story.dispose();
+const response = await fetch("./story.json"); // request the saved file
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+const storyData = await response.json(); // turn JSON text into a JavaScript object
+const player = mountStory(document.getElementById("stage"), {
+  document: storyData, // pass that object to the player
+  locale: "en",
+  assetsBase: new URL("./", response.url).href,
+});
+await player.ready; // the page enables Play only when loading succeeds
 ```
+
+This excerpt explains the load section in the full HTML. A filename, URL and parsed object are different inputs:
+
+| What you have | How to use it |
+| --- | --- |
+| A story object already created in JavaScript | `mountStory(container, { document: storyData })` |
+| An HTTP address pointing to a story JSON file | Fetch and parse it as above, or use `httpDataSource` in step 6 |
+| A JSON file selected with a file input | Use `fileDataSource`; choose where its images and audio come from |
+| A public Haneoka game story ID | Use `haneokaStorySource` in step 7 |
+
+## 4. Add a background
+
+Save [garden.svg](/examples/garden.svg) next to your files. Replace `story.json` with the [complete background story](/examples/story.json), or insert this action at the **start** of its `commands` array, before the first Talk:
+
+```json
+{"command":25,"background":{"url":"garden.svg"}}
+```
+
+`25` means Stage. Its `background.url` names the image file. Keep a comma between this action and the following Talk. Your folder now contains `index.html`, `story.json` and `garden.svg`. Reload the player: the garden appears behind the dialogue. The starter's `assetsBase` points to this folder, so `garden.svg` resolves beside `story.json`.
+
+## 5. Add one sound, then map several cues
+
+Save [cue-tone.wav](/examples/cue-tone.wav) beside `story.json` and replace the JSON with the [complete sound story](/examples/story-sound.json). It plays a quiet, original test tone with the first line. This is the added field on that Talk action:
+
+```json
+"voices": [{"soundId":10000001,"categoryName":"Voice","playableUrl":"cue-tone.wav","volume":0.5}]
+```
+
+To use spoken dialogue, replace the WAV with your recording and change `playableUrl` to its exact filename. `soundId` identifies the cue; `playableUrl` locates the playable audio. Use **Play** from a click or tap so the browser can allow sound. The complete HTML includes `audioResolver`: its `resolveResource` callback reads these short clips and produces data URLs accepted by the current audio runtime. The current playback path rejects direct HTTP audio URLs, so this preparation is required for the tutorial. Long recordings should use an audio adapter with resource leases to avoid base64 memory overhead.
+
+When your existing story already contains cue IDs, put their addresses in one JavaScript map and fill the voice records before mounting. In the starter HTML, add this immediately after `const storyData = await response.json();`:
+
+```js
+const sounds = { 10000001: "./cue-tone.wav" };
+for (const command of storyData.commands) {
+  for (const voice of command.voices ?? []) {
+    const key = voice.soundId ?? voice.id;
+    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
+  }
+}
+```
+
+This is host-side preparation for the sample's `commands[].voices`; `sounds` is not a `mountStory` option. BGM and sound-effect actions use their `bgm.playableUrl` and `se.playableUrl` records. Public Haneoka stories already resolve `voiceRefs`, `bgmRef` and `seRef` through their sound registry. Other formats need an adapter that translates their cue fields into these records, including cues inside timelines or command groups.
+
+## 6. Load a different URL or a selected file
+
+The [complete source-selection HTML](/examples/story-player.html) includes all four methods, visible loading errors, cancellation, playback and a progress slider. Save it as `index.html` beside the same JSON and assets. Choose **Another JSON address**, paste the address, then Load. Choose **A JSON file on my computer** to select the saved JSON instead.
+
+For HTTP, the shorter SDK route replaces the starter's fetch/JSON/mount block with:
+
+```js
+const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
+handle = mountStory(document.getElementById("stage"), {
+  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  locale: "en",
+  resolveResource: audioResolver(new URL("./", location.href).href),
+  signal,
+});
+await handle.ready;
+```
+
+`httpDataSource` fetches and parses the JSON internally. Relative resource paths use the JSON address's directory; an absolute URL keeps its own origin. Set `assetsBase` only when your resources live in a different directory.
+
+Selecting a JSON file grants access to that file alone. It does not grant access to neighbouring images, models or audio. The complete HTML uses `fileDataSource(file)` and serves those resources from the HTML folder. For fully local selected resources, see [local files and fileResourceResolver](../core/#local-files). Model sidecar paths also need to resolve through that resource map.
+
+## 7. Load a published Our Notes story
+
+In the complete source-selection HTML, choose **Our Notes: Treasure**, then Load and Play. It reads story **millsage_004_1_02**. [Open the complete published story JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl) to inspect its 728 commands and asset references.
+
+That response is catalog data. The adapter also loads the story runtime and the declared model metadata, and resolves references into the playable document. Use `haneokaStorySource` for this path; the plain fetch example in step 3 expects an authored Vega story with resolved entries.
+
+```js
+// These lines replace the source selection in the complete HTML.
+options.source = sdk.haneokaStorySource({ id: "millsage_004_1_02" });
+options.server = "intl";
+options.theme = "haneoka";
+// Keep the theme and Cubism plugin configuration supplied by that HTML.
+```
+
+The full HTML supplies actual hosted runtime URLs. A Cubism runtime module provides the browser renderer; Cubism Core reads model binaries; the legacy Core is needed for Cubism 2; MotionSync Core is used when the model requires that feature. An API story response contains data and resource addresses, so model playback needs these executable components as well. Let the source adapter supply the Haneoka asset base.
+
+## 8. Prepare a standard Live2D model
+
+The Cubism provider accepts a standard `*.model3.json` and legacy `*.model.json`. For a standard model, its character descriptor can point to the manifest:
+
+```json
+{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```
+
+Keep the exported directory structure:
+
+```text
+models/Mira/
+  Mira.model3.json
+  Mira.moc3
+  Mira.2048/texture_00.png
+  motions/...
+  expressions/...
+```
+
+| Component | When it is needed |
+| --- | --- |
+| `model3.json`, its referenced `.moc3`, and every referenced texture | Basic model rendering; names and paths must match the manifest |
+| Cubism plugin, Web runtime module and compatible Cubism Core | Executing model rendering; the main story embed does not install a model provider automatically |
+| Physics, pose and user-data JSON | When declared in `FileReferences`; remove unused declarations or provide the referenced files |
+| Motion and expression files | When used by the story; preserve the manifest catalog and file paths |
+| Extra shader JSON or a shader directory | No external shader configuration is required by this runtime; its rendering shaders are bundled |
+
+See Live2D's [exported model file guide](https://docs.live2d.com/en/cubism-editor-manual/export-moc3-motion3-files/) and [model3.json specification](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md). The provider uses the manifest to locate sidecars.
+
+Save the [complete model story template](/examples/story-model.json) as `story.json`. Its `command: 0` is the entry action, `targets` identifies Mira, `positionType: 5` places her in the centre, and `characterModel` points to the model. Set `runtime.model` to your actual manifest path; keep the model sidecar filenames and directories intact. Use the complete HTML from step 6, expand **Advanced: standard Live2D in my own story**, enable the Cubism provider, choose the original JSON, Load, then Play. This template requires your own exported model files; its download does not contain the illustrated model directory.
+
+**ZIP input is not currently implemented.** Extract the model archive, preserve its paths, serve the extracted files, and point the descriptor to its manifest. The existing model export creates ZIP downloads; it does not load ZIPs. The public options also do not include `shaders` or `shadersDir`. A custom shader-pack loader would require an additional runtime extension; adding those keys to a story has no such effect.
+
+## Fix a failed load
+
+| What you see | What to do |
+| --- | --- |
+| `story.json: HTTP 404` | Open `http://localhost:8000/story.json`; check the filename, directory and letter case |
+| JSON parse error | Use the complete provided JSON, then edit only one text value; JSON uses double quotes and has no trailing commas |
+| `Failed to fetch` | Open the JSON address directly; use an HTTP page and check the browser's failed request address |
+| CORS error for another domain | Serve the files on your page's origin, or configure that resource server's response to allow your page's origin; client request headers cannot grant CORS permission |
+| Dialogue works but an image/audio file fails | Check its literal path and `assetsBase`; selecting one JSON does not select its sidecar files |
+| Model runtime fails | Check the runtime module, Core, manifest, binary and texture requests separately; a successful JSON fetch proves only that the story file is readable |
+| Load cancelled or player closed | Retry with a new handle after `await player.dispose()`; the complete examples do this for you |
+
+## Playback, cleanup and advanced integration
+
+`play()` starts or resumes; `pause()` pauses; `next()` advances dialogue. `await player.seek(0.5)` moves to a command boundary halfway along the current reachable story path, including choices. It returns the restored command index. `player.snapshot` supplies state and progress; state events update about every 100 ms, with immediate updates for controls.
+
+`ready` waits for the renderer, required resources, fonts and seek index. `cancel()` stops loading; aborting the supplied signal after readiness disposes the player. `dispose()` is idempotent. Await it before mounting another player in the same element. Resource failures appear through `ready` rejection and error events; observer errors are isolated through `onListenerError`.
+
+The runtime resolves declared URLs and leaves dialogue, IDs and source labels intact. Local resource maps use literal paths, including Unicode. The core loader releases owned Blob URLs; model providers and the renderer release their decoded and GPU resources. Transport defaults are CORS, omitted credentials, 64 MiB per response and a 30-second resource deadline. Dynamic runtime modules/Core scripts have their own browser loading paths.
+
+Every player shows a translucent Haneoka icon linking to [the main site](https://haneoka.org/), initially in the top-left corner. `brandingCorner: "top-right"` moves it. The overlay keeps the full scene area. Your story and assets retain their own authorship and licenses.
+
+For a bundled application, the package name is `@haneoka/embed-vega`; theme and Haneoka helpers also have package subentries. Public npm installation is pending. Use the hosted browser modules for this tutorial. When building from the [source repository](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega), install its workspace dependencies and build before packing. Keep the theme's font and sprite assets with its built module. The parameter reference below covers the complete integration surface.
 
 ## Every mountStory option
 
@@ -307,7 +352,7 @@ The nine common loader options use the detailed [core transport/resource contrac
 | subtitlesEnabled | boolean/true | Display available subtitles. |
 | bgmEnabled | boolean/true | BGM enabled preference. |
 
-Nonfinite numeric settings use their fallback; boolean settings are normalized. Unknown shell setting keys throw RangeError when set. `webText` is present in the published source revisions engine1916c57/theme1d5b20e/shell436ade8; use a matching build or a later CDN receipt containing those revisions. The r22 demo keeps its supported defaults rather than claiming this new flag is in that frozen player. On a matching shell, set `shell.initialSettings.webText` at construction or `story.player.shell.setSetting("webText", true)` after ready.
+Nonfinite numeric settings use their fallback; boolean settings are normalized. Unknown shell setting keys throw RangeError when set. `webText` is present in the published source revisions engine1916c57/theme1d5b20e/shell436ade8; use a matching build or a later CDN receipt containing those revisions. If you explicitly pin the old r22 player, use the settings supported by that revision. On a matching shell, set `shell.initialSettings.webText` at construction or `story.player.shell.setSetting("webText", true)` after ready.
 
 ## Nested renderer options
 
@@ -327,7 +372,7 @@ Custom `postTextureResolver` has required `resolve(reference:unknown,usage)→Th
 
 ## Source, Cubism and theme factories
 
-`haneokaStorySource({id,apiBase?})` requires a public story ID. apiBase defaults https://haneoka.org/api/v1/ and follows core directory validation. It loads the selected story, story-runtime and only declared Live2D metadata, with server/locale from the mount. A missing story/model or malformed catalog record rejects load; no release/account argument is needed.
+`haneokaStorySource({id,apiBase?})` requires a public story ID. apiBase defaults `https://haneoka.org/api/v1/` and follows core directory validation. It loads the selected story, story-runtime and only declared Live2D metadata, with server/locale from the mount. A missing story/model or malformed catalog record rejects load; no release/account argument is needed.
 
 `cubismStoryPlugin({moduleUrl,runtime})` requires a separately licensed absolute module URL and `runtime.cubismCoreUrl`. `runtime.cubism2CoreUrl?` and `runtime.motionSyncCoreUrl?` are optional version-specific script URLs. The module must export createCubismWebRuntimeAdapter; a missing export/provider capability rejects model preparation. This plugin lazily loads the adapter when a model needs it, preserves the provider lifecycle, and does not bundle Core. Keep compatible adapter/Core versions together.
 
@@ -350,4 +395,4 @@ AdvStory has commands (required by this mount), optional runtime and localizatio
 
 Events are `{type:"load",event:EmbedEvent}`, `{type:"state",snapshot}`, `{type:"seek",commandIndex}`, `{type:"error",error}`. Load event fields follow core; state publishes changed snapshots at100ms and on controls. Listener exceptions are isolated. A disposal completes with phase disposed; its state/load events can be observed by construction listeners. Resource/source/plugin failures keep their actual errors; cancellation rejects signal.reason. This embed does not add a second error-code taxonomy.
 
-Current source uses a transparent attribution background,55% icon opacity and a48px corner touch target over the full viewport. Stable aliases adopt this behavior when the matching build is deployed. The immutable r22 player retains its earlier reserved-row layout; use its documented version semantics when explicitly pinning it.
+This page uses the stable aliases. The older immutable r22 player retains its reserved-row attribution layout. When explicitly pinning a revision, keep engine, theme, shell and runtime versions compatible.

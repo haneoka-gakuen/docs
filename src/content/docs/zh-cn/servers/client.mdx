@@ -73,7 +73,7 @@ createHaneokaClient(options=\{\}) 提供资料方法，createApiClient(options) 
 
 | 字段 | 类型/必填 | 默认值 | 作用、限制与错误 |
 | --- | --- | --- | --- |
-| baseUrl | string；通用必填，Haneoka 可选 | Haneoka 为 https://haneoka.org/api/v1/ | API 目录，通用客户端 trim 并补末尾斜线，空值 TypeError；URL/Request 构造时拒绝非法地址。浏览器/SSR 使用绝对 HTTP(S) 地址。 |
+| baseUrl | string；通用必填，Haneoka 可选 | Haneoka 为 `https://haneoka.org/api/v1/` | API 目录，通用客户端 trim 并补末尾斜线，空值 TypeError；URL/Request 构造时拒绝非法地址。浏览器/SSR 使用绝对 HTTP(S) 地址。 |
 | headers | 可选 HeadersInit：Headers、record、pairs | 不附加 | 共用头，逐次请求头按大小写不敏感覆盖；非法值由 Headers 拒绝。资料 scope 没有逐次 headers 字段。 |
 | transport | 可选 (Request)=&gt;Promise&lt;Response&gt; | fetch | 接收完整 Request 和 signal，返回真实 Response。拒绝包装为 network_error/request_aborted；主动抛 ApiClientError 保留原错误。可以配置宿主传输、截止时间和凭据。 |
 
@@ -181,7 +181,7 @@ ApiClientError 扩展 Error，公开 name/message/继承 cause/code/details/meth
 
 ## 当前官方浏览器模块
 
-稳定地址为 `https://haneoka.org/embed/{name}.js`；固定当前版为 `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`。name依次可用api-client、core、vega、cassiopeia、home-spot、vega-theme。api-client导出createApiClient/ApiClientError/createHaneokaClient；core为共享数据/资源，四个可视/主题入口按对应页使用。以后读取manifest.modules，基于https://haneoka.org/embed/解析相对地址。旧r22兼容路径保留。
+稳定地址为 `https://haneoka.org/embed/{name}.js`；固定当前版为 `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`。name依次可用api-client、core、vega、cassiopeia、home-spot、vega-theme。api-client导出createApiClient/ApiClientError/createHaneokaClient；core为共享数据/资源，四个可视/主题入口按对应页使用。以后读取manifest.modules，基于 `https://haneoka.org/embed/` 解析相对地址。旧r22兼容路径保留。
 
 ```js
 import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";

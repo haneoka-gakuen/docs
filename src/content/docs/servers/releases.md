@@ -45,20 +45,26 @@ The full manifest describes the release's catalog, source tree, game-client inve
 }
 ```
 
-`releaseId` is an opaque value returned by the service. It is never constructed by a client.
+`releaseId` is an opaque value returned by the service. The JSON above uses a placeholder; read the current identity to obtain a usable value.
 
 ## Pin an explicit request
 
 Every server-scoped catalog, source, and release route accepts the release query:
 
-```bash
-curl --fail-with-body \
-  'https://haneoka.org/api/v1/servers/intl/songs/100001?release=r-0123456789abcdef0123'
+```js
+const base = "https://haneoka.org/api/v1/servers/intl/";
+const identityResponse = await fetch(`${base}release?projection=identity`);
+if (!identityResponse.ok) throw new Error(`Identity HTTP ${identityResponse.status}`);
+const identity = await identityResponse.json();
+const query = new URLSearchParams({ release: identity.releaseId });
+const response = await fetch(`${base}songs/100001?${query}`);
+if (!response.ok) throw new Error(`Song HTTP ${response.status}`);
+console.log(await response.json(), response.headers.get("X-Haneoka-Release-Id"));
 ```
 
 The response includes `X-Haneoka-Release-Id` and `X-Haneoka-Source-Id`. Store those headers with the downloaded data when an archive needs an audit trail. A bad release returns `404 release_not_found`; an unpinned request uses the server's current pointer.
 
-Release media and game-client files are also selected by the active server pointer. Content-addressed artifact routes use the source ID explicitly. See [Media and files](./media/), [Game-client delivery](./game-client/), and [Source trees](./sources/).
+Release media and game-client files are also selected by the active server pointer. Content-addressed artifact routes use the source ID explicitly. See [Media and files](/servers/media/), [Game-client delivery](/servers/game-client/), and [Source trees](/servers/sources/).
 
 ## When to use this page
 

@@ -13,6 +13,8 @@ GET /api/v1/announcements?server=intl&limit=2
 
 `server` 默认使用国际服 `intl`，日服填写 `jp`。`limit` 控制返回条数，范围为 1–100，默认 100。列表提供公告摘要，正文通过详情接口读取。
 
+本节 JSON 是历史响应的结构示例，实际 ID、标题和图片以当前列表为准。
+
 ```json
 {
   "server": "intl",
@@ -48,8 +50,22 @@ GET /api/v1/announcements?server=intl&limit=2
 
 ## 读取一条公告
 
-```http
-GET /api/v1/announcements/23?server=intl
+公告会更新。先从列表取得实际 `id`，再读取详情；历史示例中的 23 可能已经不在当前列表。下面是可直接运行的只读 JavaScript：
+
+```js
+const origin = "https://haneoka.org";
+const response = await fetch(`${origin}/api/v1/announcements?server=intl&limit=1`);
+if (!response.ok) throw new Error(`公告列表 HTTP ${response.status}`);
+const feed = await response.json();
+const first = feed.announcements[0];
+if (first) {
+  const detailResponse = await fetch(`${origin}/api/v1/announcements/${encodeURIComponent(first.id)}?server=intl`);
+  if (!detailResponse.ok) throw new Error(`公告详情 HTTP ${detailResponse.status}`);
+  const detail = await detailResponse.json();
+  console.log(detail.title, detail.bodyImage);
+} else {
+  console.log("当前没有公告。");
+}
 ```
 
 详情响应在同一对象中提供服务器、获取时间和完整公告：

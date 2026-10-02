@@ -16,11 +16,15 @@ Haneoka's embeds mount into an element on your page. Vega plays stories, Cassiop
 
 Each visual host also has a `/haneoka` adapter for current public content. The adapter selects a catalog object and uses its returned asset paths. Authored content can use a single language, arbitrary locale strings and Unicode resource keys. Select `server` independently from `locale`.
 
-## Distribution status and local installation
+## Start with a story you can play
+
+Follow the [eight-step Vega tutorial](./vega/) to write two lines, save JSON, open a complete HTML page, then add a background, sound and a model. The [complete starter HTML](/examples/first-story.html) and [complete dialogue JSON](/examples/dialogue.json) are supplied. The starter uses hosted modules and needs no npm installation. The tutorial also loads the real Treasure game story.
+
+## Distribution status and developer installation
 
 Official browser modules are hosted at `https://haneoka.org/embed/{core,vega,cassiopeia,home-spot,vega-theme}.js`. Pin the already-published r22 modules beneath `/embed/r-22bfe102f7deb73f/`, or resolve a later verified release from the manifest. The [repository](https://github.com/haneoka-gakuen/haneoka/tree/main/packages) contains package source; generated SDK chunks/assets are deployment build outputs. npm publication remains a separate step. The self-hosted paths below are examples chosen by your application.
 
-Use Node.js 24 or later for the complete chart/story toolchain. Obtain the embed, core and required peer tarballs from the same prepared revision. Install those files into your host application:
+The self-hosting steps below are for developers building from source. Use Node.js 24 or later for the complete chart/story toolchain. Build and pack the embed, core and required peers from the same source workspace revision, then install your generated files into the host application. The vendor paths below are local output placeholders, not public downloads:
 
 ```sh
 # Replace these paths with the actual release artifacts and include the

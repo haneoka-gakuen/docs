@@ -1,0 +1,46 @@
+{
+  "localization": {
+    "locales": [
+      "zh-CN"
+    ],
+    "defaultLocale": "zh-CN"
+  },
+  "commands": [
+    {
+      "command": 25,
+      "background": {
+        "url": "garden.svg"
+      }
+    },
+    {
+      "command": 0,
+      "targets": [
+        {
+          "target": "小遥"
+        }
+      ],
+      "positionType": 5,
+      "characterModel": {
+        "runtime": {
+          "format": "cubism3",
+          "model": "models/Mira/Mira.model3.json"
+        }
+      }
+    },
+    {
+      "command": 2,
+      "targetName": "小遥",
+      "text": "欢迎来到这个原创花园。"
+    },
+    {
+      "command": 2,
+      "targetName": "小遥",
+      "text": "这份 JSON 就是完整剧情。修改 text 里的话，再重新加载试试。"
+    },
+    {
+      "command": 2,
+      "targetName": "小遥",
+      "text": "你也可以拖动进度，回到前一句。"
+    }
+  ]
+}

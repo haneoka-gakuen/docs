@@ -3,7 +3,7 @@ title: Game-client API
 description: Read the game-client manifest and published files when building a client integration.
 ---
 
-This is an advanced contract for client-build tooling. A catalog consumer usually needs the `file`, `jacketUrl`, `musicUrl`, or similar path returned by a resource DTO and can request that path through [Media and files](./media/).
+This is an advanced contract for client-build tooling. A catalog consumer usually needs the `file`, `jacketUrl`, `musicUrl`, or similar path returned by a resource DTO and can request that path through [Media and files](/servers/media/).
 
 The game-client API exposes files from the active server release. Read the manifest first, then request filenames listed by the manifest or Addressables index.
 

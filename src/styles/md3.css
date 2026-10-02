@@ -328,3 +328,9 @@ mobile-starlight-toc .toggle {
 .docs-demo__output { min-height: 8rem; max-height: 28rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--md-sys-spacing-3); background: var(--md-sys-color-surface); }
 .docs-demo__stage { height: clamp(22rem, 60vh, 38rem); min-width: 0; position: relative; overflow: hidden; background: var(--md-sys-color-surface-container); border-radius: var(--md-sys-shape-corner-medium); }
 .docs-demo--player input[type="number"] { width: 100%; box-sizing: border-box; min-height: var(--md-comp-control-height-touch); font: inherit; padding: var(--md-sys-spacing-2); background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small); }
+.docs-demo button[aria-pressed="true"] { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); border-color: var(--md-sys-color-secondary); }
+.docs-demo details { padding: var(--md-sys-spacing-3); border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--md-sys-shape-corner-medium); }
+.docs-demo details[open] { display: grid; gap: var(--md-sys-spacing-3); }
+.docs-demo summary { cursor: pointer; min-height: var(--md-comp-control-height-touch); display: flex; align-items: center; font-weight: var(--md-sys-typescale-label-large-weight); }
+.docs-demo input[type="range"] { width: 100%; accent-color: var(--md-sys-color-primary); min-height: var(--md-comp-control-height-touch); }
+.docs-demo input[type="url"] { width: 100%; box-sizing: border-box; min-height: var(--md-comp-control-height-touch); font: inherit; padding: var(--md-sys-spacing-2); border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small); background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); }

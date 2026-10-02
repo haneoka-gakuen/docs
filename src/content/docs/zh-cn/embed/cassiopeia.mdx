@@ -5,6 +5,8 @@ description: 使用本站或自带谱面、音频和素材创建独立播放器�
 
 import DemoPlayer from "../../../../components/DemoPlayer.astro";
 
+[完整示例 chart.json](/examples/chart.json)引用的[原创音频 original-tone.wav](/examples/original-tone.wav)已提供。下载后保持这两个文件相邻；页面原创示例的简图由示例 rendererAdapter 绘制，使用游戏主题的入口见下文本站谱面。
+
 
 `mountChart` 默认组合 Cassiopeia kernel、Vue ChartPlayer、Our Notes plugin、Three renderer 和 Web 音频/输入宿主。它拥有挂载 DOM、媒体、input、renderer 与数据 loader。自定义 renderer 可沿用 kernel/Web host 并呈现作者自己的图形。候选产物安装与 CDN 方法见 [JavaScript 嵌入](../)。
 
@@ -176,7 +178,7 @@ core共同参数见[core](../core/)。无autoplay，ready后用户操作play；c
 
 typed union由theme解析，坏/缺素材拒绝构造。labels.player/pause/loading全为可选string，不选择server或语言。
 
-haneokaChartSource(\{songId,difficulty,apiBase?\})的前两项必填，difficulty为easy/normal/hard/expert/special/master且该曲提供；apiBase默认https://haneoka.org/api/v1/。读取返回谱面file并parse/build，再用musicUrl；缺difficulty Error，data/budget/parser保留原因。server从mount。
+haneokaChartSource(\{songId,difficulty,apiBase?\})的前两项必填，difficulty为easy/normal/hard/expert/special/master且该曲提供；apiBase 默认 `https://haneoka.org/api/v1/`。读取返回谱面file并parse/build，再用musicUrl；缺difficulty Error，data/budget/parser保留原因。server从mount。
 
 haneokaChartTheme(\{apiBase?,publicBase?,server?\}=\{\})：API默认上述root，publicBase默认其origin根，server override默认loader.server→intl；与作者assetsBase独立。真实descriptor缺失/歧义Error。ChartThemeContext完整为loader、signal、skin；可以按signal读loader bytes并返回manifest。
 

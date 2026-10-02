@@ -13,6 +13,21 @@
       }
     },
     {
+      "command": 0,
+      "targets": [
+        {
+          "target": "Mira"
+        }
+      ],
+      "positionType": 5,
+      "characterModel": {
+        "runtime": {
+          "format": "cubism3",
+          "model": "models/Mira/Mira.model3.json"
+        }
+      }
+    },
+    {
       "command": 2,
       "targetName": "Mira",
       "text": "Welcome to this original garden."

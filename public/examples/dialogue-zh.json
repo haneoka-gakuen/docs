@@ -1,0 +1,20 @@
+{
+  "localization": {
+    "locales": [
+      "zh-CN"
+    ],
+    "defaultLocale": "zh-CN"
+  },
+  "commands": [
+    {
+      "command": 2,
+      "targetName": "小遥",
+      "text": "这是我的第一段剧情。"
+    },
+    {
+      "command": 2,
+      "targetName": "小遥",
+      "text": "点击下一句继续。"
+    }
+  ]
+}

@@ -42,7 +42,7 @@ curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
 | 使用 Bestdori 格式的 Garupa 数据 | [Bestdori provider](./providers/bestdori/) |
 | 读取或发布帖子与评论 | [社区](./community/) |
 | 登录并管理资料 | [身份验证](./auth/) |
-| 重现历史 catalog 或检查 storage | [高级服务器接口](./servers/releases/) |
+| 重现历史 catalog 或检查 storage | [高级服务器接口](/zh-cn/servers/releases/) |
 
 ## 响应的样子
 

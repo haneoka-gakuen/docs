@@ -3,7 +3,7 @@ title: Game-client API
 description: 在构建 client integration 时读取 game-client manifest 和发布文件。
 ---
 
-这是 client-build tooling 使用的高级 contract。普通 catalog consumer 通常只需要 resource DTO 返回的 `file`、`jacketUrl` 或 `musicUrl`，并可通过[媒体与文件](./media/)请求这些路径。
+这是 client-build tooling 使用的高级 contract。普通 catalog consumer 通常只需要 resource DTO 返回的 `file`、`jacketUrl` 或 `musicUrl`，并可通过[媒体与文件](/zh-cn/servers/media/)请求这些路径。
 
 Game-client API 暴露活动 server release 中的文件。请先读取 manifest，然后请求 manifest 或 Addressables index 列出的文件名。
 

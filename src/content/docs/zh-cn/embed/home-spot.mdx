@@ -161,7 +161,7 @@ host必填HTMLElement且有ownerDocument，否则TypeError。手动mount/load严
 | modules | 可选runtimeModules | 默认lazy Three/GLTFLoader/Spine，构造能力缺失TypeError。 |
 | onEvent | (HomeSpotEvent)=&gt;void | 首load前登记。 |
 | spotId | 便捷mount必填string/number | String非空，空TypeError，不存在Error；非作者mount字段。 |
-| apiBase | 便捷mount/source可选string | 默认https://haneoka.org/api/v1/，core目录校验。 |
+| apiBase | 便捷mount/source可选string | 默认 `https://haneoka.org/api/v1/`，core目录校验。 |
 
 便捷mount自动给source，不同时填document/source。读取current stories→homeSpots[id].spine，无账号/release。haneokaHomeSpotSource(\{spotId,apiBase?\})同数据源但不创建renderer，手动组合时公开素材传输可用no-referrer。
 

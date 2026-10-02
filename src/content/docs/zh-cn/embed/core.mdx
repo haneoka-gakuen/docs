@@ -8,7 +8,7 @@ import DemoData from "../../../../components/DemoData.astro";
 
 `@haneoka/embed-core` 为剧情、谱面和场景宿主提供数据源、URL 解析、资源字节、进度与取消。它保留调用方的数据结构，渲染和播放由具体宿主负责。主入口没有运行时依赖，适合浏览器、Worker 和 Node.js；导入时不访问 DOM 或网络。
 
-官方浏览器 ESM 已托管在 https://haneoka.org/embed/core.js；包安装与自托管方法见 [JavaScript 嵌入](../)。本站适配器需要可选 peer `@haneoka/api-client`。
+官方浏览器 ESM 已托管在 [core.js 浏览器模块](https://haneoka.org/embed/core.js)；包安装与自托管方法见 [JavaScript 嵌入](../)。本站适配器需要可选 peer `@haneoka/api-client`。
 
 ## 读取本站当前资料
 
@@ -126,7 +126,7 @@ console.log(await loader.load());
 await loader.dispose();
 ```
 
-稳定地址 https://haneoka.org/embed/core.js 已可用。固定版本时将 manifest.modules.core 基于 https://haneoka.org/embed/ 解析；r22 固定模块不会自动获得后续源码选项。npm 是独立的分发步骤。
+稳定地址 https://haneoka.org/embed/core.js 已可用。固定版本时将 manifest.modules.core 基于 `https://haneoka.org/embed/` 解析；r22 固定模块不会自动获得后续源码选项。npm 是独立的分发步骤。
 
 ## createEmbedLoader 全部参数
 
@@ -155,7 +155,7 @@ await loader.dispose();
 | fileResourceResolver(files) | ReadonlyMap&lt;string,Blob&gt; | 无 | Unicode完整key字面查找，不规范化；缺项Error。URL生成owned BlobURL，bytes直接读Blob。 |
 | haneokaDataSource(options) | resource:string | 下述字段 | 当前公开目录，不填账号/release。 |
 
-本站source全部字段：resource 使用manifest资源语法；id?:string 有值取entity，省略取index；view?:string 选manifest投影；apiBase?:string 默认 https://haneoka.org/api/v1/，绝对HTTP(S)目录不含query/fragment；decode? 校验index/entity，默认JSON值。语法/不存在等load错误沿[客户端](../../servers/client/)。source默认素材base是API的origin根，可由loader.assetsBase覆盖；server/locale来自loader。
+本站source全部字段：resource 使用manifest资源语法；id?:string 有值取entity，省略取index；view?:string 选manifest投影；apiBase?:string 默认 `https://haneoka.org/api/v1/`，绝对HTTP(S)目录不含query/fragment；decode? 校验index/entity，默认JSON值。语法/不存在等load错误沿[客户端](../../servers/client/)。source默认素材base是API的origin根，可由loader.assetsBase覆盖；server/locale来自loader。
 
 ## 自定义 source/resolver 的完整 context
 
@@ -217,4 +217,4 @@ EmbedHttpError(status,url) 扩展Error，带name/message/status/url。URL/base/p
 
 ## branding子入口全部参数
 
-createHaneokaBranding(document,options=\{\}) 在官方core facade和包/branding入口可用。document必填DOM Document；corner?:top-left/top-right/bottom-left/bottom-right，默认top-left。返回HTMLAnchorElement，不自动append，不请求图像。宿主在有定位的完整容器角落悬浮append，保留48px触控区域，清理时remove。固定https://haneoka.org/、_blank/noopener、原inlineSVG、48px触控与focus；可视embed自动管理，data-only core导入不碰DOM。
+createHaneokaBranding(document,options=\{\}) 在官方core facade和包/branding入口可用。document必填DOM Document；corner?:top-left/top-right/bottom-left/bottom-right，默认top-left。返回HTMLAnchorElement，不自动append，不请求图像。宿主在有定位的完整容器角落悬浮append，保留48px触控区域，清理时remove。链接固定为 [Haneoka](https://haneoka.org/)，_blank/noopener、原inlineSVG、48px触控与focus；可视embed自动管理，data-only core导入不碰DOM。

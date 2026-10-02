@@ -52,7 +52,15 @@ GET /api/v1/garupa/bestdori/{region}/media/mv/{filename}
 GET /api/v1/garupa/bestdori/{region}/media/stage-challenge/{assetId}
 ```
 
-Chart difficulty 是 `easy`、`normal`、`hard`、`expert` 或 `special`；当 upstream 提供时，media 路由会传递 range 和 validator headers。
+Chart difficulty 是 `easy`、`normal`、`hard`、`expert` 或 `special`。谱面响应的 Content-Type 为 `text/plain`，内容是 SS 格式的 JSON 文本，顶层包含 `meta` 与 `score`；`score` 包含事件和音符。它与播放器要求的 `ChartEmbedDocument` 是两个不同阶段的数据。先读取 SS 文本，再通过相应的 SS 转换器生成播放器谱面；不要把该响应直接传给 mountChart。Media 路由在上游支持时传递 range 和 validator headers。
+
+```js
+const response = await fetch("https://haneoka.org/api/v1/garupa/bestdori/jp/charts/1/expert");
+if (!response.ok) throw new Error(`谱面 HTTP ${response.status}`);
+const scoreText = await response.text();
+const ssDocument = JSON.parse(scoreText);
+console.log(ssDocument.meta.version, ssDocument.score.events);
+```
 
 ## Raw provider assets
 
