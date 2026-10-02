@@ -59,6 +59,10 @@ export function install(root) {
     field("progress").closest("label").style.display = nativeControls ? "none" : "";
   };
   const show = event => {
+    if (event.type === "stage") {
+      const labels = { manifest: text("Preparing player…", "正在准备播放器…"), modules: text("Preparing player…", "正在准备播放器…"), runtime: text("Preparing player…", "正在准备播放器…"), data: text("Loading story…", "正在加载剧情…"), resources: text("Loading assets…", "正在加载素材…") };
+      if (labels[event.stage]) status.textContent = labels[event.stage];
+    }
     if (event.snapshot) { progress(event.snapshot); updateState(event.snapshot); }
     if (event.type === "state" && performance.now() - lastLogAt < 200) return;
     lastLogAt = performance.now(); records.push(event); records = records.slice(-24);
@@ -77,14 +81,7 @@ export function install(root) {
     if (input === "http") value.url = new URL(kind === "story" ? (zh ? "story-zh.json" : "story.json") : "chart.json", exampleBase).href;
     if (input === "haneoka") {
       value.publicSource = kind === "story" ? { id: "millsage_004_1_02" } : { songId: "100070", difficulty: "expert" };
-      if (kind === "story") value.cubism = {
-        moduleUrl: "https://haneoka.org/cubism-runtime/vega-cubism-web-runtime.mjs?v=cb42cf512fac467f36a488265c68f996dd4981061c954ff94c649c3e7e30dea3",
-        runtime: {
-          cubismCoreUrl: "https://haneoka.org/Core/live2dcubismcore.js?v=25ae938cb4fe282ce189b357bcc97e603d1e1f7ec78bf04150d401c23cdc792f",
-          cubism2CoreUrl: "https://haneoka.org/Core/live2d.min.js?v=e4ea1f18bdd44b65394ffd5a1bab16982e88757d45134d1bd0737c8a6b3ddd08",
-          motionSyncCoreUrl: "https://haneoka.org/Core/CRI/live2dcubismmotionsynccore.min.js?v=60e2a8ba9b422a0f8a3d7e066739352e9b903cc1011339984ad922e80a3cd19a",
-        },
-      };
+
     }
     if (kind === "story") { Object.assign(options, { theme: input === "haneoka" ? "haneoka" : "portable", brandingCorner: "top-left" }); if (input === "author" || input === "file") options.assetsBase = exampleBase; }
     else Object.assign(options, { mode: "watch", volume: .3, rate: 1, noteSoundEnabled: false });
@@ -112,16 +109,23 @@ export function install(root) {
     try {
       await activate({ root, exit }); signal.throwIfAborted(); if (current !== generation) return;
       const config = read();
-      const [core, sdk] = await Promise.all([import(`${epoch}core.js`), import(`${epoch}${kind === "story" ? "vega" : "cassiopeia"}.js`)]);
+      const hostedInput = kind === "story" && config.input === "haneoka";
+      const [core, sdk] = hostedInput ? [undefined, await import(`${epoch}vega-haneoka.js`)] : await Promise.all([import(`${epoch}core.js`), import(`${epoch}${kind === "story" ? "vega" : "cassiopeia"}.js`)]);
       signal.throwIfAborted(); if (current !== generation) return;
       nativeControls = kind === "story" && config.options.theme === "haneoka";
       const options = { ...config.options, signal, onEvent(event) { if (current === generation) show(event); } };
       if (config.input !== "author") delete options.document;
       if (config.input === "http") options.source = core.httpDataSource({ url: config.url });
       else if (config.input === "file") { const file = field("file").files[0]; if (!file) throw new Error(text("Choose a JSON file", "请选择 JSON 文件")); options.source = core.fileDataSource(file); }
-      else if (config.input === "haneoka") options.source = kind === "story" ? sdk.haneokaStorySource(config.publicSource) : sdk.haneokaChartSource(config.publicSource);
-      else if (config.input !== "author") throw new TypeError("Unknown input");
-      if (kind === "story") {
+      else if (config.input === "haneoka" && !hostedInput) options.source = sdk.haneokaChartSource(config.publicSource);
+      else if (config.input !== "author" && !hostedInput) throw new TypeError("Unknown input");
+      if (hostedInput) {
+        const { locale, server, signal, onEvent, source, document, fetcher, headers, credentials, maxBytes, onListenerError, ...playerOptions } = options;
+        handle = sdk.mountHaneokaStory(stage, {
+          ...config.publicSource, locale, server, signal, onEvent, fetcher, headers, credentials, maxBytes, onListenerError,
+          playerOptions, ...(config.cubism ? { runtime: config.cubism } : {}),
+        });
+      } else if (kind === "story") {
         if (options.theme === "haneoka") { const theme = await import(`${epoch}vega-theme.js`); options.plugins = theme.haneokaStoryPlugins; signal.throwIfAborted(); }
         if (config.cubism) options.plugins = [...(options.plugins ?? []), sdk.cubismStoryPlugin(config.cubism)];
         options.fetcher = request => fetch(new Request(request, { referrerPolicy: "no-referrer" }));

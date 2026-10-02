@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Haneoka 剧情</title>
+<style>
+body{font:16px system-ui;margin:16px;background:Canvas;color:CanvasText}
+#stage{height:min(70vh,600px);position:relative;width:100%}
+button{font:inherit;margin:4px;min-height:48px;padding:8px 16px}
+output{display:block;margin:8px}
+</style>
+<h1>Haneoka 剧情</h1>
+<button id="load" disabled>加载</button>
+<button id="cancel" disabled>取消加载</button>
+<button id="play" disabled>播放</button>
+<button id="next" disabled>下一句</button>
+<button id="exit" disabled>销毁</button>
+<output id="status" role="status">正在准备播放器</output>
+<div id="stage"></div>
+<script type="module">
+import {mountHaneokaStory} from "https://haneoka.org/embed/vega-haneoka.js";
+let player, generation=0;
+const by=id=>document.getElementById(id);
+const labels={manifest:"正在准备播放器",modules:"正在准备播放器",runtime:"正在准备播放器",data:"正在加载剧情",resources:"正在加载素材",ready:"已就绪"};
+const controls=ready=>{by("play").disabled=!ready;by("next").disabled=!ready;};
+by("load").onclick=async()=>{
+  const current=++generation;
+  by("load").disabled=true;controls(false);
+  try{
+    await player?.dispose();
+    if(current!==generation)return;
+    player=mountHaneokaStory(by("stage"),{
+      id:"afterlive_10109",server:"intl",locale:"zh-CN",
+      onEvent:event=>{
+        if(current!==generation)return;
+        if(event.type==="stage")by("status").textContent=labels[event.stage];
+        if(event.type==="error"){controls(false);by("status").textContent=String(event.error?.message??event.error);}
+      },
+    });
+    window.storyPlayer=player;
+    by("exit").disabled=false;by("cancel").disabled=false;
+    await player.ready;
+    if(current===generation){controls(true);by("status").textContent="已就绪";}
+  }catch(e){if(current===generation)by("status").textContent=player?.snapshot.phase==="cancelled"?"已取消":String(e.message??e);}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{player?.cancel();};
+by("play").onclick=()=>{player.play();by("status").textContent="播放中";};
+by("next").onclick=()=>{player.next();};
+by("exit").onclick=async()=>{
+  ++generation;controls(false);by("cancel").disabled=true;by("exit").disabled=true;
+  try{await player?.dispose();by("status").textContent="已销毁";}
+  catch(e){by("status").textContent=String(e.message??e);}
+  finally{by("load").disabled=false;}
+};
+by("load").disabled=false;by("status").textContent="尚未加载";
+window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
+</script>
+</html>

@@ -201,21 +201,94 @@ await handle.ready;
 
 Selecting a JSON file grants access to that file alone. It does not grant access to neighbouring images, models or audio. The complete HTML uses `fileDataSource(file)` and serves those resources from the HTML folder. For fully local selected resources, see [local files and fileResourceResolver](../core/#local-files). Model sidecar paths also need to resolve through that resource map.
 
-## 7. Load a published Our Notes story
+## 7. Load a published Our Notes story with one entry
 
-In the complete source-selection HTML, choose **Our Notes: Treasure**, then Load and Play. It reads story **millsage_004_1_02**. [Open the complete published story JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl) to inspect its 728 commands and asset references.
+Use `mountHaneokaStory` when you have a Haneoka story ID. It selects matching player modules, the theme and Cubism runtime from one release manifest. You provide the story ID, server and language.
 
-That response is catalog data. The adapter also loads the story runtime and the declared model metadata, and resolves references into the playable document. Use `haneokaStorySource` for this path; the plain fetch example in step 3 expects an authored Vega story with resolved entries.
+[Open the complete short-story HTML](/examples/haneoka-story-en.html), save it as `index.html`, and serve it as in step 3. Click **Load**, wait for **Ready**, then **Play**. This example uses **afterlive_10109**. [Open its complete catalog JSON](https://haneoka.org/api/v1/stories/afterlive_10109?server=intl) to inspect the authored commands and asset references.
 
 ```js
-// These lines replace the source selection in the complete HTML.
-options.source = sdk.haneokaStorySource({ id: "millsage_004_1_02" });
-options.server = "intl";
-options.theme = "haneoka";
-// Keep the theme and Cubism plugin configuration supplied by that HTML.
+import { mountHaneokaStory } from "https://haneoka.org/embed/vega-haneoka.js";
+const player = mountHaneokaStory(document.getElementById("stage"), {
+  id: "afterlive_10109", server: "intl", locale: "en",
+});
+await player.ready;
+// Call from a button click:
+player.play();
 ```
 
-The full HTML supplies actual hosted runtime URLs. A Cubism runtime module provides the browser renderer; Cubism Core reads model binaries; the legacy Core is needed for Cubism 2; MotionSync Core is used when the model requires that feature. An API story response contains data and resource addresses, so model playback needs these executable components as well. Let the source adapter supply the Haneoka asset base.
+The complete HTML supplies the element, buttons, loading stages, cancellation, error display and disposal. Its native player also provides scene controls. The external buttons demonstrate the handle methods; your own page can keep the control set that fits its layout.
+
+<details>
+<summary>Complete index.html for the published short story</summary>
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Haneoka story</title>
+<style>
+body{font:16px system-ui;margin:16px;background:Canvas;color:CanvasText}
+#stage{height:min(70vh,600px);position:relative;width:100%}
+button{font:inherit;margin:4px;min-height:48px;padding:8px 16px}
+output{display:block;margin:8px}
+</style>
+<h1>Haneoka story</h1>
+<button id="load" disabled>Load</button>
+<button id="cancel" disabled>Cancel loading</button>
+<button id="play" disabled>Play</button>
+<button id="next" disabled>Next line</button>
+<button id="exit" disabled>Dispose</button>
+<output id="status" role="status">Preparing player</output>
+<div id="stage"></div>
+<script type="module">
+import {mountHaneokaStory} from "https://haneoka.org/embed/vega-haneoka.js";
+let player, generation=0;
+const by=id=>document.getElementById(id);
+const labels={manifest:"Preparing player",modules:"Preparing player",runtime:"Preparing player",data:"Loading story",resources:"Loading assets",ready:"Ready"};
+const controls=ready=>{by("play").disabled=!ready;by("next").disabled=!ready;};
+by("load").onclick=async()=>{
+  const current=++generation;
+  by("load").disabled=true;controls(false);
+  try{
+    await player?.dispose();
+    if(current!==generation)return;
+    player=mountHaneokaStory(by("stage"),{
+      id:"afterlive_10109",server:"intl",locale:"en",
+      onEvent:event=>{
+        if(current!==generation)return;
+        if(event.type==="stage")by("status").textContent=labels[event.stage];
+        if(event.type==="error"){controls(false);by("status").textContent=String(event.error?.message??event.error);}
+      },
+    });
+    window.storyPlayer=player;
+    by("exit").disabled=false;by("cancel").disabled=false;
+    await player.ready;
+    if(current===generation){controls(true);by("status").textContent="Ready";}
+  }catch(e){if(current===generation)by("status").textContent=player?.snapshot.phase==="cancelled"?"Cancelled":String(e.message??e);}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{player?.cancel();};
+by("play").onclick=()=>{player.play();by("status").textContent="Playing";};
+by("next").onclick=()=>{player.next();};
+by("exit").onclick=async()=>{
+  ++generation;controls(false);by("cancel").disabled=true;by("exit").disabled=true;
+  try{await player?.dispose();by("status").textContent="Disposed";}
+  catch(e){by("status").textContent=String(e.message??e);}
+  finally{by("load").disabled=false;}
+};
+by("load").disabled=false;by("status").textContent="Not loaded";
+window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
+</script>
+</html>
+```
+
+</details>
+
+The in-page **Our Notes: Treasure** preset keeps the longer **millsage_004_1_02** story. [Its complete public JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl) contains 728 commands. Both presets use the same short API. Replace `id` with an ID returned by the story catalog.
+
+Catalog JSON contains references. The Haneoka adapter prepares its runtime, model metadata and media records. To play your own complete Vega story JSON, keep the `fetch → response.json() → mountStory({ document })` path in steps 3–6. The Haneoka helper supplies its resource origin; you only set a resource base when intentionally overriding its assets through advanced player options.
 
 ## 8. Prepare a standard Live2D model
 
@@ -273,6 +346,46 @@ The runtime resolves declared URLs and leaves dialogue, IDs and source labels in
 Every player shows a translucent Haneoka icon linking to [the main site](https://haneoka.org/), initially in the top-left corner. `brandingCorner: "top-right"` moves it. The overlay keeps the full scene area. Your story and assets retain their own authorship and licenses.
 
 For a bundled application, the package name is `@haneoka/embed-vega`; theme and Haneoka helpers also have package subentries. Public npm installation is pending. Use the hosted browser modules for this tutorial. When building from the [source repository](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega), install its workspace dependencies and build before packing. Keep the theme's font and sprite assets with its built module. The parameter reference below covers the complete integration surface.
+
+## Every mountHaneokaStory option
+
+The browser entry is `https://haneoka.org/embed/vega-haneoka.js`; the bundled package subentry is `@haneoka/embed-vega/hosted`. The hosted entry selects its own release manifest by default. A direct package import defaults to `https://haneoka.org/embed/manifest.json`. The container is a browser HTMLElement with a nonzero layout size. Missing browser context or a blank/non-string ID throws TypeError; a second hosted mount in the same container before disposal throws Error. The handle returns immediately; keep it while awaiting `ready`.
+
+| Option | Type; required/default | Effect and constraints |
+| --- | --- | --- |
+| id | required string | Exact story ID returned by the current catalog. Empty/blank/non-string rejects synchronously; an unavailable ID rejects ready with the source error. |
+| server | optional string; intl | Asset server, independent of text language. Uses the existing catalog slug validation and availability. |
+| locale | optional string; ja | Startup content and UI language. Public story arrays use ja/en/zh-TW/zh-CN/ko; select one of the story's authored languages. |
+| signal | optional AbortSignal | Cancels bootstrap; abort after ready disposes the player. A supplied already-aborted signal rejects ready. |
+| manifestUrl | optional absolute HTTP(S) URL; entry-local release manifest for hosted ESM, stable root for package import | Select a compatible SDK manifest. Invalid URL/protocol throws; malformed/mixed-version metadata rejects ready. Use one complete release. |
+| apiBase | optional absolute HTTP(S) directory; https://haneoka.org/api/v1/ | Alternate compatible story catalog. Uses core directory validation; model paths still come from that catalog. |
+| runtime | optional CubismEmbedOptions; release runtime descriptor | Advanced runtime override. Required nested fields are moduleUrl and runtime.cubismCoreUrl; runtime.cubism2CoreUrl and runtime.motionSyncCoreUrl are optional. Use compatible licensed module/Core URLs. Factory contract is below. |
+| playerOptions | optional object; {} | Selected mountStory options passed to the assembled player; complete fields and exclusions below. |
+| fetcher | optional (Request)=&gt;Promise&lt;Response&gt;; native fetch | Manifest, runtime descriptor, story and resource transport. The default first-party requests use no-referrer. Dynamic modules/Core scripts retain native browser loading. |
+| headers | optional HeadersInit; none | Core transport headers; script/module requests use their native paths. |
+| credentials | optional omit/same-origin/include; omit | Resource transport credentials. Public reads use omit; credentialed cross-origin responses need appropriate server permission. |
+| maxBytes | optional positive safe integer; 67108864 | Per-response encoded-byte limit for bootstrap and child transport. Invalid values throw RangeError; exceeding the limit rejects the relevant read. It is separate from GPU/decoded-memory limits. |
+| onEvent | optional (HaneokaStoryEvent)=&gt;void | Receives stage, load, state, seek and error events from construction onward. |
+| onListenerError | optional (unknown)=&gt;void | Observer exceptions are isolated and forwarded here; listener failure does not become playback failure. |
+
+`playerOptions` accepts **theme, brandingCorner, shell, plugins, renderer, assetsBase, resolveResource, resourceTimeoutMs, resolveLocalizedText, onListenerError**. Their nested fields, defaults, ranges and errors are the same as the mountStory tables below. This helper defaults theme to `haneoka`, installs theme/Cubism plugins, and appends the supplied plugin array. Its child uses the Haneoka game shell unless shell is explicitly configured. Keep the catalog's resource base for normal use; override assetsBase/resolveResource only when intentionally replacing resources. Child-option validation runs during bootstrap and rejects ready; top-level onListenerError handles hosted observers, while playerOptions.onListenerError follows the child contract.
+
+`playerOptions` excludes **source, document, server, locale, signal, onEvent, fetcher, headers, credentials and maxBytes**. Supply the shared context fields at the top level. This first-party helper accepts a catalog ID. For an authored document, HTTP JSON URL or selected File, use mountStory and the source factories in steps 3–6.
+
+| Handle member | Type/signature | Behavior |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | Waits for selected modules, runtime descriptor and child data/model/font/seek preparation. Rejects the original bootstrap/load error. |
+| snapshot | StoryEmbedSnapshot | phase loading/ready/cancelled/error/disposed, playing/paused/finished/seeking, commandIndex/commandCount/progress. Wrapper phase describes this handle. |
+| player | VegaPlayerHandle or undefined | Advanced child access; its lifetime is owned by the hosted handle. |
+| stage | manifest/modules/runtime/data/resources/ready | Current preparation stage, suitable for your own user-facing loading label. |
+| release | string or undefined | Selected immutable SDK release after the manifest is read. |
+| play/pause/next | ()=&gt;void | Require ready; otherwise throw Error. Delegated playback errors use the child error event. |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | Finite 0–1 command-path progress; returns the restored boundary. Child range/lifecycle errors retain their meaning. |
+| subscribe | (listener)=&gt;unsubscribe | Receives future HaneokaStoryEvent values; subscribing after disposed throws Error. |
+| cancel | ()=&gt;void | Retires loading bootstrap. After ready use dispose. |
+| dispose | ()=&gt;Promise&lt;void&gt; | Idempotent; cancels, awaits bootstrap cleanup, disposes the child and loader, releases its container registration. Cleanup failures can reject AggregateError. Await before reuse. |
+
+Stage events are `{type:"stage",stage,release?}`. Load/state/seek/error shapes match mountStory below. The public module manifest and runtime descriptor belong to the same release; invalid module paths, runtime descriptor hash/length mismatch, runtime paths outside the distribution origin, import failures and resource errors reject ready. Failed bootstrap cleans up its child and registration so the host can create a fresh handle. Continue to dispose the failed handle to close your own lifecycle.
 
 ## Every mountStory option
 

@@ -66,16 +66,13 @@ $("load").onclick = async () => {
   $("status").textContent = "Loading…"; $("stage").setAttribute("aria-busy", "true");
   const timer = setTimeout(() => loadingController.abort(), 45000);
   try {
-    const sdk = await import("https://haneoka.org/embed/vega.js");
-    signal.throwIfAborted(); if (current !== generation) return;
     const mode = document.querySelector('[name="mode"]:checked').value;
+    const sdk = mode === "site" ? undefined : await import("https://haneoka.org/embed/vega.js");
+    signal.throwIfAborted(); if (current !== generation) return;
     const options = { locale: "en", signal, onEvent: event };
     if (mode === "site") {
-      const theme = await import("https://haneoka.org/embed/vega-theme.js");
-      options.source = sdk.haneokaStorySource({ id: "millsage_004_1_02" });
-      options.server = "intl"; options.theme = "haneoka";
-      options.plugins = [...theme.haneokaStoryPlugins, modelPlugin(sdk)];
-      // The adapter supplies the Haneoka asset origin. Do not replace it with this folder.
+      const { mountHaneokaStory } = await import("https://haneoka.org/embed/vega-haneoka.js");
+      player = mountHaneokaStory($("stage"), { id: "millsage_004_1_02", server: "intl", locale: "en", signal, onEvent: event });
     } else if (mode === "file") {
       const core = await import("https://haneoka.org/embed/core.js");
       const file = $("file").files[0]; if (!file) throw new Error("Choose story.json first.");
@@ -92,7 +89,7 @@ $("load").onclick = async () => {
     }
     if (mode !== "site" && $("models").checked) options.plugins = [modelPlugin(sdk)];
     signal.throwIfAborted(); if (current !== generation) return;
-    player = sdk.mountStory($("stage"), options);
+    if (mode !== "site") player = sdk.mountStory($("stage"), options);
     await player.ready; signal.throwIfAborted(); if (current !== generation) return;
     buttons(true); $("status").textContent = "Loaded. Press Play, then Next line to continue.";
     $("stage").setAttribute("aria-busy", "false");
