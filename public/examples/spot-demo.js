@@ -7,16 +7,29 @@ export function install(root) {
   const text = (en, cn) => zh ? cn : en;
   const editor = field("config"), output = field("output"), status = field("status"), stage = field("stage");
   const initial = JSON.parse(editor.value).options.document;
-  let handle, controller, generation = 0, exportUrl, records = [];
+  let handle, controller, generation = 0, exportUrl, records = [], availableCharacters = [];
   const read = () => { const value = JSON.parse(editor.value); if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Expected a configuration object"); return value; };
   const write = value => { editor.value = JSON.stringify(value, null, 2); field("locale").value = value.options.locale; for (const radio of root.querySelectorAll("[data-spot-language]")) radio.checked = radio.value === value.options.locale; };
   const show = value => { records.push(value); records = records.slice(-24); output.textContent = JSON.stringify(records, (_, value) => value instanceof Error ? { name: value.name, message: value.message } : value, 2).slice(0, 48000); };
   const controls = ready => { for (const name of ["select", "replay", "replace", "resize", "export"]) field(name).disabled = !ready; };
+  const renderCharacters = () => {
+    const ids = new Map();
+    for (const layer of handle?.document?.layers ?? []) if (Number(layer.characterId) > 0 && !ids.has(Number(layer.characterId))) ids.set(Number(layer.characterId), String(layer.key ?? layer.characterId));
+    availableCharacters = [...ids.keys()];
+    if (!availableCharacters.includes(Number(field("selection").value))) field("selection").value = "0";
+    handle.update({ selectedCharacterId: Number(field("selection").value) });
+    const group = field("characters"); group.replaceChildren();
+    for (const [id, label] of [[0, text("Clear selection", "取消选择")], ...ids]) {
+      const button = document.createElement("button"); button.type = "button"; button.textContent = label;
+      button.addEventListener("click", () => { field("selection").value = String(id); void action("update", player => player.update({ selectedCharacterId: id })); });
+      group.append(button);
+    }
+  };
   const clearExport = () => { if (exportUrl) URL.revokeObjectURL(exportUrl); exportUrl = undefined; field("download").hidden = true; field("download").removeAttribute("href"); };
   const exit = async () => {
     generation += 1; controller?.abort(); const owned = handle; handle = undefined; clearExport(); controls(false);
     field("run").disabled = false; field("cancel").disabled = true; field("exit").disabled = true;
-    await owned?.dispose(); release(root); stage.setAttribute("aria-busy", "false"); status.textContent = text("Disposed", "已销毁");
+    await owned?.dispose(); field("characters").replaceChildren(); availableCharacters = []; release(root); stage.setAttribute("aria-busy", "false"); status.textContent = text("Disposed", "已销毁");
   };
   const preset = input => {
     const options = { locale: field("locale").value || "fr", ariaLabel: text("Original scene", "原创场景") };
@@ -66,7 +79,7 @@ export function install(root) {
       if (config.input === "haneoka") handle = sdk.mountHaneokaHomeSpot(stage, options);
       else { delete options.document; Object.assign(options, await input(config, core, signal)); signal.throwIfAborted(); handle = sdk.mountHomeSpot(stage, options); }
       await handle.ready; signal.throwIfAborted(); if (current !== generation) return;
-      controls(true); status.textContent = text("Ready", "已就绪"); stage.setAttribute("aria-busy", "false");
+      renderCharacters(); controls(true); status.textContent = text("Ready", "已就绪"); stage.setAttribute("aria-busy", "false");
     } catch (error) {
       if (current === generation) { const failed = handle; handle = undefined; await failed?.dispose().catch(() => {}); if (current !== generation) return; controls(false); stage.setAttribute("aria-busy", "false"); status.textContent = error.message; show({ error }); }
     } finally { clearTimeout(timer); if (current === generation) { field("run").disabled = false; field("cancel").disabled = true; } }
@@ -76,14 +89,18 @@ export function install(root) {
     try { if (!player) throw new Error("Load a scene first"); const result = await operation(player); if (current === generation && player === handle) show({ action: name, state: player.state, result }); }
     catch (error) { if (current === generation) { show({ error }); status.textContent = error.message; } }
   };
-  field("select").addEventListener("click", () => { void action("update", player => player.update({ selectedCharacterId: Number(field("selection").value) })); });
+  field("select").addEventListener("click", () => { void action("update", player => {
+    const id = Number(field("selection").value);
+    if (id !== 0 && !availableCharacters.includes(id)) throw new Error(text("Choose a character shown above", "请选择上面列出的场景角色"));
+    player.update({ selectedCharacterId: id });
+  }); });
   field("replay").addEventListener("click", () => { void action("replay", player => player.replay()); });
   field("resize").addEventListener("click", () => { void action("resize", player => player.resize()); });
   field("replace").addEventListener("click", () => { void action("load", async player => {
     const config = read(), moduleBase = new URL(config.sdkBase ?? sdkBase).href.replace(/\/?$/, "/"), core = await import(`${moduleBase}core.js`);
     const next = config.input === "haneoka" ? { source: (await import(`${moduleBase}home-spot.js`)).haneokaHomeSpotSource(config.options) } : await input(config, core, controller.signal);
     if (next.resolveResource) throw new Error(text("Use Load to apply a new file resource mapping", "文件映射变更请使用加载按钮"));
-    await player.load(next);
+    await player.load(next); renderCharacters();
   }); });
   field("export").addEventListener("click", () => { void action("exportPng", async player => {
     const current = generation;

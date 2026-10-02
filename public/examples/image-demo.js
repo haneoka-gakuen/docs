@@ -6,7 +6,7 @@ export function install(root) {
   let controller, generation = 0, blobUrl, etag;
   const read = () => { const value = JSON.parse(editor.value); if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Expected request options"); return value; };
   const write = value => { editor.value = JSON.stringify(value, null, 2); for (const radio of root.querySelectorAll("[data-image-language]")) radio.checked = radio.value === value.locale; };
-  const clear = () => { if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = undefined; preview.removeAttribute("src"); preview.hidden = true; field("download").hidden = true; field("download").removeAttribute("href"); };
+  const clear = () => { if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = undefined; preview.removeAttribute("src"); preview.hidden = true; preview.style.display = "none"; field("download").hidden = true; field("download").removeAttribute("href"); };
   for (const button of root.querySelectorAll("[data-image-preset]")) button.addEventListener("click", () => {
     const value = read(), kind = button.dataset.imagePreset;
     value.method = kind === "head" ? "HEAD" : kind === "options" ? "OPTIONS" : "GET";
@@ -43,7 +43,7 @@ export function install(root) {
         const blob = await response.blob(); signal.throwIfAborted(); if (current !== generation) return;
         result.bytes = blob.size;
         if (!blob.type.startsWith("image/")) throw new TypeError(`Expected an image, received ${blob.type}`);
-        blobUrl = URL.createObjectURL(blob); preview.src = blobUrl; preview.hidden = false;
+        blobUrl = URL.createObjectURL(blob); preview.src = blobUrl; preview.hidden = false; preview.style.display = "block";
         await preview.decode(); signal.throwIfAborted(); if (current !== generation) return;
         const width = Number(response.headers.get("X-Haneoka-Image-Width")) || preview.naturalWidth, height = Number(response.headers.get("X-Haneoka-Image-Height")) || preview.naturalHeight;
         if (width > 0 && height > 0) { preview.width = width; preview.height = height; }
@@ -55,5 +55,5 @@ export function install(root) {
     finally { if (current === generation) { field("run").disabled = false; field("cancel").disabled = true; field("stage").setAttribute("aria-busy", "false"); } }
   });
   window.addEventListener("pagehide", () => { generation += 1; controller?.abort(); clear(); }, { once: true });
-  write(read());
+  clear(); write(read());
 }

@@ -13,7 +13,7 @@ const config = kind === "api"
 <section class="docs-demo" data-demo-kind={kind} data-ui-locale={locale} aria-label={zh ? "可运行示例" : "Runnable example"}>
   <p>{zh ? "修改 JSON 参数，然后点击加载。模块和请求只在点击后启动；输出包含真实响应与传输记录。" : "Edit the JSON parameters, then load. Modules and requests start only after a click; results include the actual response and transport log."}</p>
   <div class="docs-demo__presets" role="group" aria-label={zh ? "用法" : "Use case"}>
-    {presets.map(([value, en, cn]) => <button type="button" data-demo-preset={value}>{zh ? cn : en}</button>)}
+    {presets.map(([value, en, cn]) => <button type="button" data-demo-preset={value} disabled>{zh ? cn : en}</button>)}
   </div>
   <fieldset><legend>{zh ? "语言" : "Language"}</legend><div class="docs-demo__languages">
     {languages.map(([value, label]) => <label><input type="radio" name={`demo-${kind}-language`} value={value} data-demo-language />{label}</label>)}
@@ -22,11 +22,11 @@ const config = kind === "api"
   <label>{zh ? "参数 JSON" : "Parameters JSON"}<textarea data-demo-config rows="13" spellcheck="false">{JSON.stringify(config, null, 2)}</textarea></label>
   {kind === "core" && <label>{zh ? "本地 JSON（file 用法可选）" : "Local JSON (optional for the file example)"}<input type="file" accept=".json,application/json" data-demo-file /></label>}
   <div class="docs-demo__actions">
-    <button type="button" data-demo-run>{zh ? "加载并运行" : "Load and run"}</button>
+    <button type="button" data-demo-run disabled>{zh ? "加载并运行" : "Load and run"}</button>
     <button type="button" data-demo-cancel disabled>{zh ? "取消" : "Cancel"}</button>
     {kind === "core" && <><button type="button" data-demo-resource-url disabled>{zh ? "解析资源 URL" : "Resolve resource URL"}</button><button type="button" data-demo-resource-bytes disabled>{zh ? "读取资源字节" : "Read resource bytes"}</button><button type="button" data-demo-dispose disabled>{zh ? "销毁" : "Dispose"}</button></>}
   </div>
-  <p role="status" data-demo-status aria-live="polite">{zh ? "等待操作" : "Ready to run"}</p>
+  <p role="status" data-demo-status aria-live="polite">{zh ? "正在准备示例…" : "Preparing example…"}</p>
   <pre class="docs-demo__output" tabindex="0" aria-label={zh ? "响应与事件" : "Response and events"}><code data-demo-output></code></pre>
   <a href="/examples/data-demo.js" target="_blank" rel="noopener">{zh ? "查看实际示例代码" : "View the example source"}</a>
 </section>

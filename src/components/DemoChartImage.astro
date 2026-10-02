@@ -6,13 +6,13 @@ const languages = [["ja", "日本語"], ["en", "English"], ["zh-TW", "繁體中�
 ---
 <section class="docs-demo" data-image-demo data-ui-locale={locale} aria-label={zh ? "谱面图片实际示例" : "Runnable chart image example"}>
   <p>{zh ? "修改 JSON 再发送请求。响应显示真实状态、尺寸与缓存头；GET 成功后预览图片并提供原响应下载。" : "Edit JSON, then request. The response shows real status, dimensions and cache headers; a successful GET previews the image and offers the returned bytes for download."}</p>
-  <div class="docs-demo__presets" role="group" aria-label={zh ? "请求方式" : "Request"}><button type="button" data-image-preset="svg">SVG</button><button type="button" data-image-preset="png">PNG</button><button type="button" data-image-preset="head">HEAD</button><button type="button" data-image-preset="options">OPTIONS</button></div>
+  <div class="docs-demo__presets" role="group" aria-label={zh ? "请求方式" : "Request"}><button type="button" data-image-preset="svg" disabled>SVG</button><button type="button" data-image-preset="png" disabled>PNG</button><button type="button" data-image-preset="head" disabled>HEAD</button><button type="button" data-image-preset="options" disabled>OPTIONS</button></div>
   <fieldset><legend>{zh ? "语言" : "Language"}</legend><div class="docs-demo__languages">{languages.map(([value, label]) => <label><input type="radio" name="image-demo-language" value={value} data-image-language />{label}</label>)}</div></fieldset>
   <label>{zh ? "请求 JSON" : "Request JSON"}<textarea rows="12" spellcheck="false" data-image-config>{JSON.stringify({ method: "GET", server: "intl", songId: "100070", difficulty: "expert", format: "svg", locale: "en", height: 360, download: 0, scoped: false }, null, 2)}</textarea></label>
-  <div class="docs-demo__actions"><button type="button" data-image-run>{zh ? "请求图片" : "Request image"}</button><button type="button" data-image-cancel disabled>{zh ? "取消" : "Cancel"}</button><button type="button" data-image-clear>{zh ? "清理预览" : "Clear preview"}</button></div>
+  <div class="docs-demo__actions"><button type="button" data-image-run disabled>{zh ? "请求图片" : "Request image"}</button><button type="button" data-image-cancel disabled>{zh ? "取消" : "Cancel"}</button><button type="button" data-image-clear>{zh ? "清理预览" : "Clear preview"}</button></div>
   <div class="docs-demo__stage" style="height:22rem;overflow:auto" data-image-stage aria-busy="false"><img hidden data-image-preview alt={zh ? "实际谱面概览响应" : "Actual chart overview response"} style="max-width:none;height:auto;display:block" /></div>
   <a hidden data-image-download download="chart.svg">{zh ? "下载响应图片" : "Download response image"}</a>
-  <p role="status" aria-live="polite" data-image-status>{zh ? "等待请求" : "Waiting for a request"}</p>
+  <p role="status" aria-live="polite" data-image-status>{zh ? "正在准备示例…" : "Preparing example…"}</p>
   <pre class="docs-demo__output" tabindex="0"><code data-image-output></code></pre>
   <a href="/examples/image-demo.js" target="_blank" rel="noopener">{zh ? "查看实际示例代码" : "View example source"}</a>
 </section>
@@ -20,8 +20,18 @@ const languages = [["ja", "日本語"], ["en", "English"], ["zh-TW", "繁體中�
   const bindingUrl = "/examples/image-demo.js";
   for (const root of document.querySelectorAll<HTMLElement>("[data-image-demo]")) {
     if (root.dataset.imageBound) continue;
-    root.dataset.imageBound = "true";
-    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => install(root));
+    root.dataset.imageBound = "pending";
+    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => {
+      install(root);
+      root.dataset.imageBound = "ready";
+      for (const button of root.querySelectorAll<HTMLButtonElement>("[data-image-run], [data-image-preset]")) button.disabled = false;
+      const status = root.querySelector<HTMLElement>("[data-image-status]");
+      if (status) status.textContent = root.dataset.uiLocale === "zh-CN" ? "等待请求" : "Waiting for a request";
+    }).catch((error) => {
+      root.dataset.imageBound = "error";
+      const status = root.querySelector<HTMLElement>("[data-image-status]");
+      if (status) status.textContent = `${root.dataset.uiLocale === "zh-CN" ? "示例初始化失败，请刷新：" : "Example setup failed; refresh: "}${error.message}`;
+    });
   }
 </script>
 

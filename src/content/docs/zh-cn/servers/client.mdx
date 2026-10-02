@@ -65,7 +65,7 @@ ApiClientError 保存 method/url/status/code/requestId/details/retryable。取�
 
 <DemoData kind="api" locale="zh-CN" />
 
-示例在点击运行后动态导入已上线的 `https://haneoka.org/embed/api-client.js`，直接使用官方客户端。当前已验证发布版为 `r-5d91763f60cdf19b`，六入口与 manifest 均返回200，入口字节SHA已核对；SDK由已提交pinned源码在部署时构建。npm仍是独立发布步骤。
+示例在点击运行后动态导入已上线的 `https://haneoka.org/embed/api-client.js`，直接使用官方客户端。SDK 由已提交源码在部署时构建；当前不可变版本以 [manifest](https://haneoka.org/embed/manifest.json) 的 release 与 modules 为准。npm仍是独立发布步骤。
 
 ## 全部构造参数
 
@@ -181,7 +181,7 @@ ApiClientError 扩展 Error，公开 name/message/继承 cause/code/details/meth
 
 ## 当前官方浏览器模块
 
-稳定地址为 `https://haneoka.org/embed/{name}.js`；固定当前版为 `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`。name依次可用api-client、core、vega、cassiopeia、home-spot、vega-theme。api-client导出createApiClient/ApiClientError/createHaneokaClient；core为共享数据/资源，四个可视/主题入口按对应页使用。以后读取manifest.modules，基于 `https://haneoka.org/embed/` 解析相对地址。旧r22兼容路径保留。
+稳定地址为 `https://haneoka.org/embed/{name}.js`，name 可用 api-client、core、vega、cassiopeia、home-spot、vega-theme。需要固定版本时，读取 [manifest](https://haneoka.org/embed/manifest.json)，将同一响应中的 modules 路径基于 `https://haneoka.org/embed/` 解析。旧版本的固定地址保留其对应行为。
 
 ```js
 import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
@@ -189,4 +189,4 @@ const api = createHaneokaClient();
 console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
 ```
 
-此发布来自[已完成CI](https://github.com/haneoka-gakuen/haneoka/actions/runs/36927057401)，源码26b1709，2026-10-02完成六个immutable入口hash验证。页面已移除临时客户端源码副本。
+当前生产版本由 manifest 标识；稳定入口随新版本更新，manifest 中的固定路径保持对应版本行为。

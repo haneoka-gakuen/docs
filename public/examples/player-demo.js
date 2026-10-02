@@ -35,7 +35,7 @@ export function install(root) {
   const kind = root.dataset.playerKind, zh = root.dataset.uiLocale === "zh-CN";
   const field = name => root.querySelector(`[data-player-${name}]`);
   const stage = field("stage"), status = field("status"), output = field("output");
-  let handle, controller, generation = 0, records = [], renderFrame = 0, lastLogAt = 0;
+  let handle, controller, generation = 0, records = [], renderFrame = 0, lastLogAt = 0, nativeControls = false;
   const text = (en, cn) => zh ? cn : en;
   const read = () => { const value = JSON.parse(field("config").value); if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Expected a configuration object"); return value; };
   const write = value => { field("config").value = JSON.stringify(value, null, 2); field("locale").value = value.options?.locale ?? "en"; for (const radio of root.querySelectorAll("[data-player-language]")) radio.checked = radio.value === field("locale").value; };
@@ -47,15 +47,26 @@ export function install(root) {
     if (document.activeElement !== field("progress")) field("progress").value = String(value ?? 0);
     field("progress-label").textContent = kind === "story" ? `${Math.round((value ?? 0) * 100)}%` : `${(value ?? 0).toFixed(1)}s`;
   };
+  const updateState = snapshot => {
+    if (!snapshot) return;
+    if (snapshot.phase === "ready") {
+      const finished = snapshot.finished || (snapshot.duration > 0 && snapshot.time >= snapshot.duration);
+      status.textContent = snapshot.seeking ? text("Seeking…", "正在跳转…") : finished ? text("Finished — rewind to replay", "播放结束，可跳回开头重播") : snapshot.playing ? text("Playing", "播放中") : text("Paused — press Play", "已暂停，点击播放继续");
+    }
+    field("play").closest(".docs-demo__actions").hidden = nativeControls;
+    field("play").closest(".docs-demo__actions").style.display = nativeControls ? "none" : "";
+    field("progress").closest("label").hidden = nativeControls;
+    field("progress").closest("label").style.display = nativeControls ? "none" : "";
+  };
   const show = event => {
-    if (event.snapshot) progress(event.snapshot);
+    if (event.snapshot) { progress(event.snapshot); updateState(event.snapshot); }
     if (event.type === "state" && performance.now() - lastLogAt < 200) return;
     lastLogAt = performance.now(); records.push(event); records = records.slice(-24);
     if (!renderFrame) renderFrame = requestAnimationFrame(() => { renderFrame = 0; output.textContent = JSON.stringify(records, (_, value) => value instanceof Error ? { name: value.name, message: value.message } : value, 2).slice(0, 48000); });
   };
   const exit = async () => {
     generation += 1; controller?.abort(); const current = handle; handle = undefined;
-    controls(false); field("cancel").disabled = true; field("dispose").disabled = true; field("run").disabled = false;
+    nativeControls = false; field("play").closest(".docs-demo__actions").hidden = false; field("play").closest(".docs-demo__actions").style.display = ""; field("progress").closest("label").hidden = false; field("progress").closest("label").style.display = ""; controls(false); field("cancel").disabled = true; field("dispose").disabled = true; field("run").disabled = false;
     await current?.dispose(); stage.setAttribute("aria-busy", "false"); status.textContent = text("Disposed", "已销毁");
     release(root);
   };
@@ -103,6 +114,7 @@ export function install(root) {
       const config = read();
       const [core, sdk] = await Promise.all([import(`${epoch}core.js`), import(`${epoch}${kind === "story" ? "vega" : "cassiopeia"}.js`)]);
       signal.throwIfAborted(); if (current !== generation) return;
+      nativeControls = kind === "story" && config.options.theme === "haneoka";
       const options = { ...config.options, signal, onEvent(event) { if (current === generation) show(event); } };
       if (config.input !== "author") delete options.document;
       if (config.input === "http") options.source = core.httpDataSource({ url: config.url });
@@ -123,7 +135,7 @@ export function install(root) {
         handle = sdk.mountChart(stage, options);
       }
       await handle.ready; signal.throwIfAborted(); if (current !== generation) return;
-      controls(true); stage.setAttribute("aria-busy", "false"); status.textContent = text("Ready — press Play", "已就绪，请点击播放");
+      controls(true); stage.setAttribute("aria-busy", "false"); status.textContent = nativeControls ? text("Loaded — use Play in the scene", "已加载，请使用画面内的播放按钮") : text("Loaded — press Play", "已加载，点击播放");
       if (kind === "chart" && !options.theme) field("set-skin").disabled = true;
     } catch (error) {
       if (current === generation) { const failed = handle; handle = undefined; await failed?.dispose().catch(() => {}); if (current !== generation) return; controls(false); stage.setAttribute("aria-busy", "false"); status.textContent = error.message; show({ type: "error", error }); }

@@ -81,7 +81,7 @@ Choose an operation, edit the JSON, and press **Load and run**. Each preset call
 
 <DemoData kind="api" />
 
-The example dynamically imports the published `https://haneoka.org/embed/api-client.js` only when you run it. The verified current release is `r-5d91763f60cdf19b`: all six entries and the manifest returned200, and immutable entry bytes/SHA were checked. SDK files are deployment outputs from committed pinned source. npm publication remains a separate distribution step.
+The example dynamically imports the published `https://haneoka.org/embed/api-client.js` only when you run it. The [manifest](https://haneoka.org/embed/manifest.json) identifies the current immutable release and its module paths. SDK files are deployment outputs from committed source. npm publication remains a separate distribution step.
 
 ## Constructor options
 
@@ -201,7 +201,7 @@ The package `./browser` source entry combines createApiClient, ApiClientError an
 
 ## Current official browser modules
 
-Stable modules use `https://haneoka.org/embed/{name}.js`; pin this verified release with `https://haneoka.org/embed/r-5d91763f60cdf19b/{name}.js`. Available names are api-client,core,vega,cassiopeia,home-spot and vega-theme. The API entry exports createApiClient,ApiClientError and createHaneokaClient. Core handles shared data/resources; visual/theme entries follow their respective guides. For future releases, resolve manifest.modules relative to `https://haneoka.org/embed/`. Legacy r22 URLs remain preserved.
+Stable modules use `https://haneoka.org/embed/{name}.js`; names include api-client, core, vega, cassiopeia, home-spot and vega-theme. To pin a version, read the [release manifest](https://haneoka.org/embed/manifest.json) and resolve its module paths against `https://haneoka.org/embed/`. Use paths from that same response for a matching release. Older immutable URLs retain their corresponding behavior.
 
 ```js
 import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
@@ -209,4 +209,4 @@ const api = createHaneokaClient();
 console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
 ```
 
-This release comes from the [successful source CI](https://github.com/haneoka-gakuen/haneoka/actions/runs/36927057401), commit26b1709, with six immutable-entry hashes verified on2026-10-02. The temporary documentation client source copies have been removed.
+The manifest identifies the selected production release. Its immutable paths stay fixed as the stable aliases adopt later releases.

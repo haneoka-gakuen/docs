@@ -1,4 +1,4 @@
-const coreUrl = "https://haneoka.org/embed/r-22bfe102f7deb73f/core.js";
+const coreUrl = "https://haneoka.org/embed/core.js";
 const exampleBase = new URL("./", import.meta.url).href;
 const languages = ["ja", "en", "zh-TW", "zh-CN", "ko"];
 const authored = { language: "fr", title: "Une promenade", background: "garden.svg", lines: [{ speaker: "Mira", text: "Bienvenue au jardin." }] };
@@ -64,7 +64,7 @@ export function install(root, { loadClient } = {}) {
       if (name === "entity") common.id = "100070";
       if (name === "page") common.scope.limit = 1;
       if (name === "batch") common.ids = ["100001", "100070"];
-      if (name === "relation") Object.assign(common, { relation: "by-band", key: "1" });
+      if (name === "relation") Object.assign(common, { relation: "band", key: "1" });
       if (name === "image") Object.assign(common, { id: "100070", difficulty: "expert", image: { format: "svg", height: 720, download: false } });
       if (["get", "request", "response", "url"].includes(name)) Object.assign(common, { path: "songs/100070", request: { method: name === "response" ? "HEAD" : "GET", query: { server: "intl" } } });
       write(common);

@@ -8,18 +8,18 @@ const item = kind === "story" ? (zh ? "剧情" : "story") : (zh ? "谱面" : "ch
 <section class="docs-demo docs-demo--player" data-player-kind={kind} data-ui-locale={locale} aria-label={zh ? "播放器示例" : "Player example"}>
   <fieldset><legend>{zh ? `1. 选择${item}` : `1. Choose a ${item}`}</legend>
     <div class="docs-demo__presets" role="group" aria-label={zh ? "数据来源" : "Source"}>
-      <button type="button" data-player-preset="haneoka" aria-pressed="false">{kind === "story" ? (zh ? "Our Notes 宝物" : "Our Notes: Treasure") : (zh ? "本站歌曲" : "Haneoka song")}</button>
-      <button type="button" data-player-preset="author" aria-pressed="true">{zh ? "完整原创示例" : "Complete original example"}</button>
-      <button type="button" data-player-preset="http" aria-pressed="false">{zh ? "JSON 地址" : "JSON address"}</button>
-      <button type="button" data-player-preset="file" aria-pressed="false">{zh ? "自己的 JSON 文件" : "My JSON file"}</button>
+      <button type="button" data-player-preset="haneoka" disabled aria-pressed="false">{kind === "story" ? (zh ? "Our Notes 宝物" : "Our Notes: Treasure") : (zh ? "本站歌曲" : "Haneoka song")}</button>
+      <button type="button" data-player-preset="author" disabled aria-pressed="true">{zh ? "完整原创示例" : "Complete original example"}</button>
+      <button type="button" data-player-preset="http" disabled aria-pressed="false">{zh ? "JSON 地址" : "JSON address"}</button>
+      <button type="button" data-player-preset="file" disabled aria-pressed="false">{zh ? "自己的 JSON 文件" : "My JSON file"}</button>
     </div>
   </fieldset>
   <div data-player-panel="author"><p>{zh ? "从完整原创文件开始。加载后，你会看见示例画面，点击播放读第一句。" : "Start with the complete original file. Load it, then press Play to read the first line."}</p><a href={kind === "story" ? (zh ? "/examples/story-zh.json" : "/examples/story.json") : "/examples/chart.json"} target="_blank" rel="noopener">{zh ? "打开完整 JSON" : "Open complete JSON"}</a> · <a href={kind === "story" ? (zh ? "/examples/story-zh.json" : "/examples/story.json") : "/examples/chart.json"} download>{zh ? "下载 JSON" : "Download JSON"}</a></div>
   <div data-player-panel="haneoka" hidden><p>{kind === "story" ? (zh ? "读取本站已发布的「宝物」剧情及它引用的游戏素材。无需自己拼接模型与运行资料。" : "Read the published Treasure story and its referenced game assets. The adapter prepares its runtime and model data for you.") : (zh ? "读取本站歌曲和实际谱面，使用默认游戏主题。" : "Read the public song and score with the default game theme.")}</p><label>{kind === "story" ? (zh ? "剧情 ID" : "Story ID") : (zh ? "歌曲 ID" : "Song ID")}<input type="text" data-player-public-id value={kind === "story" ? "millsage_004_1_02" : "100070"} /></label>{kind === "story" && <a href="https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl" target="_blank" rel="noopener">{zh ? "打开完整游戏剧情资料 JSON" : "Open the complete game story JSON"}</a>}</div>
   <div data-player-panel="http" hidden><label>{zh ? "完整 JSON 文件的网址" : "Address of the complete JSON file"}<input type="url" data-player-url /></label></div>
   <div data-player-panel="file" hidden><label>{zh ? "选择保存到电脑的 JSON" : "Choose the JSON saved on your computer"}<input type="file" accept=".json,application/json" data-player-file /></label><p>{zh ? "示例 JSON 引用的背景和音频仍由示例网址提供；使用自己的资源时，在高级参数填素材目录。" : "Sample JSON resources still come from the example address. For your own resources, set their directory in Advanced parameters."}</p></div>
-  <div class="docs-demo__actions" aria-label={zh ? "2. 加载" : "2. Load"}><button type="button" data-player-run>{zh ? "加载所选内容" : "Load selected content"}</button><button type="button" data-player-cancel disabled>{zh ? "取消加载" : "Cancel loading"}</button><button type="button" data-player-dispose disabled>{zh ? "换内容前退出" : "Exit this player"}</button></div>
-  <p role="status" aria-live="polite" data-player-status>{zh ? "尚未加载" : "Not loaded yet"}</p>
+  <div class="docs-demo__actions" aria-label={zh ? "2. 加载" : "2. Load"}><button type="button" data-player-run disabled>{zh ? "加载所选内容" : "Load selected content"}</button><button type="button" data-player-cancel disabled>{zh ? "取消加载" : "Cancel loading"}</button><button type="button" data-player-dispose disabled>{zh ? "换内容前退出" : "Exit this player"}</button></div>
+  <p role="status" aria-live="polite" data-player-status>{zh ? "正在准备示例…" : "Preparing example…"}</p>
   <div class="docs-demo__stage" data-player-stage aria-busy="false"></div>
   <div class="docs-demo__actions" aria-label={zh ? "3. 播放" : "3. Playback"}><button type="button" data-player-play disabled>{zh ? "播放" : "Play"}</button><button type="button" data-player-pause disabled>{zh ? "暂停" : "Pause"}</button>{kind === "story" && <button type="button" data-player-next disabled>{zh ? "下一句" : "Next line"}</button>}</div>
   <label>{zh ? "播放进度" : "Playback progress"}<input type="range" min="0" max={kind === "story" ? "1" : "8"} step={kind === "story" ? ".01" : ".1"} value="0" data-player-progress disabled /><output data-player-progress-label>0</output></label>
@@ -36,7 +36,17 @@ const item = kind === "story" ? (zh ? "剧情" : "story") : (zh ? "谱面" : "ch
   const bindingUrl = "/examples/player-demo.js";
   for (const root of document.querySelectorAll<HTMLElement>("[data-player-kind]")) {
     if (root.dataset.playerBound) continue;
-    root.dataset.playerBound = "true";
-    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => install(root));
+    root.dataset.playerBound = "pending";
+    void import(/* @vite-ignore */ bindingUrl).then(({ install }) => {
+      install(root);
+      root.dataset.playerBound = "ready";
+      for (const button of root.querySelectorAll<HTMLButtonElement>("[data-player-run], [data-player-preset]")) button.disabled = false;
+      const status = root.querySelector<HTMLElement>("[data-player-status]");
+      if (status) status.textContent = root.dataset.uiLocale === "zh-CN" ? "尚未加载" : "Not loaded yet";
+    }).catch((error) => {
+      root.dataset.playerBound = "error";
+      const status = root.querySelector<HTMLElement>("[data-player-status]");
+      if (status) status.textContent = `${root.dataset.uiLocale === "zh-CN" ? "示例初始化失败，请刷新：" : "Example setup failed; refresh: "}${error.message}`;
+    });
   }
 </script>
