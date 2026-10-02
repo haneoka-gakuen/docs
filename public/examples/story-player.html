@@ -33,23 +33,6 @@
 <script type="module">
 const $ = id => document.getElementById(id);
 let player, controller, generation = 0;
-// Current audio runtime expects a local/data playback URL. Prepare short clips here.
-function audioResolver(base) {
-  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
-  return async (key, context) => {
-    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
-    if (!extension || /^(data|blob):/.test(key)) return key;
-    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
-    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
-    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
-    context.signal.throwIfAborted();
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
-  };
-}
 
 function modelPlugin(sdk) { return sdk.cubismStoryPlugin({
         moduleUrl: "https://haneoka.org/cubism-runtime/vega-cubism-web-runtime.mjs?v=cb42cf512fac467f36a488265c68f996dd4981061c954ff94c649c3e7e30dea3",
@@ -107,7 +90,6 @@ $("load").onclick = async () => {
       options.document = story;
       options.assetsBase = new URL("./", response.url || url).href;
     }
-    if (mode !== "site") options.resolveResource = audioResolver(options.assetsBase);
     if (mode !== "site" && $("models").checked) options.plugins = [modelPlugin(sdk)];
     signal.throwIfAborted(); if (current !== generation) return;
     player = sdk.mountStory($("stage"), options);

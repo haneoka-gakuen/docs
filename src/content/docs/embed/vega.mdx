@@ -44,7 +44,7 @@ Serve the folder over HTTP. If Python is missing, install it from [Python.org](h
 python3 -m http.server 8000
 ```
 
-On Windows, use `py -m http.server 8000`. Open **http://localhost:8000/** in your browser. An editor's local HTTP preview also works. Double-clicking a file opens a `file://` address; the JSON request needs an HTTP address. Stop the server with Ctrl+C when finished.
+On Windows, use `py -m http.server 8000`. Open [http://localhost:8000/](http://localhost:8000/) in your browser. An editor's local HTTP preview also works. Double-clicking a file opens a `file://` address; the JSON request needs an HTTP address. Stop the server with Ctrl+C when finished.
 
 Click **Load / retry**, wait for **Loaded**, then **Play**. The first line appears; **Next line** reveals or advances the dialogue. This initial story has no image, so its background is plain. Closing the player frees its resources; you can load it again.
 
@@ -74,23 +74,6 @@ Click **Load / retry**, wait for **Loaded**, then **Play**. The first line appea
 const button = id => document.getElementById(id);
 const status = document.getElementById("status");
 let handle, controller, generation = 0;
-// Current audio runtime expects a local/data playback URL. Prepare short clips here.
-function audioResolver(base) {
-  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
-  return async (key, context) => {
-    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
-    if (!extension || /^(data|blob):/.test(key)) return key;
-    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
-    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
-    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
-    context.signal.throwIfAborted();
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
-  };
-}
 
 function controls(enabled) {
   for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
@@ -116,7 +99,6 @@ button("load").onclick = async () => {
       document: storyData,
       locale: storyData.localization?.defaultLocale ?? "en",
       assetsBase: new URL("./", response.url).href,
-      resolveResource: audioResolver(new URL("./", response.url).href),
       signal,
       onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
     });
@@ -182,7 +164,7 @@ Save [cue-tone.wav](/examples/cue-tone.wav) beside `story.json` and replace the 
 "voices": [{"soundId":10000001,"categoryName":"Voice","playableUrl":"cue-tone.wav","volume":0.5}]
 ```
 
-To use spoken dialogue, replace the WAV with your recording and change `playableUrl` to its exact filename. `soundId` identifies the cue; `playableUrl` locates the playable audio. Use **Play** from a click or tap so the browser can allow sound. The complete HTML includes `audioResolver`: its `resolveResource` callback reads these short clips and produces data URLs accepted by the current audio runtime. The current playback path rejects direct HTTP audio URLs, so this preparation is required for the tutorial. Long recordings should use an audio adapter with resource leases to avoid base64 memory overhead.
+To use spoken dialogue, replace the WAV with your recording and change `playableUrl` to its exact filename. `soundId` identifies the cue; `playableUrl` locates the playable audio. Use **Play** from a click or tap so the browser can allow sound. The SDK reads declared audio through the shared resource transport and prepares playback URLs automatically. Resource requests use the configured byte budget and deadline; disposal releases the owned playback URLs.
 
 When your existing story already contains cue IDs, put their addresses in one JavaScript map and fill the voice records before mounting. In the starter HTML, add this immediately after `const storyData = await response.json();`:
 
@@ -210,7 +192,6 @@ const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
 handle = mountStory(document.getElementById("stage"), {
   source: httpDataSource({ url: new URL("./story.json", location.href).href }),
   locale: "en",
-  resolveResource: audioResolver(new URL("./", location.href).href),
   signal,
 });
 await handle.ready;

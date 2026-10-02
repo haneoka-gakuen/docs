@@ -44,7 +44,7 @@ my-story/
 python3 -m http.server 8000
 ```
 
-Windows 使用 `py -m http.server 8000`。然后在浏览器打开 **http://localhost:8000/**。编辑器提供的本地 HTTP 预览也可以。直接双击文件得到的是 `file://` 地址；读取 JSON 应使用 HTTP 地址。完成后在终端按 Ctrl+C 关闭服务。
+Windows 使用 `py -m http.server 8000`。然后在浏览器打开 [http://localhost:8000/](http://localhost:8000/)。编辑器提供的本地 HTTP 预览也可以。直接双击文件得到的是 `file://` 地址；读取 JSON 应使用 HTTP 地址。完成后在终端按 Ctrl+C 关闭服务。
 
 点击「加载 / 重试」，等页面显示「已加载」，再点「播放」。第一句会出现，「下一句」会显示完整文字或继续下一句。这份初始剧情没有图片，所以背景是纯色。点「退出」释放播放器后，可以重新加载。
 
@@ -74,23 +74,6 @@ Windows 使用 `py -m http.server 8000`。然后在浏览器打开 **http://loca
 const button = id => document.getElementById(id);
 const status = document.getElementById("status");
 let handle, controller, generation = 0;
-// Current audio runtime expects a local/data playback URL. Prepare short clips here.
-function audioResolver(base) {
-  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
-  return async (key, context) => {
-    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
-    if (!extension || /^(data|blob):/.test(key)) return key;
-    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
-    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
-    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
-    context.signal.throwIfAborted();
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
-  };
-}
 
 function controls(enabled) {
   for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
@@ -116,7 +99,6 @@ button("load").onclick = async () => {
       document: storyData,
       locale: storyData.localization?.defaultLocale ?? "en",
       assetsBase: new URL("./", response.url).href,
-      resolveResource: audioResolver(new URL("./", response.url).href),
       signal,
       onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
     });
@@ -182,7 +164,7 @@ await player.ready; // 完成加载后，页面才启用播放按钮
 "voices": [{"soundId":10000001,"categoryName":"Voice","playableUrl":"cue-tone.wav","volume":0.5}]
 ```
 
-要播放台词录音，就换成自己的音频文件，并把 `playableUrl` 改为准确文件名。`soundId` 标识这个 cue，`playableUrl` 指向能播放的声音。通过点击或触摸「播放」开始，让浏览器允许声音播放。完整 HTML 已包含 `audioResolver`，它通过 `resolveResource` 读取这些短音频并转成当前运行时接受的 data URL。现有音频播放路径会拒绝直接的 HTTP 地址；这段预处理让本教程声音可以实际载入。长音频应使用支持资源租约的音频适配器，避免 base64 的额外内存。
+要播放台词录音，就换成自己的音频文件，并把 `playableUrl` 改为准确文件名。`soundId` 标识这个 cue，`playableUrl` 指向能播放的声音。通过点击或触摸「播放」开始，让浏览器允许声音播放。SDK 会通过共用资源传输读取声明的音频，自动准备播放网址。资源请求遵守所设置的字节预算与加载期限；退出时释放播放器拥有的播放网址。
 
 已有剧情里已经写了 cue ID 时，可以在 JavaScript 中集中维护地址，再于挂载前补入声音记录。在入门 HTML 的 `const storyData = await response.json();` 后面加入：
 
@@ -210,7 +192,6 @@ const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
 handle = mountStory(document.getElementById("stage"), {
   source: httpDataSource({ url: new URL("./story.json", location.href).href }),
   locale: "zh-CN",
-  resolveResource: audioResolver(new URL("./", location.href).href),
   signal,
 });
 await handle.ready;
@@ -273,7 +254,7 @@ models/Mira/
 
 | 页面显示什么 | 下一步做什么 |
 | --- | --- |
-| story.json: HTTP 404 | 打开 http://localhost:8000/story.json，检查目录、文件名及大小写 |
+| story.json: HTTP 404 | 打开 [story.json](http://localhost:8000/story.json)，检查目录、文件名及大小写 |
 | JSON 解析失败 | 先换回完整示例，再一次只改一个文字值；JSON 使用双引号、没有末尾多余逗号 |
 | Failed to fetch | 直接打开 JSON 网址，确认页面使用 HTTP，再查看浏览器实际失败的请求地址 |
 | 其他域名提示 CORS | 把素材与网页放在同一来源，或由素材服务器在响应中允许你的网页来源；客户端请求头不能授予跨域权限 |

@@ -20,23 +20,6 @@
 const button = id => document.getElementById(id);
 const status = document.getElementById("status");
 let handle, controller, generation = 0;
-// Current audio runtime expects a local/data playback URL. Prepare short clips here.
-function audioResolver(base) {
-  const types = { wav: "wav", mp3: "mpeg", ogg: "ogg", m4a: "mp4", aac: "aac", flac: "flac", opus: "ogg" };
-  return async (key, context) => {
-    const extension = /\.(wav|mp3|ogg|m4a|aac|flac|opus)(?:[?#]|$)/i.exec(key)?.[1]?.toLowerCase();
-    if (!extension || /^(data|blob):/.test(key)) return key;
-    const response = await context.fetcher(new Request(new URL(key, base), { signal: context.signal }));
-    if (!response.ok) throw new Error(`Audio: HTTP ${response.status}`);
-    if (Number(response.headers.get("content-length")) > context.maxBytes) { await response.body?.cancel(); throw new Error("Audio exceeds maxBytes"); }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > context.maxBytes) throw new Error("Audio exceeds maxBytes");
-    context.signal.throwIfAborted();
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
-    return `data:audio/${types[extension]};base64,${btoa(binary)}#audio.${extension}`;
-  };
-}
 
 function controls(enabled) {
   for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
@@ -62,7 +45,6 @@ button("load").onclick = async () => {
       document: storyData,
       locale: storyData.localization?.defaultLocale ?? "en",
       assetsBase: new URL("./", response.url).href,
-      resolveResource: audioResolver(new URL("./", response.url).href),
       signal,
       onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
     });
