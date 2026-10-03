@@ -347,6 +347,8 @@ models/Mira/
 
 构建工程使用的包名是 `@haneoka/embed-vega`，主题与本站助手另有 package 子入口。公众 npm 安装入口尚未发布，本教程直接使用托管浏览器模块。从[源码仓库](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega)构建时，先安装 workspace 依赖并构建，再打包。主题模块需保留它的字体和图片素材。下面的参考表继续逐项说明全部参数。
 
+Engine 应用自带文件或原生资源端口时，见[宿主资源教程](../host-resources/)，包含完整类型、取消和租约所有权。
+
 ## mountHaneokaStory 全部参数
 
 浏览器入口为 `https://haneoka.org/embed/vega-haneoka.js`，构建工程中的包子入口为 `@haneoka/embed-vega/hosted`。托管模块默认选择自身版本的 manifest；直接导入包时，默认读取 `https://haneoka.org/embed/manifest.json`。容器是具有有效宽高的浏览器 HTMLElement。缺少浏览器上下文、id 为空或非 string 时同步抛 TypeError；同一容器尚未销毁就再次挂载时抛 Error。函数立即返回 handle，等待 ready 期间也保留它以便清理。

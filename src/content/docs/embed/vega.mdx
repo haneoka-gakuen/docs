@@ -347,6 +347,8 @@ Every player shows a translucent Haneoka icon linking to [the main site](https:/
 
 For a bundled application, the package name is `@haneoka/embed-vega`; theme and Haneoka helpers also have package subentries. Public npm installation is pending. Use the hosted browser modules for this tutorial. When building from the [source repository](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega), install its workspace dependencies and build before packing. Keep the theme's font and sprite assets with its built module. The parameter reference below covers the complete integration surface.
 
+For Engine integrations that supply their own file/native resource port, see [host resources](../host-resources/): complete types, cancellation and lease ownership.
+
 ## Every mountHaneokaStory option
 
 The browser entry is `https://haneoka.org/embed/vega-haneoka.js`; the bundled package subentry is `@haneoka/embed-vega/hosted`. The hosted entry selects its own release manifest by default. A direct package import defaults to `https://haneoka.org/embed/manifest.json`. The container is a browser HTMLElement with a nonzero layout size. Missing browser context or a blank/non-string ID throws TypeError; a second hosted mount in the same container before disposal throws Error. The handle returns immediately; keep it while awaiting `ready`.
