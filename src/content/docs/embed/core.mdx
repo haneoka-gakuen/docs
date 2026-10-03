@@ -1,220 +1,123 @@
 ---
 title: Data sources and resource loading
-description: Read Haneoka current data or your own memory, HTTP and local-file documents.
+description: Read objects, HTTP JSON, selected files and resources for the chosen player.
 ---
 
 import DemoData from "../../../components/DemoData.astro";
+import DocsDisclosure from "../../../components/DocsDisclosure.astro";
 
+Core reads data, resolves resource paths and manages loading and cleanup. It retains your data format; Vega, Cassiopeia and Home Spot own their respective visuals. Start with a real JSON file and image here, then use the [Vega guide](../vega/) for playback. The hosted `https://haneoka.org/embed/core.js` runs directly in a browser without npm installation.
 
-Load data and resource URLs for an embedded story, chart, or scene. The package provides a shared data layer for standalone hosts, browser applications, workers, and Node.js. It exports native ESM and TypeScript declarations. Importing it does not create elements, access `window` or `document`, start requests, or initialize a renderer.
+## 1. Read an existing JSON file
 
-
-## Release candidate installation
-
-The examples use package imports resolved by your application. Official browser ESM is hosted at `https://haneoka.org/embed/core.js`. Package imports below describe a bundled application; npm publication remains a separate step.
-
-## Installation
-
-```sh
-npm install @haneoka/embed-core
-```
-
-For the Haneoka public catalog adapter, also install its optional peer:
-
-```sh
-npm install @haneoka/api-client
-```
-
-The main entry has no runtime dependencies. `@haneoka/embed-core/haneoka` uses the public `@haneoka/api-client/haneoka` entry. Both packages use the browser Fetch API or the Fetch API provided by Node.js 20 and later. Serve browser modules through your bundler or an import map that resolves these package names to their ESM files.
-
-## Read Haneoka's current data
-
-```js
-import { createEmbedLoader } from "@haneoka/embed-core";
-import { haneokaDataSource } from "@haneoka/embed-core/haneoka";
-
-const loader = createEmbedLoader({
-  source: haneokaDataSource({ resource: "songs", id: "100070" }),
-  server: "intl",
-  locale: "en",
-});
-
-try {
-  const song = await loader.load();
-  console.log(song.musicTitle);
-  // Use the resource URL supplied by the returned entity.
-  const jacket = await loader.resourceUrl(song.jacketUrl);
-  console.log(jacket);
-} finally {
-  await loader.dispose();
-}
-```
-
-The adapter reads `/api/v1/{resource}/{id}?server={server}`. Omit `id` to read a collection index, or provide `view` to read an API collection view. The server chooses its current release for each data request; a release identifier and an account are unnecessary. Entity asset paths already identify their published resources. Use those paths as returned. Repeated `load()` calls request current data again.
-
-`server` selects the data registry and defaults to `intl` for this adapter. `locale` defaults to `en` and is sent as `Accept-Language`; the API selects a supported response language. Catalog values retain their localized fields. The loader itself preserves your locale string and leaves text selection to the consuming host. Changing `locale` does not change the resource server.
-
-For another Haneoka deployment, pass an absolute `apiBase`, such as `https://archive.example/api/v1/`. Relative asset paths resolve against that deployment's origin. `assetsBase` on the loader overrides this default when your resources live on another origin. The API adapter returns the entity or index payload, preserving the public client's validation and `ApiClientError` details.
-
-## Load your own data and resources
-
-Pass any authored data structure to `memoryDataSource`. A story host can accept its own story format, a chart host its chart format, and a scene host its scene format. The loader returns your data unchanged and by reference. Language fields and resource keys remain yours.
-
-```js
-import { createEmbedLoader, memoryDataSource } from "@haneoka/embed-core";
-
-const authored = {
-  language: "fr",
-  title: "Une promenade",
-  background: "背景/夕暮れ.png",
-  lines: [{ speaker: "Alice", text: "Bonsoir !" }],
-};
-
-const loader = createEmbedLoader({
-  source: memoryDataSource(authored),
-  locale: authored.language,
-  assetsBase: "https://cdn.example/projects/promenade/",
-  resolveResource: (key) => key,
-});
-
-try {
-  const data = await loader.load();
-  const backgroundUrl = await loader.resourceUrl(data.background);
-  // Pass data and the resource methods to your chosen story host.
-  console.log(data.title, backgroundUrl);
-} finally {
-  await loader.dispose();
-}
-```
-
-An HTTP JSON document uses the same consumer methods:
-
-```js
-import { createEmbedLoader, httpDataSource } from "@haneoka/embed-core";
-
-const loader = createEmbedLoader({
-  source: httpDataSource({
-    url: "https://author.example/projects/promenade/story.json",
-    decode(value) {
-      if (!value || typeof value !== "object" || !Array.isArray(value.lines)) {
-        throw new TypeError("Expected a story with lines");
-      }
-      return value;
-    },
-  }),
-  locale: "fr",
-});
-
-try {
-  const story = await loader.load();
-  console.log(story.lines);
-} finally {
-  await loader.dispose();
-}
-```
-
-The HTTP source resolves relative resources against the configured document URL's directory. A redirect does not change that directory. Provide `assetsBase` when your document describes another resource directory. `decode` validates or converts JSON for the actual consuming host; without it, HTTP and file sources return `unknown` in TypeScript. A generic type parameter describes your expected value, while a decoder performs runtime validation.
-
-## Local files
-
-`fileDataSource` accepts a browser `File`, a `Blob`, or a Blob constructed by a desktop host from bytes. A local JSON file has no implied network asset directory. Supply a resource map with the project's literal paths:
-
-```js
-import { createEmbedLoader, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
-
-// Files obtained from your file picker or desktop host:
-const createProjectLoader = (projectFile, backgroundFile) =>
-  createEmbedLoader({
-    source: fileDataSource(projectFile),
-    locale: "fr",
-    resolveResource: fileResourceResolver(new Map([["背景/夕暮れ.png", backgroundFile]])),
-  });
-```
-
-Map lookup uses the exact Unicode key. `resourceBytes(key)` reads the Blob directly. `resourceUrl(key)` creates one URL per Blob and reuses it until disposal. Destroy the consuming media elements or renderer before disposing the loader; disposal revokes these URLs. URLs created by your own code remain your responsibility.
-
-## Resource and transport options
-
-`resourceUrl(key)` resolves a key and returns a usable URL. `resourceBytes(key)` resolves it and reads bytes with the loader's transport, cancellation, progress, and byte limit. An asynchronous `resolveResource(key, context)` can return a string, `URL`, or `Blob`. It receives the locale, optional server, signal, and configured fetcher. A resolver replaces the key mapping completely; missing local-map keys reject instead of falling through to the network.
-
-Absolute URLs keep their origin. Relative strings use `assetsBase`; a leading `/` resolves from its origin root. `assetsBase` is an absolute HTTP(S) directory URL; the loader adds a trailing slash. Queries and fragments belong on resource URLs, rather than on the base. Supported resolved protocols are HTTP, HTTPS, Blob, and data URLs. Relative paths need an asset base even during SSR; the loader never guesses the current page's address.
-
-```js
-const loader = createEmbedLoader({
-  source: memoryDataSource({ title: "Example" }),
-  assetsBase: "https://cdn.example/project/",
-  credentials: "omit",
-  fetcher: (request) => fetch(request),
-  maxBytes: 64 * 1024 * 1024,
-});
-```
-
-`fetcher` receives a `Request` carrying `mode: 'cors'`, the cancellation signal, configured headers, and credentials. The default is native `fetch` with `credentials: 'omit'`. Choose `same-origin` or `include` for a service that requires cookies. Explicit headers are sent as configured; pass authentication headers only to the origins that should receive them. The fetcher also lets a desktop host implement its own transport.
-
-Cross-origin API and resource servers must permit your application's origin through CORS. Cookie-based cross-origin requests require explicit origin and credentials permission from the server. Custom headers may require a preflight. A resolved URL later passed to an image, audio, or video element uses that element's own loading and CORS settings; it does not invoke this fetcher. See [MDN's credentials reference](https://developer.mozilla.org/en-US/docs/Web/API/Request/credentials) and [CORS guide](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS).
-
-## Progress, errors, cancellation, and disposal
-
-```js
-const unsubscribe = loader.subscribe((event) => {
-  if (event.type === "progress") {
-    console.log(event.key, event.loaded, event.total);
-  }
-});
-const controller = new AbortController();
-
-try {
-  const data = await loader.load({ signal: controller.signal });
-  console.log(data);
-} finally {
-  unsubscribe();
-  await loader.dispose();
-}
-```
-
-Each load or resource call emits `start`, followed by byte `progress` events when bytes are read, then `ready`, `error`, or `cancelled`. `operation` identifies concurrent calls, and `key` is `$data` for the document or the resource key for resources. Progress measures decoded bytes for that operation. `total` is absent for unknown or encoded response lengths; memory loads and URL resolution do not emit byte progress. Connect these events to your host's loading indicator. `maxBytes` limits each JSON document or byte load and defaults to 64 MiB. A resolved URL alone does not download the resource.
-
-HTTP sources reject non-success status with `EmbedHttpError`, exposing `status` and `url`. JSON parse failures, decoder failures, missing local files, byte-limit failures, and transport failures reject their operation. Haneoka API failures preserve `ApiClientError`. Listener failures go to optional `onListenerError` and do not change data operation results.
-
-Abort a supplied controller to cancel that call, or call `loader.cancel()` to cancel all current calls. Cancellation rejects promptly even if a custom source ignores its signal; custom sources should use `context.signal` to stop their own work. Later calls remain available after `cancel()`. Concurrent calls are independent, with no automatic retries or shared data cache.
-
-`dispose()` immediately prevents new calls, aborts current operations, revokes its Blob URLs, emits `disposed`, removes listeners, and invokes the source's optional cleanup once. Its shared promise resolves after cleanup; cleanup failures reject that promise. Call it after the consuming host has released its resource references. An owned custom source should be used by one loader when its cleanup releases resources.
-
-## Custom data sources
-
-Implement `DataSource<T>` when the data comes from another format or an existing application service:
-
-```ts
-import { createEmbedLoader, type DataSource } from "@haneoka/embed-core";
-
-type Document = { title: string };
-const source: DataSource<Document> = {
-  async load(context) {
-    context.signal.throwIfAborted();
-    return { title: `A document in ${context.locale}` };
-  },
-};
-const loader = createEmbedLoader({ source, locale: "pt-BR" });
-```
-
-Use the resulting data with the specific host's supported format. Resource methods supply URLs and bytes; playback controls, rendering, and GPU resource ownership belong to that host.
-
-## Run every data-source form
-
-The presets use the published core ESM module directly. **Memory** uses an authored French object; **HTTP JSON** reads this site's small [document](/examples/promenade.json); **Local file** reads the JSON File you choose, or the same authored data in a real Blob, and maps the example SVG as a local Blob resource. **Haneoka** reads a real public song. Edit constructor fields in JSON, then use resource URL/bytes, cancel or dispose. `resourceField` is the demo's choice of returned DTO property; it is not an SDK constructor field.
+[Open the complete promenade.json](/examples/promenade.json). It contains a title, background path and one text line; [garden.svg](/examples/garden.svg) is its original image. Select **HTTP JSON** in the application below and load to see the data. **Resolve resource URL** obtains the image address; **Read resource bytes** reads its actual content. This lines document is reader data rather than a playable Vega document; step 3 converts this specific format.
 
 <DemoData kind="core" />
 
-Browser-native imports need no npm or import map:
-
 ```js
-import { createEmbedLoader, memoryDataSource, haneokaDataSource } from "https://haneoka.org/embed/r-22bfe102f7deb73f/core.js";
-const loader = createEmbedLoader({ source: memoryDataSource({ title: "Bonjour" }), locale: "fr" });
-console.log(await loader.load());
-await loader.dispose();
+import { createEmbedLoader, httpDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: httpDataSource({ url: "https://docs.haneoka.org/examples/promenade.json" }),
+  locale: "fr",
+});
+const data = await loader.load();
+const imageUrl = await loader.resourceUrl(data.background);
+// After the consumer finishes with this address: await loader.dispose().
 ```
 
-The stable alias is `https://haneoka.org/embed/core.js`. Pin a release using `manifest.modules.core` resolved against `https://haneoka.org/embed/`. The r22 URL above is already hosted; later source-only options do not become available in that frozen module automatically. npm publication is a separate distribution step.
+HTTP resources resolve against the configured JSON directory, which redirects do not change. An explicit assetsBase overrides it. resourceUrl obtains an address; resourceBytes reads the content. Panel fields select factories and resources. In particular, resourceKey/resourceField are this example's resource-selection fields, while the complete SDK options are listed below.
+
+<span id="local-files"></span>
+
+## 2. Select a real local JSON and image
+
+Save [promenade.json](/examples/promenade.json) and [garden.svg](/examples/garden.svg). [Open the complete file reader](/examples/core-file.html), select the JSON and image, then click **Load files**. You should see Une promenade, the original garden image and the actual image byte count. **Close reader** removes the image before disposing its loader and Blob URL; select new files and load again.
+
+Save all the code below as UTF-8 `index.html` to keep this project. The [quickstart](/quickstart/) explains local HTTP opening. Its folder contains index.html, promenade.json and garden.svg. The JSON's background is a resource key; the map binds that literal key to your selected File, including legal Unicode paths.
+
+<DocsDisclosure title="Complete index.html — actual file inputs and image consumer">
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Read local JSON and its image</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input{font:inherit}button,label{min-height:48px}label{display:block;margin:.5rem 0}img{width:320px;aspect-ratio:16/9;object-fit:contain}[hidden]{display:none!important}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p>
+<h1>Read local JSON and its image</h1><p>Select promenade.json and garden.svg, then load them together.</p>
+<label>JSON file <input id="json-file" type="file" accept=".json,application/json"></label>
+<label>Image file <input id="image-file" type="file" accept="image/*,.svg"></label>
+<button id="load">Load files</button><button id="cancel" disabled>Cancel</button><button id="close">Close reader</button>
+<p id="status" role="status" aria-live="polite">Choose the two files.</p><h2 id="title"></h2><img id="preview" hidden alt="Image from the selected file"><pre id="output"></pre>
+<script type="module">
+const by=id=>document.getElementById(id); let loader,controller,generation=0;
+async function close(){generation++;controller?.abort();by("preview").hidden=true;by("preview").removeAttribute("src");by("title").textContent="";by("output").textContent="";const old=loader;loader=undefined;await old?.dispose();by("cancel").disabled=true;}
+by("load").onclick=async()=>{
+  by("load").disabled=true;let current;
+  try{
+    await close();current=++generation;controller=new AbortController();const signal=controller.signal;by("cancel").disabled=false;by("status").textContent="Reading…";
+    const jsonFile=by("json-file").files[0],imageFile=by("image-file").files[0];
+    if(!jsonFile||!imageFile)throw new Error("Choose the JSON and image first.");
+    const {createEmbedLoader,fileDataSource,fileResourceResolver}=await import("https://haneoka.org/embed/core.js");
+    signal.throwIfAborted();if(current!==generation)return;
+    const files=new Map();
+    loader=createEmbedLoader({source:fileDataSource(jsonFile),locale:"fr",maxBytes:1048576,resolveResource:fileResourceResolver(files)});
+    const data=await loader.load({signal});
+    if(typeof data.background!=="string"||!data.background)throw new Error("The JSON needs a background resource key.");
+    files.set(data.background,imageFile);
+    const bytes=await loader.resourceBytes(data.background,{signal});
+    const url=await loader.resourceUrl(data.background,{signal});
+    if(current!==generation)return;
+    by("title").textContent=String(data.title??"");by("output").textContent=JSON.stringify({data,imageBytes:bytes.length},null,2);
+    by("preview").src=url;by("preview").hidden=false;await by("preview").decode();
+    if(current===generation)by("status").textContent="JSON and selected image loaded.";
+  }catch(error){if(current===generation){by("status").textContent=`Read failed: ${error.message}`;const failed=loader;loader=undefined;by("preview").removeAttribute("src");by("preview").hidden=true;await failed?.dispose().catch(()=>{});}}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{controller?.abort();};
+by("close").onclick=async()=>{await close();by("load").disabled=false;by("status").textContent="Reader closed. You can load again.";};
+window.addEventListener("pagehide",()=>{void close();},{once:true});
+</script></html>
+```
+
+</DocsDisclosure>
+
+Select the JSON and its required resources separately. This example maps one image; larger projects map every declared resource key, including model sidecars, to a selected File.
+
+## 3. Convert this reader data into a story
+
+promenade.json is this page's data format. Vega requires an AdvStory commands array. For this particular lines structure, create this object after reading data:
+
+```js
+const storyDocument = {
+  localization: { locales: [data.language], defaultLocale: data.language },
+  commands: [
+    { command: 25, background: { url: data.background } },
+    ...data.lines.map(line => ({ command: 2, targetName: line.speaker, text: line.text })),
+  ],
+};
+```
+
+Pass storyDocument as mountStory's document and use that same resource directory as assetsBase. [Vega](../vega/) supplies the complete browser page and load steps. If your selected JSON is already a complete AdvStory, read it directly instead of applying this lines conversion. A decoder validates or converts actual data; a TypeScript type only describes your expectation.
+
+## 4. Read Haneoka current data
+
+Choose **Haneoka** in the example and load its public song before resolving jacketUrl. Both reader and catalog adapter are available from the hosted entry:
+
+```js
+import { createEmbedLoader, haneokaDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: haneokaDataSource({ resource: "songs", id: "100070" }),
+  server: "intl", locale: "en",
+});
+const song = await loader.load();
+const imageUrl = await loader.resourceUrl(song.jacketUrl);
+// End the consumer before awaiting loader.dispose().
+```
+
+Public reads require no account or release. Server chooses the registry and locale selects the language context; the catalog retains its supplied localized fields. The source's resource base defaults to the API origin, and loader.assetsBase can override it. Repeated load reads current data again. Use memoryDataSource for an existing object and fileDataSource for a selected File; their complete signatures and transport constraints follow.
+
+---
 
 ## All createEmbedLoader options
 

@@ -1,0 +1,31 @@
+---
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+const panelId = `docs-disclosure-${crypto.randomUUID()}`;
+const triggerId = `${panelId}-trigger`;
+---
+
+<link rel="stylesheet" href="/examples/disclosure.css" />
+<section class="docs-disclosure" data-docs-disclosure>
+  <button
+    id={triggerId}
+    class="docs-disclosure__trigger"
+    type="button"
+    aria-expanded="false"
+    aria-controls={panelId}
+    data-docs-disclosure-trigger
+    disabled
+  >
+    <span>{title}</span>
+    <svg class="docs-disclosure__chevron" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+    </svg>
+  </button>
+  <div id={panelId} class="docs-disclosure__panel" role="region" aria-labelledby={triggerId} data-docs-disclosure-panel hidden>
+    <slot />
+  </div>
+</section>
+<noscript><style>[data-docs-disclosure-panel][hidden] { display: block; }</style></noscript>
+<script is:inline defer src="/examples/disclosure.js"></script>

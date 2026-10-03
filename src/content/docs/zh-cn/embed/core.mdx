@@ -1,132 +1,123 @@
 ---
 title: 数据源与资源加载
-description: 从本站、内存、HTTP JSON 和本地文件加载独立宿主需要的数据。
+description: 读取对象、HTTP JSON、本地文件和素材，再交给相应播放器。
 ---
 
 import DemoData from "../../../../components/DemoData.astro";
+import DocsDisclosure from "../../../../components/DocsDisclosure.astro";
 
+Core 读取数据、解析素材路径并管理加载与清理。它保留原数据格式；Vega、Cassiopeia、Home Spot 分别负责自己的画面。本页先读取一个真实 JSON 和图片，剧情播放见 [Vega 教程](../vega/)。浏览器使用已托管的 `https://haneoka.org/embed/core.js`，无需安装 npm。
 
-`@haneoka/embed-core` 为剧情、谱面和场景宿主提供数据源、URL 解析、资源字节、进度与取消。它保留调用方的数据结构，渲染和播放由具体宿主负责。主入口没有运行时依赖，适合浏览器、Worker 和 Node.js；导入时不访问 DOM 或网络。
+## 1. 读取现成 JSON
 
-官方浏览器 ESM 已托管在 [core.js 浏览器模块](https://haneoka.org/embed/core.js)；包安装与自托管方法见 [JavaScript 嵌入](../)。本站适配器需要可选 peer `@haneoka/api-client`。
-
-## 读取本站当前资料
-
-```js
-import { createEmbedLoader } from "@haneoka/embed-core";
-import { haneokaDataSource } from "@haneoka/embed-core/haneoka";
-const loader = createEmbedLoader({
-  source: haneokaDataSource({ resource: "songs", id: "100070" }),
-  server: "intl",
-  locale: "en",
-});
-try {
-  const song = await loader.load();
-  const jacket = await loader.resourceUrl(song.jacketUrl);
-  console.log(song.musicTitle, jacket);
-} finally {
-  await loader.dispose();
-}
-```
-
-适配器请求 `/api/v1/{resource}/{id}?server={server}`；省略 `id` 读取索引，提供 `view` 读取相应投影。默认 server 为 `intl`，语言默认 `en` 并经 `Accept-Language` 协商，返回目录保留完整多语值。无需登录或 release ID。重复 `load()` 会重新请求当前数据。
-
-`apiBase` 可以设置为另一个兼容服务的绝对 API 根地址，例如 `https://archive.example/api/v1/`。相对资源默认使用该服务 origin；loader 的 `assetsBase` 可以指定另一个资源目录。沿用响应中的素材路径，它们遵循服务当前快照语义。
-
-## 自带内存、HTTP 或文件
-
-```js
-import { createEmbedLoader, memoryDataSource, httpDataSource } from "@haneoka/embed-core";
-const authored = { language: "fr", title: "Une promenade", background: "背景/夕暮れ.png" };
-const loader = createEmbedLoader({
-  source: memoryDataSource(authored),
-  locale: "fr",
-  assetsBase: "https://cdn.example/projects/promenade/",
-});
-const data = await loader.load(); // 原对象，保留 identity 和字段。
-console.log(await loader.resourceUrl(data.background));
-await loader.dispose();
-
-const remote = createEmbedLoader({
-  source: httpDataSource({
-    url: "https://author.example/projects/promenade/story.json",
-    decode(value) {
-      if (!value || typeof value !== "object" || !Array.isArray(value.lines)) {
-        throw new TypeError("Expected lines");
-      }
-      return value;
-    },
-  }),
-  locale: "fr",
-});
-try { console.log(await remote.load()); }
-finally { await remote.dispose(); }
-```
-
-HTTP 相对资源基于配置的 JSON URL 目录，重定向不会改变这个基准。`assetsBase` 显式覆盖它。`decode` 负责运行时校验或转换；TypeScript 泛型只声明期望类型，不替代校验。最终数据必须符合所选宿主的文档格式。
-
-```js
-import { createEmbedLoader, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
-const createLocalLoader = (jsonFile, backgroundFile) => createEmbedLoader({
-  source: fileDataSource(jsonFile),
-  resolveResource: fileResourceResolver(new Map([["背景/夕暮れ.png", backgroundFile]])),
-  locale: "fr",
-});
-```
-
-文件来自宿主文件选择器或桌面应用，类型为 `File`/`Blob`。本地 JSON 没有隐含网络目录，Map 按完整 Unicode key 匹配；缺失 key 会拒绝操作。loader 为同一 Blob 复用 URL，销毁时撤销自己创建的 URL。先销毁使用这些资源的播放器，再销毁 loader；调用方创建的 URL 由调用方回收。
-
-## URL、传输与预算
-
-`resourceUrl(key)` 解析 URL，不下载素材；`resourceBytes(key)` 解析并读取字节。`resolveResource(key, context)` 可异步返回 string、URL 或 Blob，context 含 server、locale、signal、fetcher 和 maxBytes。resolver 完全负责 key 映射。
-
-相对路径使用 `assetsBase`，`/` 开头从其 origin 根解析，绝对地址保持自身 origin。base 应为绝对 HTTP(S) 目录，具体 query/fragment 放资源 URL。支持 HTTP、HTTPS、Blob 和 data URL；SSR 不会猜测当前页面地址。
-
-```js
-const loader = createEmbedLoader({
-  source: memoryDataSource(authored),
-  assetsBase: "https://cdn.example/project/",
-  credentials: "omit",
-  maxBytes: 64 * 1024 * 1024,
-  fetcher: (request) => fetch(request),
-});
-```
-
-fetcher 接收携带 signal、headers、credentials 和 CORS mode 的 `Request`。默认原生 fetch、omit；有 cookie 的服务可配置 same-origin/include，但跨域服务需显式允许宿主 origin 和凭据。把 URL 交给 image/audio/video 元素后，由该元素的加载器处理，未经过 loader fetcher。
-
-预算默认每个 JSON 或字节请求 64 MiB。进度计算实际解码字节；未知或压缩响应长度不会虚报 total。内存加载和仅 URL 解析没有字节进度。
-
-## 事件、取消、错误与销毁
-
-```js
-const controller = new AbortController();
-const unsubscribe = loader.subscribe(event => {
-  if (event.type === "progress") console.log(event.operation, event.key, event.loaded, event.total);
-});
-try { await loader.load({ signal: controller.signal }); }
-finally { unsubscribe(); await loader.dispose(); }
-```
-
-每个操作依次产生 start、读取时的 progress，以及 ready/error/cancelled。`operation` 区分并发，`key` 为 `$data` 或资源键。HTTP 非成功状态使用 `EmbedHttpError` 并保留 status/url；本站错误保留 `ApiClientError`。JSON、decode、缺文件、超预算和传输失败均拒绝对应 Promise。观察者异常交给可选 `onListenerError`。
-
-单次 signal 取消该操作；`cancel()` 取消当前全部操作，之后可以重试。`dispose()` 禁止新操作，取消在途请求，撤销 Blob URL，移除监听并只调用一次 source cleanup，其 Promise 等待 cleanup。并发请求各自独立，自动重试和数据缓存由调用方策略决定。
-
-自定义 `DataSource<T>` 实现 `load(context)`，可提供 `assetsBase` 和 `dispose()`。使用 `context.signal` 停止自己的工作；loader 会抑制已取消操作的迟到结果。带 cleanup 的 source 按单一 loader 所有权使用。
-
-## 实际运行四种数据源
-
-预设直接导入已上线的 core ESM。内存使用单语法语原创对象；HTTP JSON 读取本站[小文档](/examples/promenade.json)；本地文件读取你选择的 JSON File，或把原创对象构造成真实 Blob，并将示例 SVG 映射成 Blob；本站资料读取真实公开歌曲。修改 JSON 构造参数，再使用资源 URL/bytes、取消和销毁。resourceField 是演示选择 DTO 属性的字段，不是 SDK 参数。
+[打开完整 promenade.json](/examples/promenade.json)。它保存标题、背景路径和一行文字；[garden.svg](/examples/garden.svg)是对应的原创图片。下面的页内示例选择「HTTP JSON」并加载，即可看见数据。随后点「解析资源 URL」取得图片地址，或「读取资源字节」检查实际内容。这里读到的 lines 数据不是 Vega 可播放文档，转换见第 3 步。
 
 <DemoData kind="core" locale="zh-CN" />
 
 ```js
-import { createEmbedLoader, memoryDataSource, haneokaDataSource } from "https://haneoka.org/embed/r-22bfe102f7deb73f/core.js";
-const loader = createEmbedLoader({ source: memoryDataSource({ title: "Bonjour" }), locale: "fr" });
-console.log(await loader.load());
-await loader.dispose();
+import { createEmbedLoader, httpDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: httpDataSource({ url: "https://docs.haneoka.org/examples/promenade.json" }),
+  locale: "fr",
+});
+const data = await loader.load();
+const imageUrl = await loader.resourceUrl(data.background);
+// 消费者使用完这个地址后，再 await loader.dispose()。
 ```
 
-稳定地址 https://haneoka.org/embed/core.js 已可用。固定版本时将 manifest.modules.core 基于 `https://haneoka.org/embed/` 解析；r22 固定模块不会自动获得后续源码选项。npm 是独立的分发步骤。
+HTTP 相对素材以配置的 JSON 所在目录为基准，重定向不改变这个基准；显式 assetsBase 可覆盖它。resourceUrl 取得地址，resourceBytes 读取实际字节。source/locale/resourceKey 等示例面板字段会转换成实际 factory，其中 resourceKey/resourceField 是此演示选择素材的字段，完整 SDK 参数见后面的表。
+
+<span id="自带内存http-或文件"></span>
+
+## 2. 真正选择本地 JSON 和图片
+
+分别保存 [promenade.json](/examples/promenade.json) 与 [garden.svg](/examples/garden.svg)。[打开完整文件读取网页](/examples/core-file-zh.html)，先选择 JSON，再选择图片，点击「加载所选文件」。你会看见标题 Une promenade、原创庭园图片及实际图片字节数。关闭读取器会先移除图片，再销毁 loader 和它的 Blob URL；可以重新选择文件再加载。
+
+将下面代码保存为 UTF-8 的 `index.html` 即可保留这个完整项目；本地 HTTP 打开方法见[快速开始](/zh-cn/quickstart/)。目录为 index.html、promenade.json、garden.svg 三个文件。JSON 中 background 是素材键，文件映射以这个键指向你实际选择的 File，也支持合法 Unicode 路径。
+
+<DocsDisclosure title="完整 index.html：实际文件选择器与图片消费者">
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>读取本地 JSON 与图片</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input{font:inherit}button,label{min-height:48px}label{display:block;margin:.5rem 0}img{width:320px;aspect-ratio:16/9;object-fit:contain}[hidden]{display:none!important}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p>
+<h1>读取本地 JSON 与图片</h1><p>选择 promenade.json 和 garden.svg，再一起加载。</p>
+<label>JSON 文件 <input id="json-file" type="file" accept=".json,application/json"></label>
+<label>图片文件 <input id="image-file" type="file" accept="image/*,.svg"></label>
+<button id="load">加载所选文件</button><button id="cancel" disabled>取消</button><button id="close">关闭读取器</button>
+<p id="status" role="status" aria-live="polite">先选择两个文件。</p><h2 id="title"></h2><img id="preview" hidden alt="从所选文件读取的图片"><pre id="output"></pre>
+<script type="module">
+const by=id=>document.getElementById(id); let loader,controller,generation=0;
+async function close(){generation++;controller?.abort();by("preview").hidden=true;by("preview").removeAttribute("src");by("title").textContent="";by("output").textContent="";const old=loader;loader=undefined;await old?.dispose();by("cancel").disabled=true;}
+by("load").onclick=async()=>{
+  by("load").disabled=true;let current;
+  try{
+    await close();current=++generation;controller=new AbortController();const signal=controller.signal;by("cancel").disabled=false;by("status").textContent="正在读取…";
+    const jsonFile=by("json-file").files[0],imageFile=by("image-file").files[0];
+    if(!jsonFile||!imageFile)throw new Error("先选择 JSON 和图片。");
+    const {createEmbedLoader,fileDataSource,fileResourceResolver}=await import("https://haneoka.org/embed/core.js");
+    signal.throwIfAborted();if(current!==generation)return;
+    const files=new Map();
+    loader=createEmbedLoader({source:fileDataSource(jsonFile),locale:"fr",maxBytes:1048576,resolveResource:fileResourceResolver(files)});
+    const data=await loader.load({signal});
+    if(typeof data.background!=="string"||!data.background)throw new Error("JSON 需要 background 素材键。");
+    files.set(data.background,imageFile);
+    const bytes=await loader.resourceBytes(data.background,{signal});
+    const url=await loader.resourceUrl(data.background,{signal});
+    if(current!==generation)return;
+    by("title").textContent=String(data.title??"");by("output").textContent=JSON.stringify({data,imageBytes:bytes.length},null,2);
+    by("preview").src=url;by("preview").hidden=false;await by("preview").decode();
+    if(current===generation)by("status").textContent="JSON 与所选图片已加载。";
+  }catch(error){if(current===generation){by("status").textContent=`读取失败： ${error.message}`;const failed=loader;loader=undefined;by("preview").removeAttribute("src");by("preview").hidden=true;await failed?.dispose().catch(()=>{});}}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{controller?.abort();};
+by("close").onclick=async()=>{await close();by("load").disabled=false;by("status").textContent="读取器已关闭，可以再次加载。";};
+window.addEventListener("pagehide",()=>{void close();},{once:true});
+</script></html>
+```
+
+</DocsDisclosure>
+
+分别选择 JSON 和所需素材。这里映射一张图片；多文件项目为每个声明的素材键及模型清单引用文件提供对应的 File。
+
+## 3. 把本页的通用数据转换为剧情
+
+promenade.json 的格式是本页的数据读取例，不是 AdvStory。Vega 要求 commands 数组。对这份明确的 lines 格式，可以在读取 data 后创建：
+
+```js
+const storyDocument = {
+  localization: { locales: [data.language], defaultLocale: data.language },
+  commands: [
+    { command: 25, background: { url: data.background } },
+    ...data.lines.map(line => ({ command: 2, targetName: line.speaker, text: line.text })),
+  ],
+};
+```
+
+把 storyDocument 作为 mountStory 的 document，并把 assetsBase 指向同一素材目录；完整可保存剧情网页与加载步骤在 [Vega](../vega/)。选择的 JSON 已是完整 AdvStory 时，直接读取它，不再做这个特定 lines 转换。decode 校验／转换实际数据，TypeScript 泛型只描述期望类型。
+
+## 4. 读取 Haneoka 当前资料
+
+在页内示例选「本站资料」，加载公开歌曲后解析 jacketUrl。适配器与消费者均可使用托管入口：
+
+```js
+import { createEmbedLoader, haneokaDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: haneokaDataSource({ resource: "songs", id: "100070" }),
+  server: "intl", locale: "en",
+});
+const song = await loader.load();
+const imageUrl = await loader.resourceUrl(song.jacketUrl);
+// 先结束消费者，再 await loader.dispose()。
+```
+
+公开读取无需账号或 release。server 选择素材目录，locale 选择语言上下文，返回资料保留源提供的多语字段。source.assetsBase 默认是 API origin；资源基于它解析，显式 loader.assetsBase 可覆盖。repeat load 会再次读取当前资料。自有对象使用 memoryDataSource，选中的 File 使用 fileDataSource，更多签名和传输限制都在下方完整参考。
+
+---
 
 ## createEmbedLoader 全部参数
 

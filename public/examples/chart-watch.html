@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Watch a Cassiopeia chart</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input,select{font:inherit}button{min-height:48px;margin:.25rem;padding:.5rem 1rem}label{display:block;margin:.5rem 0}#stage{height:min(70vh,640px);min-height:320px;position:relative}#progress{width:100%}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p><h1>Watch a Cassiopeia chart</h1>
+<p>Keep chart.json and original-tone.wav beside this HTML for the original eight-second sample.</p>
+<button id="load-example">Load my chart.json</button>
+<label>Haneoka song ID <input id="song-id" value="100070"></label>
+<label>Difficulty <select id="difficulty"><option>easy</option><option>normal</option><option>hard</option><option selected>expert</option><option>special</option><option>master</option></select></label>
+<button id="load-game">Load Haneoka song</button><button id="cancel" disabled>Cancel loading</button><button id="close">Close player</button>
+<p id="status" role="status" aria-live="polite">Choose a source and load it.</p>
+<button id="play" disabled>Play</button><button id="pause" disabled>Pause</button>
+<label>Playback position <input id="progress" type="range" min="0" max="0" step="0.1" value="0" disabled><output id="time">0.0 / 0.0 s</output></label>
+<div id="stage"></div>
+<link rel="stylesheet" href="https://docs.haneoka.org/examples/disclosure.css">
+<section class="docs-disclosure" data-docs-disclosure>
+<button id="state-trigger" class="docs-disclosure__trigger" type="button" aria-expanded="false" aria-controls="state-panel" data-docs-disclosure-trigger disabled><span>Current player state</span><svg class="docs-disclosure__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg></button>
+<div id="state-panel" class="docs-disclosure__panel" role="region" aria-labelledby="state-trigger" data-docs-disclosure-panel hidden><pre id="output"></pre></div>
+</section>
+<script defer src="https://docs.haneoka.org/examples/disclosure.js"></script>
+<script type="module">
+const by = id => document.getElementById(id);
+let player, controller, generation = 0;
+function controls(ready) { for (const id of ["play", "pause", "progress"]) by(id).disabled = !ready; }
+function loading(value) { for (const id of ["load-example", "load-game"]) by(id).disabled = value; by("cancel").disabled = !value; }
+function refresh() {
+  if (!player) return;
+  const state = player.snapshot;
+  by("progress").max = String(state.duration || 0);
+  if (document.activeElement !== by("progress")) by("progress").value = String(state.time || 0);
+  by("time").textContent = `${(state.time || 0).toFixed(1)} / ${(state.duration || 0).toFixed(1)} s`;
+  by("output").textContent = JSON.stringify(state, null, 2);
+}
+async function dispose() {
+  ++generation; controller?.abort(); controls(false);
+  const old = player; player = undefined; await old?.dispose();
+}
+async function load(game) {
+  loading(true); const current = ++generation;
+  const old = player; player = undefined; controller?.abort(); controls(false);
+  try {
+    await old?.dispose(); if (current !== generation) return;
+    controller = new AbortController(); const signal = controller.signal;
+    by("status").textContent = "Loading chart and presentation…"; by("output").textContent = "";
+    const [sdk, core] = await Promise.all([
+      import("https://haneoka.org/embed/cassiopeia.js"),
+      import("https://haneoka.org/embed/core.js"),
+    ]);
+    signal.throwIfAborted(); if (current !== generation) return;
+    const songId = by("song-id").value.trim();
+    if (game && !songId) throw new Error("Enter a song ID.");
+    const source = game
+      ? sdk.haneokaChartSource({ songId, difficulty: by("difficulty").value })
+      : core.httpDataSource({ url: new URL("./chart.json", location.href).href });
+    player = sdk.mountChart(by("stage"), {
+      source, theme: sdk.haneokaChartTheme(), server: "intl", locale: document.documentElement.lang,
+      mode: "watch", volume: 0.3, rate: 1, noteSoundEnabled: false,
+      skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+      signal, loadTimeoutMs: 45000,
+      onEvent(event) {
+        if (current !== generation) return;
+        if (event.type === "state" || event.type === "player") refresh();
+        if (event.type === "error") by("status").textContent = String(event.error?.message ?? event.error);
+      },
+    });
+    await player.ready; signal.throwIfAborted(); if (current !== generation) return;
+    controls(true); refresh(); by("status").textContent = "Ready. Press Play.";
+  } catch (error) {
+    if (current === generation) {
+      const failed = player; player = undefined; controls(false);
+      await failed?.dispose().catch(() => {});
+      if (current === generation) by("status").textContent = `Failed: ${error.message}`;
+    }
+  } finally { if (current === generation) loading(false); }
+}
+async function action(operation, label) {
+  const active = player, current = generation;
+  try {
+    if (!active) throw new Error("Load a chart first.");
+    await operation(active);
+    if (current === generation && player === active) { refresh(); by("status").textContent = label; }
+  } catch (error) { if (current === generation) by("status").textContent = `Failed: ${error.message}`; }
+}
+by("load-example").onclick = () => { void load(false); };
+by("load-game").onclick = () => { void load(true); };
+by("play").onclick = () => { void action(active => active.play(), "Playing"); };
+by("pause").onclick = () => { void action(active => active.pause(), "Paused"); };
+by("progress").onchange = () => { void action(active => active.seek(Number(by("progress").value)), "Playback position changed."); };
+by("cancel").onclick = () => { controller?.abort(); player?.cancel(); };
+by("close").onclick = async () => {
+  by("close").disabled = true; const current = generation + 1;
+  try { await dispose(); if (current !== generation) return; by("status").textContent = "Player closed. You can load again."; }
+  catch (error) { by("status").textContent = `Failed: ${error.message}`; }
+  finally { if (current === generation) { loading(false); by("close").disabled = false; by("output").textContent = ""; by("progress").value = "0"; by("time").textContent = "0.0 / 0.0 s"; } }
+};
+window.addEventListener("pagehide", () => { void dispose().catch(() => {}); }, { once: true });
+</script></html>

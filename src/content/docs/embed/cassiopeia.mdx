@@ -4,6 +4,7 @@ description: Mount a chart player with current or authored data, playback, skin 
 ---
 
 import DemoPlayer from "../../../components/DemoPlayer.astro";
+import DocsDisclosure from "../../../components/DocsDisclosure.astro";
 
 The [complete sample chart.json](/examples/chart.json) references the supplied [original-tone.wav](/examples/original-tone.wav). Keep both files together when downloading. The page's original diagram uses its example rendererAdapter; the public game-theme path is shown below.
 
@@ -11,50 +12,152 @@ The [complete sample chart.json](/examples/chart.json) references the supplied [
 Mount a Cassiopeia chart player inside an ordinary website. The default player uses the existing Vue player, Three renderer, Our Notes plugin and Web audio/input host. A custom renderer can use authored artwork with the kernel and Web host. Each mount owns its DOM, media, input, renderer and resource loader.
 
 
-## Browser modules and package imports
+## 1. Save a complete working player
 
-The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/cassiopeia.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js`. The package imports below describe a bundled host application; npm publication remains separate.
+Save [the complete watch HTML](/examples/chart-watch.html) as `index.html`. Save [chart.json](/examples/chart.json) and [original-tone.wav](/examples/original-tone.wav) beside it. The chart is a complete eight-second original `ChartEmbedDocument`; the WAV is a quiet original test tone.
 
-## Install and mount the default player
-
-Install the package and the peers used by the default composition. These packages are prepared together; use the corresponding local release tarballs while preparing a release.
-
-```sh
-npm install @haneoka/embed-cassiopeia @haneoka/embed-core @haneoka/api-client \
-  @haneoka/cassiopeia @haneoka/cassiopeia-host-web \
-  @haneoka/cassiopeia-plugin-our-notes @haneoka/cassiopeia-renderer-three \
-  @haneoka/cassiopeia-ui-vue vue three
+```text
+my-chart/
+  index.html
+  chart.json
+  original-tone.wav
 ```
 
-A bundler such as Vite resolves these ESM imports. Give the player a stable, nonzero size and load the layout stylesheet. The player inherits the page's font and Material tokens; the example uses Fontsource and `@haneoka/design-tokens`.
+Open a terminal in `my-chart` and run `python3 -m http.server 8000` (Windows: `py -m http.server 8000`). Open [http://localhost:8000/](http://localhost:8000/). See [quickstart](/quickstart/) for Python installation and editor HTTP-preview alternatives. Stop the server with Ctrl+C when finished.
+
+Click **Load my chart.json**, wait for **Ready**, then click **Play**. You should see the sample notes move in the default game presentation, while the original tone provides the media clock. **Pause** stops it; the position slider seeks in seconds. **Close player** stops media and removes the player; either load button can start a fresh instance afterward. An error appears above the stage so you can fix the file or connection and retry.
+
+The hosted module supplies the default player and its layout styles. The sample needs the internet for that module and the public presentation assets, while your chart and WAV are served from your own folder. The note sound effects are disabled in this first example; the supplied music remains enabled.
+
+<DocsDisclosure title="Complete index.html: copy all of this into one file">
 
 ```html
-<div id="chart" style="height: min(70vh, 640px); width: 100%"></div>
-<button id="play" disabled>Play</button>
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Watch a Cassiopeia chart</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input,select{font:inherit}button{min-height:48px;margin:.25rem;padding:.5rem 1rem}label{display:block;margin:.5rem 0}#stage{height:min(70vh,640px);min-height:320px;position:relative}#progress{width:100%}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p><h1>Watch a Cassiopeia chart</h1>
+<p>Keep chart.json and original-tone.wav beside this HTML for the original eight-second sample.</p>
+<button id="load-example">Load my chart.json</button>
+<label>Haneoka song ID <input id="song-id" value="100070"></label>
+<label>Difficulty <select id="difficulty"><option>easy</option><option>normal</option><option>hard</option><option selected>expert</option><option>special</option><option>master</option></select></label>
+<button id="load-game">Load Haneoka song</button><button id="cancel" disabled>Cancel loading</button><button id="close">Close player</button>
+<p id="status" role="status" aria-live="polite">Choose a source and load it.</p>
+<button id="play" disabled>Play</button><button id="pause" disabled>Pause</button>
+<label>Playback position <input id="progress" type="range" min="0" max="0" step="0.1" value="0" disabled><output id="time">0.0 / 0.0 s</output></label>
+<div id="stage"></div>
+<link rel="stylesheet" href="https://docs.haneoka.org/examples/disclosure.css">
+<section class="docs-disclosure" data-docs-disclosure>
+<button id="state-trigger" class="docs-disclosure__trigger" type="button" aria-expanded="false" aria-controls="state-panel" data-docs-disclosure-trigger disabled><span>Current player state</span><svg class="docs-disclosure__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg></button>
+<div id="state-panel" class="docs-disclosure__panel" role="region" aria-labelledby="state-trigger" data-docs-disclosure-panel hidden><pre id="output"></pre></div>
+</section>
+<script defer src="https://docs.haneoka.org/examples/disclosure.js"></script>
+<script type="module">
+const by = id => document.getElementById(id);
+let player, controller, generation = 0;
+function controls(ready) { for (const id of ["play", "pause", "progress"]) by(id).disabled = !ready; }
+function loading(value) { for (const id of ["load-example", "load-game"]) by(id).disabled = value; by("cancel").disabled = !value; }
+function refresh() {
+  if (!player) return;
+  const state = player.snapshot;
+  by("progress").max = String(state.duration || 0);
+  if (document.activeElement !== by("progress")) by("progress").value = String(state.time || 0);
+  by("time").textContent = `${(state.time || 0).toFixed(1)} / ${(state.duration || 0).toFixed(1)} s`;
+  by("output").textContent = JSON.stringify(state, null, 2);
+}
+async function dispose() {
+  ++generation; controller?.abort(); controls(false);
+  const old = player; player = undefined; await old?.dispose();
+}
+async function load(game) {
+  loading(true); const current = ++generation;
+  const old = player; player = undefined; controller?.abort(); controls(false);
+  try {
+    await old?.dispose(); if (current !== generation) return;
+    controller = new AbortController(); const signal = controller.signal;
+    by("status").textContent = "Loading chart and presentation…"; by("output").textContent = "";
+    const [sdk, core] = await Promise.all([
+      import("https://haneoka.org/embed/cassiopeia.js"),
+      import("https://haneoka.org/embed/core.js"),
+    ]);
+    signal.throwIfAborted(); if (current !== generation) return;
+    const songId = by("song-id").value.trim();
+    if (game && !songId) throw new Error("Enter a song ID.");
+    const source = game
+      ? sdk.haneokaChartSource({ songId, difficulty: by("difficulty").value })
+      : core.httpDataSource({ url: new URL("./chart.json", location.href).href });
+    player = sdk.mountChart(by("stage"), {
+      source, theme: sdk.haneokaChartTheme(), server: "intl", locale: document.documentElement.lang,
+      mode: "watch", volume: 0.3, rate: 1, noteSoundEnabled: false,
+      skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+      signal, loadTimeoutMs: 45000,
+      onEvent(event) {
+        if (current !== generation) return;
+        if (event.type === "state" || event.type === "player") refresh();
+        if (event.type === "error") by("status").textContent = String(event.error?.message ?? event.error);
+      },
+    });
+    await player.ready; signal.throwIfAborted(); if (current !== generation) return;
+    controls(true); refresh(); by("status").textContent = "Ready. Press Play.";
+  } catch (error) {
+    if (current === generation) {
+      const failed = player; player = undefined; controls(false);
+      await failed?.dispose().catch(() => {});
+      if (current === generation) by("status").textContent = `Failed: ${error.message}`;
+    }
+  } finally { if (current === generation) loading(false); }
+}
+async function action(operation, label) {
+  const active = player, current = generation;
+  try {
+    if (!active) throw new Error("Load a chart first.");
+    await operation(active);
+    if (current === generation && player === active) { refresh(); by("status").textContent = label; }
+  } catch (error) { if (current === generation) by("status").textContent = `Failed: ${error.message}`; }
+}
+by("load-example").onclick = () => { void load(false); };
+by("load-game").onclick = () => { void load(true); };
+by("play").onclick = () => { void action(active => active.play(), "Playing"); };
+by("pause").onclick = () => { void action(active => active.pause(), "Paused"); };
+by("progress").onchange = () => { void action(active => active.seek(Number(by("progress").value)), "Playback position changed."); };
+by("cancel").onclick = () => { controller?.abort(); player?.cancel(); };
+by("close").onclick = async () => {
+  by("close").disabled = true; const current = generation + 1;
+  try { await dispose(); if (current !== generation) return; by("status").textContent = "Player closed. You can load again."; }
+  catch (error) { by("status").textContent = `Failed: ${error.message}`; }
+  finally { if (current === generation) { loading(false); by("close").disabled = false; by("output").textContent = ""; by("progress").value = "0"; by("time").textContent = "0.0 / 0.0 s"; } }
+};
+window.addEventListener("pagehide", () => { void dispose().catch(() => {}); }, { once: true });
+</script></html>
 ```
+
+</DocsDisclosure>
+
+## 2. Load a real Haneoka song
+
+In the same HTML, keep song ID `100070` and difficulty `expert`, then click **Load Haneoka song**. After **Ready**, click **Play**. This source reads the current song, parses its returned score file and uses its returned music URL. You can change the ID to a song from [the API starter](/examples/api-start.html); the chosen difficulty must exist for that song. Close the player before switching sources.
+
+The source and theme are independent factories. The complete HTML uses their public browser entry:
 
 ```js
-import { mountChart } from "@haneoka/embed-cassiopeia";
-import { haneokaChartSource, haneokaChartTheme } from "@haneoka/embed-cassiopeia/haneoka";
-import "@haneoka/embed-cassiopeia/style.css";
-
-const chart = mountChart(document.querySelector("#chart"), {
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/cassiopeia.js";
+const chart = mountChart(container, {
   source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
-  theme: haneokaChartTheme(),
-  server: "intl",
-  locale: "en",
-  mode: "watch",
-  skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
-  noteSoundEnabled: true,
+  theme: haneokaChartTheme(), server: "intl", locale: "en", mode: "watch",
 });
 await chart.ready;
-const play = document.querySelector("#play");
-play.disabled = false;
-play.onclick = () => chart.play().catch(console.error);
-// chart.pause(); chart.seek(30); await chart.dispose();
+// In your Play button: await chart.play().
+// When your component closes: await chart.dispose().
 ```
 
-The source reads the current public song entity, selects its returned difficulty file, parses that score through the Our Notes plugin and uses its returned music URL. The theme discovers current source descriptors and exact runtime outputs. No release identifier or login is required. `server` selects the resource server; `locale` is an independent author/UI language string. The default theme selects lightweight quality 2. Original visual and note-audio assets are fetched from the public resource origin.
+That fragment shows the integration point; the full HTML above supplies `container`, buttons, loading state, cancellation, errors and cleanup. It uses lightweight asset quality 2. Server and text language remain separate, and no account or release selection is required.
+
+## 3. Change one option at a time
+
+In the complete HTML's `mountChart` options, change `volume: 0.3` to a value from 0 to 1 or `rate: 1` to `0.8`, then reload the page and load again. `mode: "watch"` plays automatically after your Play click; `mode: "play"` enables manual chart input. Add `settings: { noteSpeed: 9 }` for scroll speed. The complete option, skin, settings, source and handle tables below give the public defaults, ranges and limits. Keep `chart.json` in the standard format; another game's raw score needs its parser/converter.
+
+Package imports further down are reference for an existing bundled application; npm publication is separate. For the initial plain HTML, use the hosted ESM above. A bundler imports `@haneoka/embed-cassiopeia/style.css` separately; the official facade mounts its matching styles and removes them when the last instance is disposed.
 
 ## Bring a chart and audio
 
@@ -96,6 +199,8 @@ const local = mountChart(otherElement, {
 `fileResourceResolver` resolves literal keys; a default original theme also requests its public API/assets and needs a resolver that passes those absolute URLs through. Blob URLs created by the loader are revoked after the player is disposed. Consumers own URLs they create themselves.
 
 ## Use an authored renderer
+
+This is an extension point for your own graphics. You supply `drawMyChart`; the complete watch HTML above uses the default renderer and needs no such function.
 
 Pass `rendererAdapter` to load the kernel and Web host without loading the default Vue/Three/Our Notes visual composition. The adapter returns `render`, `resize`, `dispose` and optionally `laneAtClientPoint`. Resolve artwork through `loader.resourceUrl` or `resourceBytes` using the provided `signal`. Release owned graphics in `dispose`.
 

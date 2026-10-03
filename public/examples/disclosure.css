@@ -1,0 +1,64 @@
+.docs-disclosure {
+  min-width: 0;
+  margin-block: var(--md-sys-spacing-4, 1rem);
+  border: 1px solid var(--md-sys-color-outline-variant, ButtonBorder);
+  border-radius: var(--md-sys-shape-corner-medium, 0.75rem);
+  background: var(--md-sys-color-surface-container-low, Canvas);
+  color: var(--md-sys-color-on-surface, CanvasText);
+}
+.docs-disclosure__trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--md-sys-spacing-3, 0.75rem);
+  width: 100%;
+  min-height: var(--md-comp-control-height-touch, 48px);
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--md-sys-spacing-3, 0.75rem) var(--md-sys-spacing-4, 1rem);
+  overflow: hidden;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--md-sys-typescale-label-large-weight, 500);
+  text-align: start;
+  cursor: pointer;
+}
+.docs-disclosure__trigger:disabled { cursor: default; }
+.docs-disclosure__trigger:hover:not(:disabled),
+.docs-disclosure__trigger:focus-visible {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface, CanvasText) 8%, transparent);
+}
+.docs-disclosure__trigger:focus-visible {
+  outline: var(--md-focus-ring-width, 2px) solid var(--md-focus-ring-color, Highlight);
+  outline-offset: var(--md-focus-ring-inward-offset, -2px);
+}
+.docs-disclosure__chevron {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+  transition: transform var(--md-sys-motion-duration-short4, 200ms) var(--md-sys-motion-easing-standard, ease);
+}
+.docs-disclosure__trigger[aria-expanded="true"] .docs-disclosure__chevron { transform: rotate(180deg); }
+.docs-disclosure__panel { min-width: 0; padding: var(--md-sys-spacing-4, 1rem); }
+.docs-disclosure__panel[hidden] { display: none; }
+.docs-disclosure__ripple {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  animation: docs-disclosure-ripple var(--md-sys-motion-duration-medium2, 300ms) var(--md-sys-motion-easing-standard, ease);
+}
+@keyframes docs-disclosure-ripple {
+  from { transform: scale(0); opacity: 0.12; }
+  to { transform: scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .docs-disclosure__chevron { transition: none; }
+  .docs-disclosure__ripple { display: none; }
+}
