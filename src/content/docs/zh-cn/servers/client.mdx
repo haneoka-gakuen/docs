@@ -6,6 +6,8 @@ description: 用 Haneoka ESM 客户端读取当前实体、分页、批量与关
 import DemoData from "../../../../components/DemoData.astro";
 
 
+先[打开完整歌曲读取 HTML](/examples/api-start-zh.html)，点「读取歌曲列表」并选择一首歌，标题与封面会直接显示在页面里。保存为 index.html 并通过本地 HTTP 打开的步骤见[快速开始](/zh-cn/quickstart/)。这个入门项目使用 `https://haneoka.org/embed/api-client.js`，无需安装 npm；下文包导入与 TypeScript 片段用于已经构建的工程。
+
 `@haneoka/api-client/haneoka` 提供 createHaneokaClient，主入口 createApiClient 保留通用 HTTP 能力。使用包含 `./haneoka` 子入口的匹配版本。支持浏览器/Node Fetch，也接受宿主 `transport(Request)`。
 
 ```ts

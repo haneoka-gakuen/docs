@@ -6,6 +6,8 @@ description: Read latest entities, pages, batches and relations with the Haneoka
 import DemoData from "../../../components/DemoData.astro";
 
 
+Start with the [complete song reader HTML](/examples/api-start.html). Read the list and choose a song to see its title and cover on the page. The [quickstart](/quickstart/) explains how to save it as index.html and open it over local HTTP. This starter uses `https://haneoka.org/embed/api-client.js` with no npm installation. Package imports and TypeScript snippets below are for an application that already builds those modules.
+
 `@haneoka/api-client/haneoka` provides `createHaneokaClient` for the resource API. The root `createApiClient` stays a general HTTP client for your own services. Use a matching build with the `./haneoka` entry. It works with browser/Node Fetch or a supplied `transport(Request)`.
 
 ## Read and cancel

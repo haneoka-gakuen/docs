@@ -3,6 +3,92 @@ title: 快速开始
 description: 使用 curl 或 fetch 读取当前歌曲和区域资料。
 ---
 
+## 先在浏览器看到结果
+
+[打开完整歌曲读取网页](/examples/api-start-zh.html)，点击「读取歌曲列表」，再选一首歌。你会看见它的标题、编号、乐队和封面；「完整响应」可以展开查看原始 JSON。例子只读取公开资料，使用已托管客户端，无需安装 npm。
+
+要保存为自己的网页，将下面全部代码复制到纯文本编辑器，以 UTF-8 保存为 `index.html`，放进 `my-api` 文件夹。也可以把[完整 HTML](/examples/api-start-zh.html)直接另存为该文件。电脑有 Python 3 时，在这个文件夹打开终端，运行 `python3 -m http.server 8000`（Windows 使用 `py -m http.server 8000`），再打开 [http://localhost:8000/](http://localhost:8000/)。没有 Python 时可按 [Python 官网](https://www.python.org/downloads/)安装说明准备，或使用已有编辑器的 HTTP 预览。
+
+```text
+my-api/
+  index.html
+```
+
+读取失败时页面会给出原因；点「读取歌曲列表」重试。「取消」停止本次读取，「清理」移除列表与图片后可以重新开始。
+
+<details>
+<summary>完整 index.html：全部复制</summary>
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>用 Haneoka 读取歌曲</title>
+<style>
+body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+button { font: inherit; min-height: 48px; padding: .5rem 1rem; margin: .25rem; }
+#songs { display: flex; flex-wrap: wrap; gap: .5rem; }
+img { width: 240px; aspect-ratio: 1; object-fit: contain; } [hidden] { display: none !important; }
+pre { overflow: auto; max-height: 25rem; }
+</style>
+<h1>用 Haneoka 读取歌曲</h1>
+<p>示例显示列表的前8首。选一首歌，查看标题与封面。</p>
+<button id="load">读取歌曲列表</button><button id="cancel" disabled>取消</button><button id="clear">清理</button>
+<p id="status" role="status" aria-live="polite">点击读取歌曲列表。</p>
+<div id="songs" aria-label="歌曲"></div>
+<section id="detail" hidden><h2 id="title"></h2><img id="jacket" alt="歌曲封面" referrerpolicy="no-referrer"><p id="info"></p><a id="json" target="_blank" rel="noopener">打开完整歌曲 JSON</a><details><summary>完整响应</summary><pre id="output"></pre></details></section>
+<script type="module">
+const by = id => document.getElementById(id);
+const origin = "https://haneoka.org";
+const locale = "zh-CN", index = 3;
+let api, controller, generation = 0;
+const localize = value => Array.isArray(value) ? (value[index] || value.find(x => typeof x === "string" && x.trim()) || "未命名") : String(value ?? "未命名");
+function clearDetail() { by("detail").hidden = true; by("jacket").removeAttribute("src"); by("json").removeAttribute("href"); by("output").textContent = ""; }
+async function readSong(id) {
+  const current = ++generation; controller?.abort(); controller = new AbortController(); clearDetail();
+  by("load").disabled = true; by("cancel").disabled = false; by("status").textContent = "正在读取歌曲…";
+  try {
+    const song = await api.entity("songs", id, { server: "intl", locale, signal: controller.signal });
+    if (current !== generation) return;
+    by("title").textContent = localize(song.musicTitle);
+    by("info").textContent = `ID ${song.musicId} · ${localize(song.bandName)}`;
+    by("json").href = `${origin}/api/v1/songs/${encodeURIComponent(id)}?server=intl`;
+    by("output").textContent = JSON.stringify(song, null, 2); by("detail").hidden = false;
+    if (song.jacketUrl) { by("jacket").hidden = false; by("jacket").src = new URL(song.jacketUrl, origin).href; await by("jacket").decode(); }
+    else by("jacket").hidden = true;
+    if (current === generation) by("status").textContent = "标题与封面已加载。";
+  } catch (error) { if (current === generation) by("status").textContent = `读取失败： ${error.message}`; }
+  finally { if (current === generation) { by("load").disabled = false; by("cancel").disabled = true; } }
+}
+by("load").onclick = async () => {
+  const current = ++generation; controller?.abort(); controller = new AbortController(); clearDetail(); by("songs").replaceChildren();
+  by("load").disabled = true; by("cancel").disabled = false; by("status").textContent = "正在读取列表…";
+  try {
+    const { createHaneokaClient } = await import("https://haneoka.org/embed/api-client.js");
+    if (current !== generation) return;
+    api = createHaneokaClient({ transport: request => fetch(new Request(request, { referrerPolicy: "no-referrer" })) });
+    const songs = await api.index("songs", { server: "intl", locale, signal: controller.signal });
+    if (current !== generation) return;
+    for (const [id, song] of Object.entries(songs).slice(0, 8)) {
+      const button = document.createElement("button"); button.type = "button"; button.textContent = localize(song.musicTitle); button.dataset.songId = id;
+      button.onclick = () => { void readSong(id); }; by("songs").append(button);
+    }
+    by("status").textContent = by("songs").childElementCount ? "从下面选择一首歌。" : "当前没有歌曲。";
+  } catch (error) { if (current === generation) by("status").textContent = `读取失败： ${error.message}`; }
+  finally { if (current === generation) { by("load").disabled = false; by("cancel").disabled = true; } }
+};
+by("cancel").onclick = () => { generation++; controller?.abort(); by("load").disabled = false; by("cancel").disabled = true; by("status").textContent = "已取消，可以重试。"; };
+by("clear").onclick = () => { generation++; controller?.abort(); clearDetail(); by("songs").replaceChildren(); by("load").disabled = false; by("cancel").disabled = true; by("status").textContent = "已清理，可以再次读取列表。"; };
+window.addEventListener("pagehide", () => { generation++; controller?.abort(); }, { once: true });
+</script>
+</html>
+```
+
+</details>
+
+下面逐步解释这个网页读取的接口。命令行例子在终端运行；浏览器用户可以直接打开完整地址查看 JSON。
+
 ## 1. 读取当前歌曲索引
 
 省略 `server` 时，直接 resource API 读取当前国际服资料：
@@ -77,7 +163,7 @@ curl --fail-with-body 'https://haneoka.org/api/v1/songs/100001?server=jp'
 }
 ```
 
-服务器标识包括 `intl`（国际服）、`jp`（日服）、`intl-cbt` 和 `jp-cbt`（测试服归档）。省略 `server` 时使用国际服。
+省略 `server` 时使用国际服 `intl`。其他标识从[当前服务器列表](https://haneoka.org/api/v1/releases)取得，再填入 server；可用服务器随发布变化。
 
 ## 4. 批量读取 ID
 
@@ -103,7 +189,7 @@ curl --fail-with-body \
 
 ## 5. 在应用中使用 fetch
 
-```ts
+```js
 const api = new URL("https://haneoka.org/api/v1/songs");
 api.searchParams.set("server", "jp");
 
@@ -113,11 +199,7 @@ if (!response.ok) {
   throw new Error(`${response.status}: ${detail.error?.code ?? "request_failed"}`);
 }
 
-const songs = await response.json() as Record<string, {
-  musicId: number;
-  musicTitle: Array<string | null>;
-  musicUrl?: string | null;
-}>;
+const songs = await response.json();
 console.log(songs["100001"]?.musicTitle[1] ?? "Untitled");
 ```
 

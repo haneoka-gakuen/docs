@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>用 Haneoka 读取歌曲</title>
+<style>
+body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+button { font: inherit; min-height: 48px; padding: .5rem 1rem; margin: .25rem; }
+#songs { display: flex; flex-wrap: wrap; gap: .5rem; }
+img { width: 240px; aspect-ratio: 1; object-fit: contain; } [hidden] { display: none !important; }
+pre { overflow: auto; max-height: 25rem; }
+</style>
+<h1>用 Haneoka 读取歌曲</h1>
+<p>示例显示列表的前8首。选一首歌，查看标题与封面。</p>
+<button id="load">读取歌曲列表</button><button id="cancel" disabled>取消</button><button id="clear">清理</button>
+<p id="status" role="status" aria-live="polite">点击读取歌曲列表。</p>
+<div id="songs" aria-label="歌曲"></div>
+<section id="detail" hidden><h2 id="title"></h2><img id="jacket" alt="歌曲封面" referrerpolicy="no-referrer"><p id="info"></p><a id="json" target="_blank" rel="noopener">打开完整歌曲 JSON</a><details><summary>完整响应</summary><pre id="output"></pre></details></section>
+<script type="module">
+const by = id => document.getElementById(id);
+const origin = "https://haneoka.org";
+const locale = "zh-CN", index = 3;
+let api, controller, generation = 0;
+const localize = value => Array.isArray(value) ? (value[index] || value.find(x => typeof x === "string" && x.trim()) || "未命名") : String(value ?? "未命名");
+function clearDetail() { by("detail").hidden = true; by("jacket").removeAttribute("src"); by("json").removeAttribute("href"); by("output").textContent = ""; }
+async function readSong(id) {
+  const current = ++generation; controller?.abort(); controller = new AbortController(); clearDetail();
+  by("load").disabled = true; by("cancel").disabled = false; by("status").textContent = "正在读取歌曲…";
+  try {
+    const song = await api.entity("songs", id, { server: "intl", locale, signal: controller.signal });
+    if (current !== generation) return;
+    by("title").textContent = localize(song.musicTitle);
+    by("info").textContent = `ID ${song.musicId} · ${localize(song.bandName)}`;
+    by("json").href = `${origin}/api/v1/songs/${encodeURIComponent(id)}?server=intl`;
+    by("output").textContent = JSON.stringify(song, null, 2); by("detail").hidden = false;
+    if (song.jacketUrl) { by("jacket").hidden = false; by("jacket").src = new URL(song.jacketUrl, origin).href; await by("jacket").decode(); }
+    else by("jacket").hidden = true;
+    if (current === generation) by("status").textContent = "标题与封面已加载。";
+  } catch (error) { if (current === generation) by("status").textContent = `读取失败： ${error.message}`; }
+  finally { if (current === generation) { by("load").disabled = false; by("cancel").disabled = true; } }
+}
+by("load").onclick = async () => {
+  const current = ++generation; controller?.abort(); controller = new AbortController(); clearDetail(); by("songs").replaceChildren();
+  by("load").disabled = true; by("cancel").disabled = false; by("status").textContent = "正在读取列表…";
+  try {
+    const { createHaneokaClient } = await import("https://haneoka.org/embed/api-client.js");
+    if (current !== generation) return;
+    api = createHaneokaClient({ transport: request => fetch(new Request(request, { referrerPolicy: "no-referrer" })) });
+    const songs = await api.index("songs", { server: "intl", locale, signal: controller.signal });
+    if (current !== generation) return;
+    for (const [id, song] of Object.entries(songs).slice(0, 8)) {
+      const button = document.createElement("button"); button.type = "button"; button.textContent = localize(song.musicTitle); button.dataset.songId = id;
+      button.onclick = () => { void readSong(id); }; by("songs").append(button);
+    }
+    by("status").textContent = by("songs").childElementCount ? "从下面选择一首歌。" : "当前没有歌曲。";
+  } catch (error) { if (current === generation) by("status").textContent = `读取失败： ${error.message}`; }
+  finally { if (current === generation) { by("load").disabled = false; by("cancel").disabled = true; } }
+};
+by("cancel").onclick = () => { generation++; controller?.abort(); by("load").disabled = false; by("cancel").disabled = true; by("status").textContent = "已取消，可以重试。"; };
+by("clear").onclick = () => { generation++; controller?.abort(); clearDetail(); by("songs").replaceChildren(); by("load").disabled = false; by("cancel").disabled = true; by("status").textContent = "已清理，可以再次读取列表。"; };
+window.addEventListener("pagehide", () => { generation++; controller?.abort(); }, { once: true });
+</script>
+</html>
