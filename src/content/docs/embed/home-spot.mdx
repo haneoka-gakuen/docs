@@ -9,32 +9,33 @@ import DemoHomeSpot from "../../../components/DemoHomeSpot.astro";
 `@haneoka/embed-home-spot` mounts a Three/Spine scene inside a container on your website. It accepts a scene you author or a current public Home Spot selected by ID. The public scene provider owns the camera, authored animation, layer composition, hit testing, decoded assets and WebGL lifecycle. The embed connects portable data sources and encoded resource bytes to that provider.
 
 
-## Browser modules and package imports
+## First load: use the example on this page
 
-The examples use package imports resolved by your application. Official browser ESM is available at `https://haneoka.org/embed/home-spot.js`, with the already-hosted fixed r22 entry at `https://haneoka.org/embed/r-22bfe102f7deb73f/home-spot.js`. The package imports below describe a bundled host application; npm publication remains separate.
+1. Scroll to **Run and edit a complete scene** below.
+2. Keep **Authored scene** selected, then click **Load**. A small blue attachment rotates in the scene.
+3. Click the displayed character button to select it; click **Clear selection** to restore the whole scene.
+4. Click **Replay**, then **Export PNG**. Click **Download PNG** to save the 512×288 image.
+5. Click **Exit and dispose** to close the scene before starting another example.
 
-## Install and mount a public scene
+The runtime loads after your click. This path uses the public browser module and needs no package installation.
 
-Use an ESM bundler such as Vite. Install the embed and its scene runtime peers:
+## Load a real Haneoka scene
 
-```sh
-npm install @haneoka/embed-home-spot @haneoka/embed-core @haneoka/api-client \
-  @haneoka/vega-plugin-haneoka three@0.184.0 @esotericsoftware/spine-threejs@4.2.119
-```
+1. In the same example, click **Haneoka ID**. The JSON changes to `spotId: "40002"` and `server: "intl"`.
+2. Click **Load** and wait for **Ready**. The character buttons now come from this scene's actual layers.
+3. Use those buttons for selection, then try **Replay**, **Export PNG** and **Exit and dispose**.
 
-The public scene provider accepts the encoded resource port and exposes the controller’s `exportPng` method. Build the provider and embed together from the same source revision.
-
-The Spine runtime is supplied by the application and carries its own [runtime license](https://esotericsoftware.com/spine-runtimes-license). Scene data and artwork retain their authors' licenses.
+For integration in your own application, provide a container and import the hosted ESM:
 
 ```html
 <div id="spot"></div>
 ```
 
 ```js
-import { mountHaneokaHomeSpot } from "@haneoka/embed-home-spot/haneoka";
+import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
 
 const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
-  spotId: 40002,
+  spotId: "40002",
   server: "intl",
   locale: "en",
   ariaLabel: "Garage scene",
@@ -44,17 +45,40 @@ const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
 });
 
 await spot.ready;
-spot.update({ selectedCharacterId: 31 });
+const character = spot.document.layers.find(layer => layer.characterId > 0);
+if (character) spot.update({ selectedCharacterId: character.characterId });
 spot.replay();
-const png = await spot.exportPng({ width: 1920, height: 1080 });
-// Use the PNG Blob in a preview, upload, or download chosen by your application.
-// At the end of the page/component lifetime:
-await spot.dispose();
+const png = await spot.exportPng({ width: 512, height: 288 });
+// Keep the handle while your scene is visible.
+// Call await spot.dispose() when the page/component closes.
 ```
 
-The public adapter reads the latest `stories` document and selects `homeSpots[spotId].spine`. It needs a server and Spot ID, with no account or release selection. The API currently supplies this data as one document; the adapter selects the scene after that request. Asset references are used as returned. The public mount sends requests with `referrerPolicy: "no-referrer"`, so image hosting accepts the external page without receiving its URL. Your custom `fetcher` receives that Request with its credentials and signal preserved. When combining `haneokaHomeSpotSource` with the main mount manually, set the same referrer policy in your fetcher for public assets. `locale` controls request language independently of `server` and remains a string for authored content.
+This is an integration fragment for a module script or application. Use the working page example above to try its controls directly. The public adapter reads the current `stories` document and selects `homeSpots[spotId].spine`; it needs no account or release selection. It requests public assets with `referrerPolicy: "no-referrer"`. A custom `fetcher` receives the Request with its credentials and signal preserved. When combining `haneokaHomeSpotSource` with `mountHomeSpot` yourself, use the same referrer policy for public assets. `locale` controls request language independently of `server`.
 
-An application can use `haneokaHomeSpotSource({ spotId, apiBase })` with the main `mountHomeSpot` entry when it wants to manage its own source selection. The `/haneoka` entry requires the optional API client peer; the main entry supports authored data without it.
+## Download and load all local scene files
+
+1. [Download the complete original sample](/examples/home-spot.zip) and extract the ZIP. Keep the `home-spot` folder and its subfolder names.
+2. Click **Local files** in the example below.
+3. Under **Local scene JSON**, choose `home-spot/scene.json`.
+4. Under **Local resource folder**, choose the entire extracted `home-spot` folder and approve your browser's folder selection prompt.
+5. Click **Load**. You should see the same blue attachment as in the first example.
+6. Try selection, replay and PNG export, then close the scene with **Exit and dispose**.
+
+```text
+home-spot/
+  scene.json
+  pièce.glb
+  人物/
+    acteur.atlas
+    acteur.json
+    acteur.png
+```
+
+The ZIP packages the five sample files for download. Extract it before selecting the folder; the embed receives the JSON and individual files. `scene.json` references `pièce.glb` and `人物/acteur.atlas`; that atlas references `acteur.png` in its own directory. Keep these names, including the accent and Chinese folder name, so the resource map matches. The file inputs above let you choose the JSON and folder explicitly. If your browser offers no folder selection, use **HTTP JSON** to try the same sample and supply local files through your application's resource map when integrating it.
+
+## Package imports for a bundled application
+
+The examples further down show package imports and application-owned File variables as reference for bundler integrations. Browser applications can use [the hosted Home Spot ESM](https://haneoka.org/embed/home-spot.js) and [core ESM](https://haneoka.org/embed/core.js). npm packages are prepared separately and their publication is pending. A source build needs matching embed/provider revisions, Three 0.184.x and Spine 4.2.119. The Spine runtime carries its own [runtime license](https://esotericsoftware.com/spine-runtimes-license); scene data and artwork retain their authors' licenses.
 
 ## Author one scene
 
@@ -170,7 +194,8 @@ The module/renderer loads only after a click. Existing instances are disposed be
 import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
 const scene = mountHaneokaHomeSpot(element, { spotId: "40002", server: "intl", locale: "en" });
 await scene.ready;
-scene.update({ selectedCharacterId: 31 });
+const character = scene.document.layers.find(layer => layer.characterId > 0);
+if (character) scene.update({ selectedCharacterId: character.characterId });
 scene.replay();
 const png = await scene.exportPng({ width: 512, height: 288 });
 await scene.dispose();

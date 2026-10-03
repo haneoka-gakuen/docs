@@ -6,31 +6,73 @@ description: 挂载本站或自带 Three/Spine 场景，选择角色、重播并
 import DemoHomeSpot from "../../../../components/DemoHomeSpot.astro";
 
 
-`@haneoka/embed-home-spot` 在宿主容器创建场景，沿用公开 scene provider 的相机、动画、图层、hit testing、解码和 WebGL 生命周期。嵌入层接入 core 数据源及 encoded bytes。候选包分发见 [嵌入入口](../)。provider 与 embed 应来自匹配版本，运行依赖为 Three 0.184.x 和 Spine 4.2.119；Spine 使用其自身 runtime license。
+`@haneoka/embed-home-spot` 在网页容器中加载本站或作者自带的 Three/Spine 场景，提供角色选择、重播与 PNG 导出。先用下面的实际示例，再接入自己的网页。
 
-## 用 ID 挂载本站场景
+## 第一次加载：直接操作本页示例
 
-```js
-import { mountHaneokaHomeSpot } from "@haneoka/embed-home-spot/haneoka";
-const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
-  spotId: 40002,
-  server: "intl",
-  locale: "en",
-  ariaLabel: "Garage scene",
-  onEvent(event) { if (event.type === "error") console.error(event.error); },
-});
-try {
-  await spot.ready;
-  spot.update({ selectedCharacterId: 31 });
-  spot.replay();
-  const png = await spot.exportPng({ width: 1920, height: 1080 });
-  // png 为 Blob，宿主可以预览、上传或下载。
-} finally {
-  await spot.dispose();
-}
+1. 滚动到下面的**实际加载并修改完整场景**。
+2. 保持**原创场景**，点击**加载**。画面中会出现旋转的小蓝色图形。
+3. 点击画面下方的角色按钮，再点击**取消选择**恢复完整场景。
+4. 点击**重播**，再点击**导出 PNG**，最后点击**下载 PNG**保存 512×288 图片。
+5. 点击**退出并销毁**，关闭当前场景后再尝试其他输入方式。
+
+运行模块在点击后加载，这条路径使用公开浏览器 ESM，无需安装包。
+
+## 用 ID 加载本站实际场景
+
+1. 在同一示例中点击**本站 ID**。参数会变为 `spotId: "40002"`、`server: "intl"`。
+2. 点击**加载**，等待状态显示**已就绪**。此时角色按钮来自实际场景图层。
+3. 用这些按钮选择角色，再试**重播**、**导出 PNG**和**退出并销毁**。
+
+接入自己的网页时，先提供容器，再在 module 脚本或应用中导入托管 ESM：
+
+```html
+<div id="spot"></div>
 ```
 
-容器由宿主提供，例如 `<div id="spot"></div>`。适配器读取 latest stories 文档并选 `homeSpots[spotId].spine`；现有 API 以一个文档提供这些数据。使用返回的资源路径，无需账号或 release。便捷 mount 为公开传输设置 no-referrer，保留 credentials、signal 与自定义 fetcher；手动组合低级 source 时也可设置此公开资源策略。语言与 server 独立。
+```js
+import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
+const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
+  spotId: "40002",
+  server: "intl",
+  locale: "zh-CN",
+  ariaLabel: "车库场景",
+  onEvent(event) { if (event.type === "error") console.error(event.error); },
+});
+await spot.ready;
+const character = spot.document.layers.find(layer => layer.characterId > 0);
+if (character) spot.update({ selectedCharacterId: character.characterId });
+spot.replay();
+const png = await spot.exportPng({ width: 512, height: 288 });
+// 场景显示期间保留 spot；在页面或组件关闭时调用 await spot.dispose()。
+```
+
+这是接入代码片段；本页示例已经提供可直接操作的控件。适配器读取 current stories 文档并选择 `homeSpots[spotId].spine`，无需账号或 release。公开素材请求使用 no-referrer，保留 credentials、signal 与自定义 fetcher；手动组合低级 source 时也使用此公开资源策略。语言与 server 独立。
+
+## 下载并选择完整本地素材目录
+
+1. [下载完整原创场景包](/examples/home-spot.zip)，解压 ZIP，保留 `home-spot` 文件夹及子目录名称。
+2. 在下面的示例中点击**本地文件**。
+3. 在**本地 scene JSON**中选择 `home-spot/scene.json`。
+4. 在**本地素材目录**中选择整个解压后的 `home-spot` 文件夹，并确认浏览器的目录选择提示。
+5. 点击**加载**，画面应与第一次加载的小蓝色图形相同。
+6. 尝试选择、重播和 PNG 导出，再点击**退出并销毁**。
+
+```text
+home-spot/
+  scene.json
+  pièce.glb
+  人物/
+    acteur.atlas
+    acteur.json
+    acteur.png
+```
+
+ZIP 打包了这五个示例文件，先解压，再把 JSON 和单独素材交给播放器。`scene.json` 引用 `pièce.glb` 与 `人物/acteur.atlas`，atlas 在自身目录中引用 `acteur.png`。保留重音符号和中文目录，才能匹配素材键。上面的两个文件输入分别选择 JSON 与完整素材目录。浏览器没有目录选择功能时，可以先用 **HTTP JSON**体验同一场景；接入自己的应用时，通过资源 Map 提供本地文件。
+
+## 打包应用的包导入参考
+
+后文的包导入和 File 变量供已有打包应用接入时参考。浏览器可使用[托管 Home Spot ESM](https://haneoka.org/embed/home-spot.js)和[core ESM](https://haneoka.org/embed/core.js)。npm 包仍待发布。源码构建应使用匹配的 embed/provider 版本、Three 0.184.x 和 Spine 4.2.119；Spine 使用其自身 [runtime license](https://esotericsoftware.com/spine-runtimes-license)，场景和美术保留作者许可。
 
 ## 自带完整场景
 
@@ -96,7 +138,8 @@ const spot = mountHomeSpot(host, { source, signal: componentSignal });
 spot.ready.catch(showLoadError);
 // 加载途中也可以：await spot.dispose()。
 await spot.ready;
-spot.update({ selectedCharacterId: 31 });
+const character = spot.document.layers.find(layer => layer.characterId > 0);
+if (character) spot.update({ selectedCharacterId: character.characterId });
 spot.replay();
 await spot.load({ document: anotherScene });
 await spot.dispose();
@@ -128,7 +171,8 @@ Haneoka 原图标链接位于宿主边角，在游戏 canvas 和 PNG 之外。�
 import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
 const scene = mountHaneokaHomeSpot(element, {spotId:"40002",server:"intl",locale:"en"});
 await scene.ready;
-scene.update({selectedCharacterId:31});
+const character = scene.document.layers.find(layer => layer.characterId > 0);
+if (character) scene.update({selectedCharacterId:character.characterId});
 scene.replay();
 const png = await scene.exportPng({width:512,height:288});
 await scene.dispose();
