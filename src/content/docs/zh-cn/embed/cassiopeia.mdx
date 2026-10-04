@@ -245,6 +245,8 @@ await chart.dispose();
 
 实际示例使用稳定官方alias。官方facade在mount注入原包CSS、最后dispose移除；包/bundler方式单独import style.css。r22没有nonce参数，后续nonce接口需取该版本真实receipt/interface。CDN文件为部署build输出，仓库保留源码。
 
+使用本地音乐创作可编辑音符，见[谱面创作器教程](../../creation/chart-editor/)。其 Project JSON 和带音频备份与下面的播放 ChartDocument 分别使用对应入口。
+
 ## mountChart 完整参数
 
 container必填浏览器HTMLElement且有效尺寸，非法TypeError、同容器重复Error。runtime严格source/document二选一，否则TypeError。默认composition还需theme或document.assets，自带renderer管理自己的图形。

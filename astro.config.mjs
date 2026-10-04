@@ -34,7 +34,7 @@ export default defineConfig({
         {
           label: "Creation tools",
           translations: { "zh-CN": "创作工具" },
-          items: ["creation/stamp-maker"],
+          items: ["creation/stamp-maker", "creation/chart-editor"],
         },
         {
           label: "Catalog data",

@@ -302,6 +302,8 @@ await chart.dispose();
 
 The live example uses the stable official alias. The hosted facade supplies the package stylesheet on mount and releases it after the last instance is disposed. Package/bundler consumers import style.css separately. r22 has no nonce option; a later nonce API must be taken from that release's actual receipt/interface. Generated CDN files are deployment build outputs, with the source maintained in the package repositories.
 
+To author editable notes with local music, use [the chart creator guide](../../creation/chart-editor/). Its Project JSON and portable audio backup are separate from the playback ChartDocument below.
+
 ## Every mountChart option
 
 Required positional `container` is a browser HTMLElement with ownerDocument/defaultView and stable nonzero size. Nonbrowser TypeError, repeated mount before disposal Error. Exactly one source/document is required at runtime (TypeError for both/neither). Default composition also requires theme or document.assets; authoredRenderer provides its own artwork.

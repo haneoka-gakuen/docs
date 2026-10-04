@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "resolution": 480,
+  "laneBasis": 24,
+  "meta": {
+    "title": "Local audio starter",
+    "artist": "Haneoka",
+    "charter": "Example",
+    "difficulty": "",
+    "level": ""
+  },
+  "audioOffset": 0,
+  "tempos": [
+    {
+      "id": "tempo-0",
+      "tick": 0,
+      "bpm": 120
+    }
+  ],
+  "meters": [
+    {
+      "id": "meter-0",
+      "tick": 0,
+      "numerator": 4,
+      "denominator": 4
+    }
+  ],
+  "timeScales": [],
+  "singles": [
+    {
+      "id": "note-33278fa0-1f42-4b86-902c-94d6349b43ff",
+      "tick": 480,
+      "lane": 0,
+      "size": 4,
+      "type": "tap",
+      "direction": "none",
+      "critical": false,
+      "visible": true
+    },
+    {
+      "id": "note-a52ed868-2740-4af6-997c-608e271a9de4",
+      "tick": 960,
+      "lane": 12,
+      "size": 4,
+      "type": "tap",
+      "direction": "none",
+      "critical": false,
+      "visible": true
+    },
+    {
+      "id": "note-cd963c1a-3523-45e4-834b-82147ccb42f0",
+      "tick": 1440,
+      "lane": 8,
+      "size": 4,
+      "type": "flick",
+      "direction": "up",
+      "critical": false,
+      "visible": true
+    }
+  ],
+  "lines": [],
+  "markers": {
+    "skill": [],
+    "fever": [],
+    "call": []
+  },
+  "extensions": {}
+}
