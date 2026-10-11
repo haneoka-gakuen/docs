@@ -47,6 +47,11 @@ export default defineConfig({
           items: ["embed", "embed/core", "embed/vega", "embed/cassiopeia", "embed/home-spot"],
         },
         {
+          label: "The suite",
+          translations: { "zh-CN": "套件" },
+          items: ["suite", "suite/vega", "suite/altair", "suite/deneb", "suite/cassiopeia"],
+        },
+        {
           label: "Operational data",
           translations: { "zh-CN": "运营数据" },
           items: ["servers/announcements"],
