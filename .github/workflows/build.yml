@@ -51,4 +51,5 @@ jobs:
             echo "::error::Set the repository secret CLOUDFLARE_API_TOKEN for the haneoka-docs Worker."
             exit 1
           fi
-          pnpm exec wrangler deploy
+          # The production domain is already bound; CI publishes content only.
+          pnpm exec wrangler deploy --env ci
