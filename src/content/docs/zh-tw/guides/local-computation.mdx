@@ -5,6 +5,8 @@ description: 從瀏覽器、本機指令碼或 HTTP 用戶端呼叫網站引擎�
 
 瀏覽器模組在專用 Worker 中執行與配隊頁面相同的 Rust/WASM 引擎，庫存留在呼叫裝置。本機 HTTP 服務透過 Chromium 呼叫相同模組，每次執行一個任務。
 
+跨站呼叫透過目前頁面的 Blob 模組 Worker 載入引擎。頁面設定了 Content Security Policy 的 worker-src 時，需允許 blob:。
+
 ## 瀏覽器 API
 
 ```js

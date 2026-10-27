@@ -5,6 +5,8 @@ description: 브라우저·로컬 스크립트·HTTP에서 웹사이트 엔진�
 
 브라우저 모듈은 편성 페이지와 같은 Rust/WASM 엔진을 전용 Worker에서 실행합니다. 인벤토리는 호출 기기에 남습니다. 로컬 HTTP 서비스는 같은 모듈을 Chromium에서 한 작업씩 실행합니다.
 
+다른 출처에서 호출하면 호출 페이지의 Blob 모듈 Worker로 엔진을 불러옵니다. 페이지의 Content Security Policy에 worker-src를 설정했다면 blob:을 허용합니다.
+
 ## 브라우저 API
 
 ```js

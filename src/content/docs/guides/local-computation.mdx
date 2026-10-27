@@ -5,6 +5,8 @@ description: Use the website engine from a browser, local script or HTTP client.
 
 The browser module runs the same Rust/WASM engine as the team builder in dedicated Workers. Inventories stay on the calling device. The local HTTP service runs those same modules in Chromium, one job at a time.
 
+Cross-origin imports use a Blob module Worker owned by the calling page. If the page sets a Content Security Policy with worker-src, include blob:.
+
 ## Browser API
 
 ```js

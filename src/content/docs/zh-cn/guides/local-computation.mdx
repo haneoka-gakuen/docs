@@ -5,6 +5,8 @@ description: 从浏览器、本地脚本或 HTTP 客户端调用网站引擎。
 
 浏览器模块在专用 Worker 中运行与配队页面相同的 Rust/WASM 引擎，库存留在调用设备。本地 HTTP 服务在 Chromium 中调用同一模块，每次执行一个任务。
 
+跨站调用通过当前页面的 Blob 模块 Worker 加载引擎。页面配置了 Content Security Policy 的 worker-src 时，需允许 blob:。
+
 ## 浏览器 API
 
 ```js

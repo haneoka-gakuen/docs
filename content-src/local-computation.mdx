@@ -8,6 +8,8 @@ description: Use the website engine from a browser, local script or HTTP client.
 
 The browser module runs the same Rust/WASM engine as the team builder in dedicated Workers. Inventories stay on the calling device. The local HTTP service runs those same modules in Chromium, one job at a time.
 
+Cross-origin imports use a Blob module Worker owned by the calling page. If the page sets a Content Security Policy with worker-src, include blob:.
+
 ## Browser API
 
 ```js
@@ -132,6 +134,8 @@ description: 从浏览器、本地脚本或 HTTP 客户端调用网站引擎。
 ---
 
 浏览器模块在专用 Worker 中运行与配队页面相同的 Rust/WASM 引擎，库存留在调用设备。本地 HTTP 服务在 Chromium 中调用同一模块，每次执行一个任务。
+
+跨站调用通过当前页面的 Blob 模块 Worker 加载引擎。页面配置了 Content Security Policy 的 worker-src 时，需允许 blob:。
 
 ## 浏览器 API
 
@@ -258,6 +262,8 @@ description: 從瀏覽器、本機指令碼或 HTTP 用戶端呼叫網站引擎�
 
 瀏覽器模組在專用 Worker 中執行與配隊頁面相同的 Rust/WASM 引擎，庫存留在呼叫裝置。本機 HTTP 服務透過 Chromium 呼叫相同模組，每次執行一個任務。
 
+跨站呼叫透過目前頁面的 Blob 模組 Worker 載入引擎。頁面設定了 Content Security Policy 的 worker-src 時，需允許 blob:。
+
 ## 瀏覽器 API
 
 ```js
@@ -383,6 +389,8 @@ description: ブラウザー・ローカルスクリプト・HTTP からサイ�
 
 ブラウザーモジュールは編成ページと同じ Rust/WASM エンジンを専用 Worker で実行します。所持状況は呼び出し元端末に残ります。ローカル HTTP サービスは同じモジュールを Chromium で 1 ジョブずつ実行します。
 
+別オリジンからの呼び出しは、呼び出し元ページの Blob モジュール Worker を使います。ページの Content Security Policy で worker-src を指定する場合は blob: を許可します。
+
 ## ブラウザー API
 
 ```js
@@ -507,6 +515,8 @@ description: 브라우저·로컬 스크립트·HTTP에서 웹사이트 엔진�
 ---
 
 브라우저 모듈은 편성 페이지와 같은 Rust/WASM 엔진을 전용 Worker에서 실행합니다. 인벤토리는 호출 기기에 남습니다. 로컬 HTTP 서비스는 같은 모듈을 Chromium에서 한 작업씩 실행합니다.
+
+다른 출처에서 호출하면 호출 페이지의 Blob 모듈 Worker로 엔진을 불러옵니다. 페이지의 Content Security Policy에 worker-src를 설정했다면 blob:을 허용합니다.
 
 ## 브라우저 API
 

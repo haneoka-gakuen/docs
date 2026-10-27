@@ -5,6 +5,8 @@ description: ブラウザー・ローカルスクリプト・HTTP からサイ�
 
 ブラウザーモジュールは編成ページと同じ Rust/WASM エンジンを専用 Worker で実行します。所持状況は呼び出し元端末に残ります。ローカル HTTP サービスは同じモジュールを Chromium で 1 ジョブずつ実行します。
 
+別オリジンからの呼び出しは、呼び出し元ページの Blob モジュール Worker を使います。ページの Content Security Policy で worker-src を指定する場合は blob: を許可します。
+
 ## ブラウザー API
 
 ```js
