@@ -47,8 +47,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 Load both stylesheets before calling the browser module. `renderResourceImage` returns `{blob, width, height, fileName}` and runs locally. `requestResourceImage` sends the same recipe to the resource HTTP endpoint and returns a Blob. Team, simulation and history recipes contain the displayed data; calculation and rendering can both stay on the device.
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());

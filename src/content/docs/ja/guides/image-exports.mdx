@@ -47,8 +47,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 先に両方のスタイルシートを読み込みます。renderResourceImage は端末で処理し `{blob, width, height, fileName}` を返します。requestResourceImage は同じリクエストを HTTP API に送って Blob を返します。編成・ガチャ・履歴には画面の表示データを渡せるため、計算と描画を端末上で実行できます。
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());

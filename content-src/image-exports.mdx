@@ -50,8 +50,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 Load both stylesheets before calling the browser module. `renderResourceImage` returns `{blob, width, height, fileName}` and runs locally. `requestResourceImage` sends the same recipe to the resource HTTP endpoint and returns a Blob. Team, simulation and history recipes contain the displayed data; calculation and rendering can both stay on the device.
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
@@ -134,8 +134,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 先加载两个样式表。renderResourceImage 在当前设备生成图片，返回 `{blob, width, height, fileName}`；requestResourceImage 将同一个请求提交到资源 HTTP 接口并返回 Blob。配队、模拟和报表请求包含页面实际显示的数据，计算与绘图都可以留在用户设备。
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
@@ -218,8 +218,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 先載入兩個樣式表。renderResourceImage 在目前裝置產生圖片，回傳 `{blob, width, height, fileName}`；requestResourceImage 將同一請求提交到資源 HTTP 介面並回傳 Blob。配隊、模擬與報表請求包含頁面實際顯示的資料，計算與繪圖都可以留在使用者裝置。
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
@@ -302,8 +302,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 先に両方のスタイルシートを読み込みます。renderResourceImage は端末で処理し `{blob, width, height, fileName}` を返します。requestResourceImage は同じリクエストを HTTP API に送って Blob を返します。編成・ガチャ・履歴には画面の表示データを渡せるため、計算と描画を端末上で実行できます。
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
@@ -386,8 +386,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 두 스타일시트를 먼저 읽으세요. renderResourceImage는 기기에서 실행해 `{blob, width, height, fileName}`을 반환합니다. requestResourceImage는 같은 요청을 HTTP API에 보내 Blob을 반환합니다. 편성·모집·기록에는 화면의 표시 데이터를 전달하므로 계산과 렌더링을 기기에서 처리할 수 있습니다.
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());

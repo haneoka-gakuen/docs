@@ -47,8 +47,8 @@ curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
 先加载两个样式表。renderResourceImage 在当前设备生成图片，返回 `{blob, width, height, fileName}`；requestResourceImage 将同一个请求提交到资源 HTTP 接口并返回 Blob。配队、模拟和报表请求包含页面实际显示的数据，计算与绘图都可以留在用户设备。
 
 ```html
-<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
-<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" crossorigin="anonymous" href="https://haneoka.org/tools/image-theme.css">
 <script type="module">
   import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
   const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());

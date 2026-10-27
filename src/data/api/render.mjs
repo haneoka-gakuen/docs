@@ -149,3 +149,36 @@ export function responseBody(response) {
   if (response.text !== undefined) return { lang: response.lang ?? "text", code: response.text };
   return null;
 }
+
+export function endpointMarkdown(endpoint, locale, registry, errorEntry, auth) {
+  const text = value => tr(value, locale).replace(/\]\(([^)\s]+)\)/gu, (_, href) => `](${resolveHref(href, locale, registry)})`);
+  const cell = value => String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
+  const table = (head, rows) => [head, head.map(() => '---'), ...rows].map(row => `| ${row.map(cell).join(' | ')} |`).join('\n');
+  const fence = (lang, value) => `\`\`\`${lang}\n${value}\n\`\`\``;
+  const parts = [(endpoint.methods ?? [endpoint.method]).map(method => `**${method} ${endpoint.path}**`).join('\n'), text(endpoint.description)];
+  if (endpoint.auth) parts.push(`Authentication: ${text(auth[endpoint.auth] ?? endpoint.auth)}`);
+  if (endpoint.cache) parts.push(`Cache: ${endpoint.cache}${endpoint.cacheNote ? ` — ${text(endpoint.cacheNote)}` : ''}`);
+  for (const note of endpoint.notes ?? []) parts.push(text(note));
+  if (endpoint.params?.length) parts.push('Parameters', table(['Name', 'Location', 'Type', 'Required', 'Description'], endpoint.params.map(p => [p.name, p.in, p.type, p.required ? 'yes' : 'no', [text(p.desc), ...(p.default !== undefined ? [`Default: ${JSON.stringify(p.default)}`] : []), ...(p.schema ? [`Schema: ${JSON.stringify(p.schema)}`] : [])].join(' ')])));
+  if (endpoint.body) {
+    parts.push(`Request body: ${endpoint.body.contentType ?? 'application/json'}`);
+    if (endpoint.body.fields?.length) parts.push(table(['Name', 'Type', 'Required', 'Description'], endpoint.body.fields.map(([name, type, required, desc]) => [name, type, required ? 'yes' : 'no', text(desc)])));
+    if (endpoint.body.schema) parts.push(fence('json', JSON.stringify(endpoint.body.schema, null, 2)));
+  }
+  if (endpoint.responses?.length) parts.push('Responses', table(['Status', 'Description'], endpoint.responses.map(([status, desc]) => [status, text(desc)])));
+  if (endpoint.fields?.length) parts.push('Response fields', table(['Name', 'Type', 'Description'], endpoint.fields.map(([name, type, desc]) => [name, type, text(desc)])));
+  if (endpoint.example) {
+    parts.push('cURL', fence('sh', curlExample(endpoint)), 'JavaScript', fence('js', fetchExample(endpoint)));
+    const request = endpoint.example.request;
+    if (request?.bodyFile && request.body !== undefined) parts.push(request.bodyFile, fence('json', JSON.stringify(request.body, null, 2)));
+    const response = endpoint.example.response;
+    if (response) {
+      parts.push(`Response: HTTP ${statusLine(response.status)}`);
+      const body = responseBody(response);
+      if (body) parts.push(fence(body.lang, body.code));
+      else if (response.binary) parts.push(`Binary: ${endpoint.responseContentType ?? 'application/octet-stream'}`);
+    }
+  }
+  if (endpoint.errors?.length) parts.push('Errors', table(['Status', 'Code', 'Description'], endpoint.errors.map(errorEntry).map(e => [e.status, e.code, text(e.desc)])));
+  return parts.join('\n\n');
+}
