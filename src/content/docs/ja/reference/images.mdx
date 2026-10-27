@@ -1,0 +1,66 @@
+---
+title: "画像エクスポート"
+description: "サイトの画像保存と対応 API。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+原画は[メディア API](/ja/servers/media/)、公式譜面は[譜面画像 API](/ja/reference/chart-images/)、プロフィールカードは[プレイヤー API](/ja/reference/game/)。以下は残りの画像保存に対応。POST JSON は &#123;data, locale?, theme?, seed?&#125;。全フィールドは [OpenAPI](/openapi.json) と[端末スキーマ](https://haneoka.org/tools/schema.json)。例は[画像ガイド](/ja/guides/image-exports/)。
+
+## 生成画像
+
+### 編成結果画像
+
+<Endpoint id="images.0.post" />
+
+### ガチャシミュレーション画像
+
+<Endpoint id="images.1.post" />
+
+### ガチャ履歴レポート
+
+<Endpoint id="images.2.post" />
+
+### 履歴レポート ZIP
+
+<Endpoint id="images.3.post" />
+
+### スタンプ合成
+
+<Endpoint id="images.4.post" />
+
+### カスタム譜面画像
+
+<Endpoint id="images.5.post" />
+
+### Live2D の既定撮影
+
+<Endpoint id="images.6.get" />
+
+### Live2D 撮影
+
+<Endpoint id="images.6.post" />
+
+### Live2D の既定撮影（サーバー指定）
+
+<Endpoint id="images.6.get.scoped" />
+
+### Live2D 撮影（サーバー指定）
+
+<Endpoint id="images.6.post.scoped" />
+
+### Spine の既定撮影
+
+<Endpoint id="images.7.get" />
+
+### Spine 撮影
+
+<Endpoint id="images.7.post" />
+
+### Spine の既定撮影（サーバー指定）
+
+<Endpoint id="images.7.get.scoped" />
+
+### Spine 撮影（サーバー指定）
+
+<Endpoint id="images.7.post.scoped" />

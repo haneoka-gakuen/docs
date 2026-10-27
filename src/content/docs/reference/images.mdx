@@ -1,0 +1,66 @@
+---
+title: "Image exports"
+description: "Every website image export and its API."
+---
+
+import Endpoint from "../../../components/Endpoint.astro";
+
+Raw artwork is available from the catalog image URLs in the [media API](/servers/media/). Official chart PNG/SVG uses the [chart image API](/reference/chart-images/), and player cards use the [player resource API](/reference/game/). These endpoints generate the remaining website images. POST JSON is &#123;data, locale?, theme?, seed?&#125;. Complete nested fields are embedded in [OpenAPI](/openapi.json), and available in the [device schema](https://haneoka.org/tools/schema.json). The [image guide](/guides/image-exports/) includes payloads, local execution and state capture.
+
+## Generated images
+
+### Team result image
+
+<Endpoint id="images.0.post" />
+
+### Recruitment simulation image
+
+<Endpoint id="images.1.post" />
+
+### Recruitment history report
+
+<Endpoint id="images.2.post" />
+
+### History report ZIP
+
+<Endpoint id="images.3.post" />
+
+### Stamp composition
+
+<Endpoint id="images.4.post" />
+
+### Custom chart image
+
+<Endpoint id="images.5.post" />
+
+### Default Live2D capture
+
+<Endpoint id="images.6.get" />
+
+### Live2D capture
+
+<Endpoint id="images.6.post" />
+
+### Default Live2D capture by server
+
+<Endpoint id="images.6.get.scoped" />
+
+### Live2D capture by server
+
+<Endpoint id="images.6.post.scoped" />
+
+### Default Spine capture
+
+<Endpoint id="images.7.get" />
+
+### Spine capture
+
+<Endpoint id="images.7.post" />
+
+### Default Spine capture by server
+
+<Endpoint id="images.7.get.scoped" />
+
+### Spine capture by server
+
+<Endpoint id="images.7.post.scoped" />

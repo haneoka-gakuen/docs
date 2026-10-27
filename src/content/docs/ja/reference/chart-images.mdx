@@ -1,0 +1,18 @@
+---
+title: "譜面画像"
+description: "現在のリリースの譜面を、共有しやすい SVG または PNG の全体図として描画します。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+サイトのダウンロードと同じ音符アトラス、スライド、ジャケット、アイコン、フォント、レイアウトを使います。入力を固定するには release を指定します。ブラウザーサービスで PNG を生成し、SVG には同じ PNG を内包します。譜面全体を列に配置します。端末での出力は[ローカル計算](/ja/guides/local-computation/)を参照してください。ETag には release、画像設定、内容ハッシュが入ります。
+
+## 譜面の描画
+
+### 譜面画像の描画
+
+<Endpoint id="chart-images.alias" />
+
+### サーバーを指定した譜面画像の描画
+
+<Endpoint id="chart-images.scoped" />

@@ -1,0 +1,81 @@
+---
+title: 通过 API 导出网页图片
+description: 通过 API 导出网页图片
+---
+
+网页所有图片保存入口都有对应 HTTP 路由。原始卡面等使用目录中的媒体地址；合成图复用网页绘图函数。图片接口可公开调用，直接返回 PNG 或 ZIP 字节。
+
+## 图片路由
+
+| 图片 | API |
+| --- | --- |
+| 原始图片 | `images.* / image / jacketUrl` |
+| 官方谱面概览 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
+| 玩家资料卡 | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 配队结果 | `POST /api/v1/team-builder/image.png` |
+| 招募模拟 | `POST /api/v1/gacha/simulation/image.png` |
+| 招募历史单页／全部页 | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
+| 贴图合成 | `POST /api/v1/stamps/image.png` |
+| 本地或社区谱面 | `POST /api/v1/charts/image.png` |
+| Live2D／Spine | `GET / POST /api/v1/live2d/{id}/image.png` / `/api/v1/spine/{id}/image.png` |
+
+现成模型和官方谱面使用 GET，合成图及查看器状态使用 POST。所有 POST 请求体均为 `{data, locale?, theme?, seed?}`。`data` 的类型见[接口参考](/zh-cn/reference/images/)，全部嵌套字段见 [OpenAPI](/openapi.json)。可下载完整的[配队](/examples/team-image.json)、[招募模拟](/examples/gacha-image.json)、[历史报表](/examples/history-image.json)和[贴图](/examples/stamp-image.json)请求。配队请求中的 data.release 应先从当前 release 接口取得，再固定使用。
+
+## 模型截图
+
+两类模型都接受 server、release、视口 width／height、秒数 time、归一化 RGB 或 null 的 background，以及 `transform: {offsetX, offsetY, scale}`。截图沿用网页超采样，最多 400 万像素，实际输出尺寸读取 X-Haneoka-Image-Width／-Height。GET 接受简单参数，POST 可传完整状态。也支持 `/api/v1/servers/{server}/live2d/{id}/image.png` 或对应 spine 路径。
+
+Live2D 支持 motion、expression、loop、breath、blink、look、parameters、parts。把网页导出的姿势 JSON 中的 parameters 和 parts 直接传入即可复现姿势。Spine 支持 animation、skin、loop、playbackRate，time 按 60 Hz 推进所选动画。模型 ID、动作名和皮肤从同资源服模型实体读取。默认背景透明。
+
+```sh
+curl 'https://haneoka.org/api/v1/live2d/001_casual_spring_01/image.png?server=intl&time=0' -o live2d.png
+curl 'https://haneoka.org/api/v1/spine/01_mygo_01_cafe_01_anon/image.png?server=intl&time=1' -o spine.png
+```
+
+## 合成贴图
+
+image 为原始或无字原画的地址，图片图层负责放置原画，文字图层使用制作器的 StampText 字段。sourceSize 为贴图资源中的有效原图尺寸，size 为 1–512 的正方形输出像素。`fonts[{family,source}]` 可携带上传字体。托管接口接受本站媒体地址，以及 base64 PNG／JPEG／WebP 或字体数据。图片接口不保存账号资料。
+
+```sh
+curl 'https://docs.haneoka.org/examples/stamp-image.json' -o stamp-image.json
+curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
+  'https://haneoka.org/api/v1/stamps/image.png' -o stamp.png
+```
+
+## 在用户设备上执行
+
+先加载两个样式表。renderResourceImage 在当前设备生成图片，返回 `{blob, width, height, fileName}`；requestResourceImage 将同一个请求提交到资源 HTTP 接口并返回 Blob。配队、模拟和报表请求包含页面实际显示的数据，计算与绘图都可以留在用户设备。
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<script type="module">
+  import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
+  const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
+  const local = await renderResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  const hosted = await requestResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  console.log(local.blob, hosted);
+</script>
+```
+
+## 自定义谱面
+
+data.chart 接受编辑器的 ChartDocument；data.meta 提供标题、难度和统计。游戏原始谱面文件可以用 parseChartScore 解析。绘图使用相同的原生游戏皮肤和概览排版。
+
+```js
+import { parseChartScore, requestResourceImage } from "https://haneoka.org/tools/images.js";
+const apiBase = "https://haneoka.org/api/v1/";
+const identity = await fetch(apiBase + "servers/intl/release?projection=identity").then(r => r.json());
+const song = await fetch(apiBase + `songs/100001?server=intl&release=${identity.releaseId}`).then(r => r.json());
+const difficulty = song.difficulty.find(d => d.difficultyName === "expert");
+const url = new URL(difficulty.file, apiBase); url.searchParams.set("release", identity.releaseId);
+const chart = await parseChartScore(await fetch(url).then(r => r.text()));
+const blob = await requestResourceImage({ kind: "chart", locale: "en", data: {
+  chart, server: "intl", release: identity.releaseId, height: 720,
+  meta: { title: "100001", difficultyName: "expert", displayLevel: "?", locale: "en", stats: [] },
+} }, { apiBase });
+```
+
+## 本地 HTTP 服务与限制
+
+安装和私有 Bearer 请求头文件见[本地计算指南](/zh-cn/guides/local-computation/)。准备 Cubism 运行时后，POST /v1/resource-image 接受 `{kind, data, id?, locale?, theme?, seed?, page?, archive?}`，直接返回图片字节；resource-image 任务把这个对象放在 request 中。每次执行一个任务。同步图片预算为 50 秒，JSON 请求体最多 8 MiB，输出最多 16 MiB；通过 /v1/jobs 提交仍使用 2 MiB 请求限制。历史 PNG 默认第 1 页，?page=2 读取第 2 页，images.zip 返回所有页。合成图与谱面最多 1200 万像素。托管请求达到限制时返回 429 和 Retry-After，设备绘图使用调用者自己的资源。

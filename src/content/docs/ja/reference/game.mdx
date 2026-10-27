@@ -1,0 +1,100 @@
+---
+title: "ゲーム API"
+description: "プロフィール、ランキング、編成、サークル、提供割合、お知らせ。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+URL ごとにゲーム地域を指定してください。64 ビット ID は十進文字列のまま扱い、accountId、profileId、songId、challengeId を区別します。保存済みガチャ情報はカタログ、保存済みお知らせは /api/v1/announcements を使います。このページではゲームの契約を追加し、取得した全フィールドを保持します。[ゲーム API ガイド](/ja/guides/game-api/)に手順を掲載しています。
+
+## ゲームリソース
+
+### プレイヤープロフィール
+
+<Endpoint id="game.0" />
+
+### プロフィールの一括取得
+
+<Endpoint id="game.1" />
+
+### アカウントのお気に入り
+
+<Endpoint id="game.2" />
+
+### プロフィールカード画像
+
+<Endpoint id="game.3" />
+
+### 楽曲ランキング
+
+<Endpoint id="game.4" />
+
+### イベントポイントランキング
+
+<Endpoint id="game.5" />
+
+### チャレンジランキング
+
+<Endpoint id="game.6" />
+
+### イベント編成
+
+<Endpoint id="game.7" />
+
+### アリーナランキング
+
+<Endpoint id="game.8" />
+
+### アリーナ編成傾向
+
+<Endpoint id="game.9" />
+
+### サークル詳細
+
+<Endpoint id="game.10" />
+
+### サークル検索
+
+<Endpoint id="game.11" />
+
+### 商品・選択ピックアップ提供割合
+
+<Endpoint id="game.12" />
+
+### ゲーム内お知らせ
+
+<Endpoint id="game.13" />
+
+### ゲーム内お知らせ詳細
+
+<Endpoint id="game.14" />
+
+## イベントのスナップショットと版
+
+### 追跡イベント
+
+<Endpoint id="game.snapshot.0" />
+
+### 現在のイベント
+
+<Endpoint id="game.snapshot.1" />
+
+### イベント収集状態
+
+<Endpoint id="game.snapshot.2" />
+
+### ボーダースナップショット
+
+<Endpoint id="game.snapshot.3" />
+
+### イベントチャレンジ
+
+<Endpoint id="game.snapshot.4" />
+
+### チャレンジスナップショット
+
+<Endpoint id="game.snapshot.5" />
+
+### お知らせの改訂
+
+<Endpoint id="game.snapshot.6" />

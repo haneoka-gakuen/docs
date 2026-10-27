@@ -1,0 +1,123 @@
+---
+title: 在用户设备上运行计算
+description: 从浏览器、本地脚本或 HTTP 客户端调用网站引擎。
+---
+
+浏览器模块在专用 Worker 中运行与配队页面相同的 Rust/WASM 引擎，库存留在调用设备。本地 HTTP 服务在 Chromium 中调用同一模块，每次执行一个任务。
+
+## 浏览器 API
+
+```js
+import { createTeamBuilder } from "https://haneoka.org/tools/team-builder.js";
+const engine = await createTeamBuilder({ server: "intl", maxWorkers: 1 });
+try {
+  const result = await engine.run({
+    members: [1, 2, 3, 4, 5].map(cardId => ({
+      key: String(cardId), cardId, level: null, awake: null, rank: null,
+      liveSkillLevel: null, gekisoSkillLevel: null,
+    })),
+    snaps: [], unknownPolicy: "max",
+    player: { characterRanks: {}, characterTotalRank: null, bandItems: {},
+      vipRank: null, characterMemory: {}, musicMemory: {} },
+    goal: { kind: "power", song: null, challengeEventId: null },
+    constraints: { requiredMembers: [], excludedMembers: [], requiredSnaps: [],
+      excludedSnaps: [], leader: null, bindings: [], noSnaps: true, minBonusPercent: null },
+    k: 1, timeLimitMs: 5000,
+  });
+  console.log(result.overall, result.stopReason);
+} finally { engine.dispose(); }
+```
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<script type="module">
+  import { renderChartImage } from "https://haneoka.org/tools/chart-image.js";
+  const { blob, fileName } = await renderChartImage({
+    server: "intl", songId: "100001", difficulty: "expert", locale: "en", height: 720,
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = fileName; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+</script>
+```
+
+导出图片前加载样式表。返回的 Blob 可下载、由应用上传或交给图片元素。使用相同的 server、release、locale、timeZone 和 height 对照网页导出。PNG 使用原始音符图集、原生滑条、封面、图标与共用页头；图片 HTTP 接口的 SVG 内嵌同一张 PNG。
+
+## 本地 HTTP API
+
+在羽丘源码目录构建引擎和工具，安装一次 Chromium 后启动服务。启动日志给出私有请求头文件路径，用 curl 直接读取；令牌不放进 URL。
+
+```sh
+pnpm exec node scripts/build/team-builder-engine.mjs
+pnpm exec node scripts/build/public-tools.mjs
+pnpm --filter @haneoka/tools-service exec playwright install chromium
+pnpm --filter @haneoka/tools-service start
+```
+
+提交后按 Location 查询，state 为 completed 后读取结果。DELETE 取消并删除任务。完成后的结果保留 10 分钟，重启清空全部任务。最多排队 8 个，每次运行 1 个，每个任务执行上限 5 分钟，请求体上限 2 MiB。
+
+```sh
+curl -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  -H 'Content-Type: application/json' \
+  --data-binary @job.json http://127.0.0.1:8765/v1/jobs
+curl -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  http://127.0.0.1:8765/v1/jobs/JOB_ID
+curl -X DELETE -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  http://127.0.0.1:8765/v1/jobs/JOB_ID
+```
+
+`job.json`:
+
+```json
+{"operation":"chart-image","server":"intl","songId":"100001","difficulty":"expert","locale":"en","height":720}
+```
+
+| `operation` | 浏览器方法 | `request` |
+| --- | --- | --- |
+| `search` | `run` | `EngineRequest` |
+| `evaluate` | `evaluate` | `EvaluateRequest` |
+| `growth` | `growth` | `EngineRequest` |
+| `timeline` | `explain` | `ExplainRequest` |
+| `chart-image` | `renderChartImage` | `songId`, `difficulty`, `locale`, `height` |
+
+
+## 输入与结果
+
+完整请求与结果字段由实际 TypeScript 契约生成：[JSON Schema](https://haneoka.org/tools/schema.json)。读取具名 $defs：EngineRequest、EngineResponse、EvaluateRequest、ExplainRequest、GrowthResult、TeamEvaluation、Timeline。
+
+传入实际持有的卡牌实例和养成；养成字段 null 按 unknownPolicy 的 max 或 min 补齐。player 包含角色等级、乐队道具、VIP 与记忆。constraints 支持必选、排除、队长、绑定、noSnaps 与最低活动加成。
+
+读取 stopReason 和 results[].proven。预算耗尽时保留当前最佳候选，不把它标成已证明的最优解。AbortSignal、cancel() 和 dispose() 终止本地工作。程序化调用的 maxWorkers 默认为 1。
+
+## 搜索目标
+
+| 目标 | 含义 |
+| --- | --- |
+| `power` | 综合力，可带歌曲或挑战活动上下文。 |
+| `score` | 歌曲得分，指定 criterion、判定分布和可选目标分数。 |
+| `event` | 活动收益：演出、挑战、跳过；积分、道具、挑战点与收益权重。 |
+| `gekiso` | 激奏得分，指定准度、排名、对手和运气采样。 |
+| `potential` | windowSeconds 时间窗内的技能潜力。 |
+| `plan` | 普通曲和挑战曲、体力预算、初始挑战点组成的活动规划。 |
+
+
+## 其他设备接口
+
+招募模拟、歌曲拼图求解和贴图合成也通过网站共用模块在本地运行。
+
+```js
+import { simulateGacha, tallyGacha } from "https://haneoka.org/tools/gacha.js";
+const run = simulateGacha(gachaEntity, gachaEntity.drawOptions[0], 1);
+const tally = tallyGacha([run]);
+
+import { solvePuzzle } from "https://haneoka.org/tools/song-puzzle.js";
+const result = await solvePuzzle({ size: 3,
+  tiles: [1,2,3,4,5,6,7,0,8], goal: [1,2,3,4,5,6,7,8,0],
+}, 5000, progress => console.log(progress), () => false);
+
+import { drawStamp, defaultStampText, loadStampFont } from "https://haneoka.org/tools/stamp.js";
+const text = { ...defaultStampText(), text: "Hello", font: "Roboto Variable" };
+await loadStampFont(text, "sans-serif");
+// canvas and backgroundImage are your Canvas and decoded image elements.
+drawStamp(canvas, backgroundImage, text, "sans-serif");
+```

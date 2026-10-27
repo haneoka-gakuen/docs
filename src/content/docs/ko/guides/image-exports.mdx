@@ -1,0 +1,81 @@
+---
+title: API로 사이트 이미지 내보내기
+description: API로 사이트 이미지 내보내기
+---
+
+사이트의 모든 이미지 저장 기능에는 HTTP API가 있습니다. 원본 그림은 카탈로그 미디어 URL을 사용하고 합성 이미지는 사이트 렌더러를 재사용합니다. 공개 API는 PNG 또는 ZIP 바이트를 반환합니다.
+
+## 이미지 API
+
+| 이미지 | API |
+| --- | --- |
+| 원본 이미지 | `images.* / image / jacketUrl` |
+| 공식 채보 개요 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
+| 프로필 카드 | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 편성 결과 | `POST /api/v1/team-builder/image.png` |
+| 모집 시뮬레이션 | `POST /api/v1/gacha/simulation/image.png` |
+| 모집 기록 한 페이지／전체 | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
+| 스탬프 합성 | `POST /api/v1/stamps/image.png` |
+| 로컬·커뮤니티 채보 | `POST /api/v1/charts/image.png` |
+| Live2D／Spine | `GET / POST /api/v1/live2d/{id}/image.png` / `/api/v1/spine/{id}/image.png` |
+
+기존 모델과 공식 채보는 GET, 합성과 뷰어 상태는 POST를 씁니다. 본문은 `{data, locale?, theme?, seed?}`입니다. data 형식은 [레퍼런스](/ko/reference/images/), 전체 중첩 필드는 [OpenAPI](/openapi.json)에 있습니다. 완전한 [편성](/examples/team-image.json), [모집](/examples/gacha-image.json), [기록](/examples/history-image.json), [스탬프](/examples/stamp-image.json) 요청을 받을 수 있습니다. 편성의 data.release는 현재 release API에서 받아 고정하세요.
+
+## 모델 캡처
+
+두 모델은 server, release, 뷰포트 width/height, 초 단위 time, 정규화한 RGB 또는 null인 background, `transform: {offsetX, offsetY, scale}`을 받습니다. 사이트와 같은 최대 400만 픽셀 캡처를 사용하며 출력 크기는 X-Haneoka-Image-Width/-Height에 있습니다. GET은 간단한 옵션, POST는 전체 상태입니다. `/api/v1/servers/{server}/live2d/{id}/image.png`와 spine 경로도 가능합니다.
+
+Live2D는 motion, expression, loop, breath, blink, look, parameters, parts를 지원합니다. 사이트에서 저장한 포즈 JSON의 parameters와 parts를 그대로 전달할 수 있습니다. Spine은 animation, skin, loop, playbackRate를 지원하며 time까지 60 Hz로 진행합니다. ID, 동작 이름, 스킨은 같은 서버의 모델 상세에서 읽습니다. 기본 배경은 투명합니다.
+
+```sh
+curl 'https://haneoka.org/api/v1/live2d/001_casual_spring_01/image.png?server=intl&time=0' -o live2d.png
+curl 'https://haneoka.org/api/v1/spine/01_mygo_01_cafe_01_anon/image.png?server=intl&time=1' -o spine.png
+```
+
+## 스탬프 합성
+
+image는 원본 또는 글자 없는 그림 URL입니다. 이미지 레이어가 그림을 배치하고 텍스트 레이어는 StampText를 사용합니다. sourceSize는 스탬프 리소스의 유효 크기이고 size는 1~512 정사각형 출력입니다. `fonts[{family,source}]`는 사용자 글꼴입니다. 호스팅 API는 사이트 URL과 base64 PNG/JPEG/WebP 또는 글꼴 데이터를 받습니다. 계정 정보는 저장하지 않습니다.
+
+```sh
+curl 'https://docs.haneoka.org/examples/stamp-image.json' -o stamp-image.json
+curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
+  'https://haneoka.org/api/v1/stamps/image.png' -o stamp.png
+```
+
+## 사용자 기기에서 실행
+
+두 스타일시트를 먼저 읽으세요. renderResourceImage는 기기에서 실행해 `{blob, width, height, fileName}`을 반환합니다. requestResourceImage는 같은 요청을 HTTP API에 보내 Blob을 반환합니다. 편성·모집·기록에는 화면의 표시 데이터를 전달하므로 계산과 렌더링을 기기에서 처리할 수 있습니다.
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<script type="module">
+  import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
+  const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
+  const local = await renderResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  const hosted = await requestResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  console.log(local.blob, hosted);
+</script>
+```
+
+## 사용자 채보
+
+data.chart는 편집기의 ChartDocument, data.meta는 제목·난이도·통계입니다. 게임 채보 파일은 parseChartScore로 파싱할 수 있습니다. 동일한 게임 스킨과 개요 배치를 사용합니다.
+
+```js
+import { parseChartScore, requestResourceImage } from "https://haneoka.org/tools/images.js";
+const apiBase = "https://haneoka.org/api/v1/";
+const identity = await fetch(apiBase + "servers/intl/release?projection=identity").then(r => r.json());
+const song = await fetch(apiBase + `songs/100001?server=intl&release=${identity.releaseId}`).then(r => r.json());
+const difficulty = song.difficulty.find(d => d.difficultyName === "expert");
+const url = new URL(difficulty.file, apiBase); url.searchParams.set("release", identity.releaseId);
+const chart = await parseChartScore(await fetch(url).then(r => r.text()));
+const blob = await requestResourceImage({ kind: "chart", locale: "en", data: {
+  chart, server: "intl", release: identity.releaseId, height: 720,
+  meta: { title: "100001", difficultyName: "expert", displayLevel: "?", locale: "en", stats: [] },
+} }, { apiBase });
+```
+
+## 로컬 HTTP와 제한
+
+설치와 Bearer 파일은 [로컬 계산 안내](/ko/guides/local-computation/)를 확인하세요. Cubism 런타임을 준비한 뒤 POST /v1/resource-image에 `{kind, data, id?, locale?, theme?, seed?, page?, archive?}`를 보내 이미지를 받습니다. resource-image 작업에서는 이 객체를 request로 전달합니다. 한 작업씩 실행합니다. 동기 이미지는 50초, JSON 8 MiB, 출력 16 MiB이며 /v1/jobs 본문은 2 MiB입니다. 기록 PNG는 기본 1페이지, ?page=2는 2페이지, images.zip은 전체입니다. 합성·채보는 최대 1200만 픽셀입니다. 호스팅 한도에 도달하면 429와 Retry-After를 반환하고 기기 렌더링은 호출자의 리소스를 사용합니다.

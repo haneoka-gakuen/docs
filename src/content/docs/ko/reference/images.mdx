@@ -1,0 +1,66 @@
+---
+title: "이미지 내보내기"
+description: "사이트 이미지 저장과 대응 API."
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+원본 그림은 [미디어 API](/ko/servers/media/), 공식 채보는 [채보 이미지 API](/ko/reference/chart-images/), 프로필 카드는 [플레이어 API](/ko/reference/game/)에 있습니다. 아래 API는 나머지 이미지 저장에 대응합니다. POST JSON은 &#123;data, locale?, theme?, seed?&#125;이며 전체 필드는 [OpenAPI](/openapi.json)와 [기기 스키마](https://haneoka.org/tools/schema.json)에 있습니다. [이미지 안내](/ko/guides/image-exports/)에 예제가 있습니다.
+
+## 생성 이미지
+
+### 편성 결과 이미지
+
+<Endpoint id="images.0.post" />
+
+### 모집 시뮬레이션 이미지
+
+<Endpoint id="images.1.post" />
+
+### 모집 기록 보고서
+
+<Endpoint id="images.2.post" />
+
+### 기록 보고서 ZIP
+
+<Endpoint id="images.3.post" />
+
+### 스탬프 합성
+
+<Endpoint id="images.4.post" />
+
+### 사용자 채보 이미지
+
+<Endpoint id="images.5.post" />
+
+### 기본 Live2D 캡처
+
+<Endpoint id="images.6.get" />
+
+### Live2D 캡처
+
+<Endpoint id="images.6.post" />
+
+### 기본 Live2D 캡처 (서버 지정)
+
+<Endpoint id="images.6.get.scoped" />
+
+### Live2D 캡처 (서버 지정)
+
+<Endpoint id="images.6.post.scoped" />
+
+### 기본 Spine 캡처
+
+<Endpoint id="images.7.get" />
+
+### Spine 캡처
+
+<Endpoint id="images.7.post" />
+
+### 기본 Spine 캡처 (서버 지정)
+
+<Endpoint id="images.7.get.scoped" />
+
+### Spine 캡처 (서버 지정)
+
+<Endpoint id="images.7.post.scoped" />

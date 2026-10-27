@@ -1,0 +1,81 @@
+---
+title: Export website images through an API
+description: Export website images through an API
+---
+
+Every image saved by the website has an HTTP route. Raw artwork uses the catalog media URL; generated images reuse the website renderer. Image endpoints accept public requests and return PNG or ZIP bytes.
+
+## Image routes
+
+| Image | API |
+| --- | --- |
+| Original images | `images.* / image / jacketUrl` |
+| Official chart overview | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
+| Player profile card | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| Team result | `POST /api/v1/team-builder/image.png` |
+| Recruitment simulation | `POST /api/v1/gacha/simulation/image.png` |
+| Recruitment history page / all pages | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
+| Stamp composition | `POST /api/v1/stamps/image.png` |
+| Local or community chart | `POST /api/v1/charts/image.png` |
+| Live2D / Spine | `GET / POST /api/v1/live2d/{id}/image.png` / `/api/v1/spine/{id}/image.png` |
+
+Use GET for an existing model or official chart. Use POST for a composition or a viewer state. Every POST body is `{data, locale?, theme?, seed?}`. `data` follows the named model in the [reference](/reference/images/); all nested fields are in [OpenAPI](/openapi.json). Download complete [team](/examples/team-image.json), [recruitment simulation](/examples/gacha-image.json), [history](/examples/history-image.json) and [stamp](/examples/stamp-image.json) requests. Resolve the current release before pinning `data.release` in a team recipe.
+
+## Model captures
+
+Both models accept `server`, `release`, viewport `width`/`height`, `time` in seconds, `background` as normalized RGB or null, and `transform: {offsetX, offsetY, scale}`. Capture uses the same supersampling as the website, up to 4 million pixels. Read `X-Haneoka-Image-Width` and `-Height` for output dimensions. GET supports the simple options; POST also accepts the full state. The scoped form `/api/v1/servers/{server}/live2d/{id}/image.png` (or spine) is also available.
+
+Live2D supports `motion`, `expression`, `loop`, `breath`, `blink`, `look`, `parameters` and `parts`. Pass `parameters` and `parts` from the website’s exported pose JSON to capture that pose. Spine supports `animation`, `skin`, `loop` and `playbackRate`; `time` advances the selected animation at 60 Hz. Model IDs, motion names and skins come from the matching model entity. The default background is transparent.
+
+```sh
+curl 'https://haneoka.org/api/v1/live2d/001_casual_spring_01/image.png?server=intl&time=0' -o live2d.png
+curl 'https://haneoka.org/api/v1/spine/01_mygo_01_cafe_01_anon/image.png?server=intl&time=1' -o spine.png
+```
+
+## Compose a stamp
+
+`image` is the original or textless artwork URL. Image layers place that artwork; text layers use the stamp maker’s `StampText` fields. `sourceSize` is the effective source size returned by the stamp resource. `size` selects the square output, from 1 to 512 pixels. `fonts[{family,source}]` accepts an uploaded font. Hosted requests accept this site’s media URLs and base64 PNG/JPEG/WebP or font data. No account data is saved by these image endpoints.
+
+```sh
+curl 'https://docs.haneoka.org/examples/stamp-image.json' -o stamp-image.json
+curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
+  'https://haneoka.org/api/v1/stamps/image.png' -o stamp.png
+```
+
+## Run on the calling device
+
+Load both stylesheets before calling the browser module. `renderResourceImage` returns `{blob, width, height, fileName}` and runs locally. `requestResourceImage` sends the same recipe to the resource HTTP endpoint and returns a Blob. Team, simulation and history recipes contain the displayed data; calculation and rendering can both stay on the device.
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<script type="module">
+  import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
+  const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
+  const local = await renderResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  const hosted = await requestResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  console.log(local.blob, hosted);
+</script>
+```
+
+## Custom chart
+
+Pass the editor’s `ChartDocument` as `data.chart`, and the title, difficulty and statistics as `data.meta`. Existing game score bytes can be parsed with `parseChartScore`. The same native game skin and overview composition are used.
+
+```js
+import { parseChartScore, requestResourceImage } from "https://haneoka.org/tools/images.js";
+const apiBase = "https://haneoka.org/api/v1/";
+const identity = await fetch(apiBase + "servers/intl/release?projection=identity").then(r => r.json());
+const song = await fetch(apiBase + `songs/100001?server=intl&release=${identity.releaseId}`).then(r => r.json());
+const difficulty = song.difficulty.find(d => d.difficultyName === "expert");
+const url = new URL(difficulty.file, apiBase); url.searchParams.set("release", identity.releaseId);
+const chart = await parseChartScore(await fetch(url).then(r => r.text()));
+const blob = await requestResourceImage({ kind: "chart", locale: "en", data: {
+  chart, server: "intl", release: identity.releaseId, height: 720,
+  meta: { title: "100001", difficultyName: "expert", displayLevel: "?", locale: "en", stats: [] },
+} }, { apiBase });
+```
+
+## Local HTTP service and limits
+
+The [local computation guide](/guides/local-computation/) describes installation and the private Bearer header file. After provisioning the Cubism runtime, `POST /v1/resource-image` accepts `{kind, data, id?, locale?, theme?, seed?, page?, archive?}` and returns the image bytes. A `resource-image` job uses that object as `request`. One job runs at a time. Synchronous images have a 50-second budget, 8 MiB JSON input and 16 MiB output; jobs submitted through `/v1/jobs` retain the 2 MiB body limit. History PNG defaults to page 1; `?page=2` selects page 2, and images.zip includes every page. Composition and chart images have a 12-million-pixel budget. Hosted requests may return 429 with Retry-After; device rendering uses the caller’s resources.

@@ -1,0 +1,72 @@
+{
+  "locale": "zh-CN",
+  "data": {
+    "mode": "pulls",
+    "title": "招募结果",
+    "subtitle": "5 次招募",
+    "summary": [],
+    "batches": [
+      {
+        "label": "招募",
+        "rows": [
+          {
+            "label": "1",
+            "cards": [
+              {
+                "kind": "member",
+                "rarity": 2,
+                "pickup": false,
+                "image": "/assets/intl/Assets/AddressableResources/MemberCard/1/member_thumbnail.png",
+                "attribute": "",
+                "rarityMark": "",
+                "count": 1
+              },
+              {
+                "kind": "member",
+                "rarity": 2,
+                "pickup": false,
+                "image": "/assets/intl/Assets/AddressableResources/MemberCard/2/member_thumbnail.png",
+                "attribute": "",
+                "rarityMark": "",
+                "count": 1
+              },
+              {
+                "kind": "member",
+                "rarity": 2,
+                "pickup": false,
+                "image": "/assets/intl/Assets/AddressableResources/MemberCard/3/member_thumbnail.png",
+                "attribute": "",
+                "rarityMark": "",
+                "count": 1
+              },
+              {
+                "kind": "member",
+                "rarity": 2,
+                "pickup": false,
+                "image": "/assets/intl/Assets/AddressableResources/MemberCard/4/member_thumbnail.png",
+                "attribute": "",
+                "rarityMark": "",
+                "count": 1
+              },
+              {
+                "kind": "member",
+                "rarity": 2,
+                "pickup": false,
+                "image": "/assets/intl/Assets/AddressableResources/MemberCard/5/member_thumbnail.png",
+                "attribute": "",
+                "rarityMark": "",
+                "count": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "groups": [],
+    "brand": {
+      "name": "haneoka",
+      "url": "haneoka.org",
+      "logo": "/android-chrome-192x192.png"
+    }
+  }
+}

@@ -1,0 +1,123 @@
+---
+title: 端末で計算を実行する
+description: ブラウザー・ローカルスクリプト・HTTP からサイトのエンジンを呼び出します。
+---
+
+ブラウザーモジュールは編成ページと同じ Rust/WASM エンジンを専用 Worker で実行します。所持状況は呼び出し元端末に残ります。ローカル HTTP サービスは同じモジュールを Chromium で 1 ジョブずつ実行します。
+
+## ブラウザー API
+
+```js
+import { createTeamBuilder } from "https://haneoka.org/tools/team-builder.js";
+const engine = await createTeamBuilder({ server: "intl", maxWorkers: 1 });
+try {
+  const result = await engine.run({
+    members: [1, 2, 3, 4, 5].map(cardId => ({
+      key: String(cardId), cardId, level: null, awake: null, rank: null,
+      liveSkillLevel: null, gekisoSkillLevel: null,
+    })),
+    snaps: [], unknownPolicy: "max",
+    player: { characterRanks: {}, characterTotalRank: null, bandItems: {},
+      vipRank: null, characterMemory: {}, musicMemory: {} },
+    goal: { kind: "power", song: null, challengeEventId: null },
+    constraints: { requiredMembers: [], excludedMembers: [], requiredSnaps: [],
+      excludedSnaps: [], leader: null, bindings: [], noSnaps: true, minBonusPercent: null },
+    k: 1, timeLimitMs: 5000,
+  });
+  console.log(result.overall, result.stopReason);
+} finally { engine.dispose(); }
+```
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<script type="module">
+  import { renderChartImage } from "https://haneoka.org/tools/chart-image.js";
+  const { blob, fileName } = await renderChartImage({
+    server: "intl", songId: "100001", difficulty: "expert", locale: "en", height: 720,
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = fileName; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+</script>
+```
+
+画像出力前にスタイルシートを読み込みます。Blob はダウンロード・アプリからのアップロード・画像要素への表示に使えます。server、release、locale、timeZone、height を揃えてサイト出力と比較してください。PNG は元の音符アトラス、スライド、ジャケット、アイコン、共通ヘッダーを使い、画像 HTTP API の SVG は同じ PNG を内包します。
+
+## ローカル HTTP API
+
+羽丘のソースでエンジンとツールをビルドし、Chromium を一度インストールして起動します。起動ログに非公開リクエストヘッダーファイルのパスが出ます。curl から読み込み、トークンは URL に入れません。
+
+```sh
+pnpm exec node scripts/build/team-builder-engine.mjs
+pnpm exec node scripts/build/public-tools.mjs
+pnpm --filter @haneoka/tools-service exec playwright install chromium
+pnpm --filter @haneoka/tools-service start
+```
+
+送信後は Location を取得し、state が completed になったら結果を読みます。DELETE は中止と削除。結果は完了から 10 分、再起動で消去されます。待機は最大 8、実行は 1 ジョブ、各ジョブは最大 5 分。本文は最大 2 MiB。
+
+```sh
+curl -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  -H 'Content-Type: application/json' \
+  --data-binary @job.json http://127.0.0.1:8765/v1/jobs
+curl -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  http://127.0.0.1:8765/v1/jobs/JOB_ID
+curl -X DELETE -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  http://127.0.0.1:8765/v1/jobs/JOB_ID
+```
+
+`job.json`:
+
+```json
+{"operation":"chart-image","server":"intl","songId":"100001","difficulty":"expert","locale":"en","height":720}
+```
+
+| `operation` | ブラウザーメソッド | `request` |
+| --- | --- | --- |
+| `search` | `run` | `EngineRequest` |
+| `evaluate` | `evaluate` | `EvaluateRequest` |
+| `growth` | `growth` | `EngineRequest` |
+| `timeline` | `explain` | `ExplainRequest` |
+| `chart-image` | `renderChartImage` | `songId`, `difficulty`, `locale`, `height` |
+
+
+## 入力と結果
+
+全フィールドは実際の TypeScript 契約から [JSON Schema](https://haneoka.org/tools/schema.json) に生成します。$defs の EngineRequest、EngineResponse、EvaluateRequest、ExplainRequest、GrowthResult、TeamEvaluation、Timeline を参照してください。
+
+所持カードのインスタンスと育成を入力します。null は unknownPolicy の max/min に従います。player はキャラランク、バンドアイテム、VIP、メモリー。constraints は必須・除外、リーダー、紐付け、noSnaps、最低イベントボーナスです。
+
+stopReason と results[].proven を確認してください。予算切れは候補を保持し、最適性証明にはしません。AbortSignal、cancel()、dispose() で停止できます。プログラム呼び出しの maxWorkers は既定 1 です。
+
+## 探索目標
+
+| 目標 | 意味 |
+| --- | --- |
+| `power` | 総合力。楽曲・チャレンジ条件を指定可能。 |
+| `score` | 楽曲スコア。criterion、判定分布、目標点。 |
+| `event` | イベント報酬。ライブ・チャレンジ・スキップと重み。 |
+| `gekiso` | 激走スコア。精度、順位、対戦相手、運抽選。 |
+| `potential` | windowSeconds 内のスキルポテンシャル。 |
+| `plan` | 通常曲・チャレンジ曲、ブースト予算、初期チャレンジポイントの計画。 |
+
+
+## その他の端末 API
+
+ガチャシミュレーション、パズル探索、スタンプ合成もサイトの共通モジュールで端末実行できます。
+
+```js
+import { simulateGacha, tallyGacha } from "https://haneoka.org/tools/gacha.js";
+const run = simulateGacha(gachaEntity, gachaEntity.drawOptions[0], 1);
+const tally = tallyGacha([run]);
+
+import { solvePuzzle } from "https://haneoka.org/tools/song-puzzle.js";
+const result = await solvePuzzle({ size: 3,
+  tiles: [1,2,3,4,5,6,7,0,8], goal: [1,2,3,4,5,6,7,8,0],
+}, 5000, progress => console.log(progress), () => false);
+
+import { drawStamp, defaultStampText, loadStampFont } from "https://haneoka.org/tools/stamp.js";
+const text = { ...defaultStampText(), text: "Hello", font: "Roboto Variable" };
+await loadStampFont(text, "sans-serif");
+// canvas and backgroundImage are your Canvas and decoded image elements.
+drawStamp(canvas, backgroundImage, text, "sans-serif");
+```

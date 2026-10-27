@@ -1,0 +1,100 @@
+---
+title: "遊戲 API"
+description: "玩家資料、排行榜、編隊、圈子、商品機率與遊戲公告。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+每個 URL 都明確指定遊戲區服。64 位元 ID 使用十進位字串，區分 accountId、profileId、songId 和 challengeId。已封存的招募池使用目錄 gacha 實體，公告封存使用 /api/v1/announcements。本頁補充遊戲呼叫契約，保留回傳的全部欄位。完整流程見[遊戲 API 使用指南](/zh-tw/guides/game-api/)。
+
+## 遊戲資源
+
+### 玩家資料
+
+<Endpoint id="game.0" />
+
+### 批次玩家資料
+
+<Endpoint id="game.1" />
+
+### 帳號收藏
+
+<Endpoint id="game.2" />
+
+### 資料卡圖片
+
+<Endpoint id="game.3" />
+
+### 歌曲排行榜
+
+<Endpoint id="game.4" />
+
+### 活動積分榜
+
+<Endpoint id="game.5" />
+
+### 挑戰排行榜
+
+<Endpoint id="game.6" />
+
+### 玩家活動編隊
+
+<Endpoint id="game.7" />
+
+### 競技場排行榜
+
+<Endpoint id="game.8" />
+
+### 競技場熱門編隊
+
+<Endpoint id="game.9" />
+
+### 圈子詳情
+
+<Endpoint id="game.10" />
+
+### 搜尋圈子
+
+<Endpoint id="game.11" />
+
+### 商品與自選 UP 機率
+
+<Endpoint id="game.12" />
+
+### 遊戲內公告
+
+<Endpoint id="game.13" />
+
+### 遊戲公告詳情
+
+<Endpoint id="game.14" />
+
+## 活動快照與版本
+
+### 活動追蹤目錄
+
+<Endpoint id="game.snapshot.0" />
+
+### 目前活動
+
+<Endpoint id="game.snapshot.1" />
+
+### 活動採集狀態
+
+<Endpoint id="game.snapshot.2" />
+
+### 活動榜線快照
+
+<Endpoint id="game.snapshot.3" />
+
+### 活動挑戰目錄
+
+<Endpoint id="game.snapshot.4" />
+
+### 挑戰榜快照
+
+<Endpoint id="game.snapshot.5" />
+
+### 公告歷史版本
+
+<Endpoint id="game.snapshot.6" />

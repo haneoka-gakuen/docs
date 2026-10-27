@@ -43,3 +43,5 @@ pnpm deploy
 ```
 
 The static output is served by the `haneoka-docs` Cloudflare Worker at `docs.haneoka.org`. The checked-in Wrangler configuration names the destination. GitHub Actions validates and builds each change; local publication uses the account authenticated in Wrangler.
+
+New game, device-computation and image-export guides and references are generated in five languages from content-src and src/data/api by scripts/build-api-extensions.mjs. The build retains the existing site layout and existing reference pages. Every push to main builds and deploys through the checked-in GitHub Actions workflow.

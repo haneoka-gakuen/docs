@@ -1,0 +1,123 @@
+---
+title: Run calculations on your device
+description: Use the website engine from a browser, local script or HTTP client.
+---
+
+The browser module runs the same Rust/WASM engine as the team builder in dedicated Workers. Inventories stay on the calling device. The local HTTP service runs those same modules in Chromium, one job at a time.
+
+## Browser API
+
+```js
+import { createTeamBuilder } from "https://haneoka.org/tools/team-builder.js";
+const engine = await createTeamBuilder({ server: "intl", maxWorkers: 1 });
+try {
+  const result = await engine.run({
+    members: [1, 2, 3, 4, 5].map(cardId => ({
+      key: String(cardId), cardId, level: null, awake: null, rank: null,
+      liveSkillLevel: null, gekisoSkillLevel: null,
+    })),
+    snaps: [], unknownPolicy: "max",
+    player: { characterRanks: {}, characterTotalRank: null, bandItems: {},
+      vipRank: null, characterMemory: {}, musicMemory: {} },
+    goal: { kind: "power", song: null, challengeEventId: null },
+    constraints: { requiredMembers: [], excludedMembers: [], requiredSnaps: [],
+      excludedSnaps: [], leader: null, bindings: [], noSnaps: true, minBonusPercent: null },
+    k: 1, timeLimitMs: 5000,
+  });
+  console.log(result.overall, result.stopReason);
+} finally { engine.dispose(); }
+```
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<script type="module">
+  import { renderChartImage } from "https://haneoka.org/tools/chart-image.js";
+  const { blob, fileName } = await renderChartImage({
+    server: "intl", songId: "100001", difficulty: "expert", locale: "en", height: 720,
+  });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = fileName; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+</script>
+```
+
+Add the stylesheet before exporting images. A returned Blob can be downloaded, uploaded by your application or passed to an image element. Use the same server, release, locale, timeZone and height to match the website export. PNG uses the original note atlas, native ribbons, jacket, marks and shared header layout. SVG from the image HTTP endpoint embeds that same PNG.
+
+## Local HTTP API
+
+From the Haneoka checkout, build the engine and tools, install Chromium once and start the service. The startup log prints the path to a private request-headers file. Use that file with curl; keep the token out of URLs.
+
+```sh
+pnpm exec node scripts/build/team-builder-engine.mjs
+pnpm exec node scripts/build/public-tools.mjs
+pnpm --filter @haneoka/tools-service exec playwright install chromium
+pnpm --filter @haneoka/tools-service start
+```
+
+Submit a job, poll its Location, and read the result after state becomes completed. DELETE cancels and removes it. Results expire 10 minutes after completion; restarting clears all jobs. Up to eight jobs can wait; one runs at a time. Each job has a five-minute execution limit. The request body limit is 2 MiB.
+
+```sh
+curl -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  -H 'Content-Type: application/json' \
+  --data-binary @job.json http://127.0.0.1:8765/v1/jobs
+curl -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  http://127.0.0.1:8765/v1/jobs/JOB_ID
+curl -X DELETE -H @"$HOME/.cache/haneoka/tools-8765.headers" \
+  http://127.0.0.1:8765/v1/jobs/JOB_ID
+```
+
+`job.json`:
+
+```json
+{"operation":"chart-image","server":"intl","songId":"100001","difficulty":"expert","locale":"en","height":720}
+```
+
+| `operation` | Browser method | `request` |
+| --- | --- | --- |
+| `search` | `run` | `EngineRequest` |
+| `evaluate` | `evaluate` | `EvaluateRequest` |
+| `growth` | `growth` | `EngineRequest` |
+| `timeline` | `explain` | `ExplainRequest` |
+| `chart-image` | `renderChartImage` | `songId`, `difficulty`, `locale`, `height` |
+
+
+## Inputs and results
+
+All request and result fields are generated from the actual TypeScript contracts in [JSON Schema](https://haneoka.org/tools/schema.json). Select the named $defs: EngineRequest, EngineResponse, EvaluateRequest, ExplainRequest, GrowthResult, TeamEvaluation and Timeline.
+
+Use your owned card instances and growth. A null growth field follows unknownPolicy: max or min. Account-wide character ranks, band items, VIP and memories are supplied in player. Search constraints include required/excluded cards, leader, bindings, noSnaps and minimum event bonus.
+
+Read stopReason and results[].proven. A budget-limited result retains the best candidates found and does not turn them into a proven optimum. AbortSignal, cancel() and dispose() stop local work. maxWorkers defaults to 1 for programmatic callers.
+
+## Search goals
+
+| Goal | Meaning |
+| --- | --- |
+| `power` | Total power; optional song or challenge context. |
+| `score` | Song score; criterion, judgement distribution and optional target score. |
+| `event` | Event rewards: live, challenge or skip; points, items, challenge points and reward weights. |
+| `gekiso` | Gekiso score with accuracy, placement, opponents and luck samples. |
+| `potential` | Skill potential within windowSeconds. |
+| `plan` | Event plan with normal/challenge songs, boost budget and starting challenge points. |
+
+
+## More device APIs
+
+Recruitment simulation, puzzle solving and stamp composition also run locally through the shared website modules.
+
+```js
+import { simulateGacha, tallyGacha } from "https://haneoka.org/tools/gacha.js";
+const run = simulateGacha(gachaEntity, gachaEntity.drawOptions[0], 1);
+const tally = tallyGacha([run]);
+
+import { solvePuzzle } from "https://haneoka.org/tools/song-puzzle.js";
+const result = await solvePuzzle({ size: 3,
+  tiles: [1,2,3,4,5,6,7,0,8], goal: [1,2,3,4,5,6,7,8,0],
+}, 5000, progress => console.log(progress), () => false);
+
+import { drawStamp, defaultStampText, loadStampFont } from "https://haneoka.org/tools/stamp.js";
+const text = { ...defaultStampText(), text: "Hello", font: "Roboto Variable" };
+await loadStampFont(text, "sans-serif");
+// canvas and backgroundImage are your Canvas and decoded image elements.
+drawStamp(canvas, backgroundImage, text, "sans-serif");
+```

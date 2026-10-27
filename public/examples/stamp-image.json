@@ -1,0 +1,37 @@
+{
+  "locale": "zh-CN",
+  "data": {
+    "image": "/assets/intl/Assets/AddressableResources/Stamp/illust/stamp_illust_tomori_001.png",
+    "layers": [
+      {
+        "id": "art",
+        "image": {
+          "x": 50,
+          "y": 50,
+          "scale": 100,
+          "rotation": 0
+        },
+        "settings": {
+          "text": "",
+          "x": 50,
+          "y": 75,
+          "size": 15,
+          "rotation": 0,
+          "font": "auto",
+          "fill": "#ffffff",
+          "stroke": "#000000",
+          "strokeWidth": 4,
+          "writingMode": "horizontal"
+        },
+        "colorCharacter": "custom",
+        "backgroundCharacter": "custom",
+        "colorWasChosen": false
+      }
+    ],
+    "sourceSize": {
+      "width": 512,
+      "height": 512
+    },
+    "size": 512
+  }
+}

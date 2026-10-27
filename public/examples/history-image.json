@@ -1,0 +1,29 @@
+{
+  "locale": "zh-CN",
+  "data": {
+    "title": "招募历史",
+    "scope": [
+      "intl"
+    ],
+    "metrics": [
+      {
+        "label": "招募次数",
+        "value": "40"
+      }
+    ],
+    "charts": [],
+    "groups": [
+      {
+        "label": "成员",
+        "cards": [
+          {
+            "name": "我们现在就在这里",
+            "kindLabel": "成员",
+            "quantity": 1,
+            "imageUrl": "/assets/intl/Assets/AddressableResources/MemberCard/1/member_thumbnail.png"
+          }
+        ]
+      }
+    ]
+  }
+}

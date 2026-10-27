@@ -1,0 +1,18 @@
+---
+title: "譜面圖片"
+description: "把目前版本的任意譜面繪製為便於分享的 SVG 或 PNG 總覽圖。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+與網頁下載共用原生音符圖集、滑條、封面、圖示、字型與圖片排版。固定 release 可重現輸入；瀏覽器服務產生 PNG，SVG 內嵌相同 PNG。整張譜面分欄排列。裝置端匯出見[本機計算指南](/zh-tw/guides/local-computation/)。ETag 包含版本、圖片選項與內容雜湊。
+
+## 繪製譜面
+
+### 繪製譜面圖片
+
+<Endpoint id="chart-images.alias" />
+
+### 依伺服器繪製譜面圖片
+
+<Endpoint id="chart-images.scoped" />

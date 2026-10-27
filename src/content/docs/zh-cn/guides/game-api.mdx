@@ -1,0 +1,45 @@
+---
+title: 网站、脚本与 Agent 的游戏数据调用
+description: 按使用情形选择接口、区服、ID 和响应格式。
+---
+
+先读取 `GET https://haneoka.org/api/v1`。入口列出完整 OpenAPI、版本列表、各版本资源目录、游戏能力和本地计算模块。公开读取使用 GET 或 HEAD。错误沿用 `{ "error": { "code", "message", "requestId" } }`；HEAD 的状态和响应头相同，正文为空。
+
+| 使用情形 | 接口 |
+| --- | --- |
+| 游戏资料与规则 | `/api/v1/servers/{server}/catalog`，再按返回的资源、视图和关系路径读取 |
+| 单实体、批量实体、完整集合 | `/api/v1/{resource}/{id}`、重复 `id`、游标分页；持续读取直到 `nextCursor` 为 null |
+| 原始音频、封面、卡面、模型、字体和素材描述 | 使用返回的 `/assets/`、`/runtime/` 与描述路径，沿用同一个 release |
+| 原始谱面、统计和难度 | `songs/{id}` 的 `difficulty[].file`；`song-meta/{id}` 包含各难度的谱面与计分统计 |
+| 玩家资料、批量资料、收藏、资料卡 | `/api/v1/players/{profileId}?region={region}`、`/api/v1/players?accountId=…&region={region}`、`/api/v1/players/favorites?accountId={accountId}&region={region}`、`/api/v1/players/{profileId}/cards/{page}.png?region={region}` |
+| 歌曲榜、活动榜、挑战榜、竞技场榜 | 游戏区服下的 `/songs/{songId}/ranking`、`/events/{eventId}/ranking?rank=1&rank=100`、`/events/challenges/{challengeId}/ranking`、`/arena/seasons/{seasonId}/ranking?start=1&end=100` |
+| 活动编队、竞技场热门编队 | `/events/{eventId}/decks/{accountId}`、`/arena/seasons/{seasonId}/songs/{songId}/decks` |
+| 圈子详情、精确名称搜索 | `/circles/{circleId}`、`/circles?name=…`；可附加 `memberRange`、`joinRule`、`playStyle` |
+| 已归档招募池及商品 | `/api/v1/gacha/{gachaId}?server={server}` 的 `rates`、`featured`、`drawOptions`、保底与自选规则 |
+| 指定商品和自选 UP 的概率 | `/api/v1/gacha/{gachaId}/rates?productId=…&pickupId=…&region={region}` |
+| 游戏公告归档 | `/api/v1/announcements?server={server}&locale={locale}`，详情 `/announcements/{id}` |
+| 游戏内公告列表和详情 | `/api/v1/announcements/views/live?category=ALL&region={region}`、`/announcements/{announcementId}/live` |
+| 活动时间、榜线与采集状态 | `/api/v1/events/views/live?region={region}`、`/events/views/current`、`/events/{eventId}/snapshots`、`/events/{eventId}/snapshots/latest`、`/events/{eventId}/challenges` |
+| 挑战榜快照、公告历史版本 | `/events/{eventId}/challenges/{challengeId}/ranking`、`/announcements/{announcementId}/revisions` |
+| 私有库存、Box、工作区与招募历史 | 现有的[账号同步接口](/zh-cn/auth/) |
+| 配队搜索、评分、成长分析与谱面图片 | [本地计算接口](/zh-cn/guides/local-computation/) |
+
+`server` 为 `jp` 或 `intl`；`region` 为 `jp`、`tw`、`en`、`kr`；`locale` 单独决定文本语言。ID 只在所属区服有意义。包括 JavaScript 在内，64 位 ID 一律保留为**字符串**。公开资料 ID 与账号 ID 不同，挑战 ID 与歌曲 ID 不同，请从同区服目录或前一步响应中取值。
+
+```js
+import { createGameClient } from "https://haneoka.org/tools/api-client.js";
+const game = createGameClient({ region: "jp" });
+const ranking = await game.songRanking("100001");
+for (const row of ranking.players ?? []) {
+  console.log(row.playerData?.profileId, row.score, row.highScoreDeck?.cards);
+}
+// accountIds 来自资料或账号列表，不能填公开 profileId：
+const profiles = await game.profiles(accountIds);
+const circle = await game.circles({ name: circleName, joinRule: "AUTO" });
+```
+
+数组使用重复键：`accountId=1&accountId=2`、`rank=1&rank=100`、`pickupId=1&pickupId=2`，单次最多 100 项。标量只出现一次。未知参数和重复标量返回 400。[接口参考](/zh-cn/reference/game/)逐项列出必填参数与 schema。
+
+歌曲榜保留返回的玩家顺序，缺少的行保持缺少。活动快照可能包含重复名次和不同时间的采集分段；保存时一并保留 `stale`、`frozen`、`parts` 和采集时间。429/503 遵守 `Retry-After` 并指数退避。完整游戏契约另见 `/api/v1/openapi.json`。
+
+存档下载使用 `GET /api/v1/players/{profileId}/save.gz?server={saveServer}`，从服务端或本地脚本携带 `X-Game-Application-Key`，应用须已获得对该份存档的明确授权。profileId 是存档顶层的 _profileId，与账号／玩家 ID 分开。`saveServer` 为 `jp` 或 `intl`；结果为原始 `application/gzip` 文件，最多 8 MiB，保存为 `.json.gz`，响应没有 HTTP `Content-Encoding`。没有授权返回 404。应用密钥保存在服务端配置中。读取羽丘账号内已有的数据时，沿用账号同步接口与羽丘会话。

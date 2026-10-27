@@ -1,0 +1,161 @@
+---
+// Renders one API endpoint from src/data/api in the page's locale.
+import { Code, Tabs, TabItem, Aside } from "@astrojs/starlight/components";
+import { REGISTRY, errorEntry } from "../data/api/index.mjs";
+import { AUTH, RATE, UI, localeSlug, tr } from "../data/api/i18n.mjs";
+import { curlExample, fetchExample, inlineHtmlWithCodeLinks, responseBody, statusLine } from "../data/api/render.mjs";
+
+interface Props {
+  id: string;
+}
+const { id } = Astro.props;
+const entry = REGISTRY.get(id);
+if (!entry) throw new Error(`Unknown endpoint ${id}`);
+const { endpoint } = entry;
+const locale = localeSlug(Astro.currentLocale);
+const t = (value: unknown) => tr(value as Record<string, string>, locale) as string;
+const md = (value: unknown) => inlineHtmlWithCodeLinks(t(value), locale, REGISTRY);
+
+const methods: string[] = endpoint.methods ?? [endpoint.method];
+const params: any[] = endpoint.params ?? [];
+const body = endpoint.body;
+const fields: any[] = endpoint.fields ?? [];
+const responses: any[] = endpoint.responses ?? [];
+const errors = (endpoint.errors ?? []).map(errorEntry).sort((a: any, b: any) => parseInt(String(a.status), 10) - parseInt(String(b.status), 10));
+const example = endpoint.example;
+const response = example?.response;
+const rendered = responseBody(response);
+const headerBlock = response
+  ? [`HTTP/2 ${statusLine(response.status)}`, ...Object.entries(response.headers ?? {}).map(([k, v]) => `${k}: ${v}`)].join("\n")
+  : null;
+const inLabel = (where: string) => t((UI as any)[where] ?? { en: where });
+const authText = endpoint.auth ? (AUTH as any)[endpoint.auth] : null;
+const rateText = endpoint.rate ? (RATE as any)[endpoint.rate] ?? endpoint.rate : null;
+---
+
+<div class="api-endpoint" data-endpoint={id}>
+  <div class="api-signature">
+    {methods.map((method) => <span class="api-method" data-method={method}>{method}</span>)}
+    <code>{endpoint.path}</code>
+  </div>
+
+  <p set:html={md(endpoint.description)} />
+
+  {endpoint.notes?.map((note: unknown) => <Aside type="note"><Fragment set:html={md(note)} /></Aside>)}
+
+  <dl class="api-meta">
+    {authText && (<><dt>{t(UI.auth)}</dt><dd set:html={md(authText)} /></>)}
+    {endpoint.cache && (
+      <>
+        <dt>{t(UI.caching)}</dt>
+        <dd><code>{endpoint.cache}</code>{endpoint.cacheNote && <> <span set:html={md(endpoint.cacheNote)} /></>}</dd>
+      </>
+    )}
+    {rateText && (<><dt>{t(UI.rateLimit)}</dt><dd set:html={md(rateText)} /></>)}
+  </dl>
+
+  {params.length > 0 && (
+    <>
+      <p class="api-subhead"><strong>{t(UI.parameters)}</strong></p>
+      <div class="api-table-wrap">
+        <table>
+          <thead><tr><th>{t(UI.name)}</th><th>{t(UI.in)}</th><th>{t(UI.type)}</th><th>{t(UI.description)}</th></tr></thead>
+          <tbody>
+            {params.map((param) => (
+              <tr>
+                <td><code>{param.name}</code><span class="api-pill" data-required={String(Boolean(param.required))}>{param.required ? t(UI.required) : t(UI.optional)}</span></td>
+                <td>{inLabel(param.in)}</td>
+                <td><span class="api-type">{param.type}</span></td>
+                <td><span set:html={md(param.desc)} />{param.default !== undefined && <span class="api-note"> {t(UI.default)}: <code>{param.default}</code></span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )}
+
+  {body && (
+    <>
+      <p class="api-subhead"><strong>{t(UI.requestBody)}</strong> <span class="api-note"><code>{body.contentType ?? "application/json"}</code></span></p>
+      {body.note && <p class="api-note" set:html={md(body.note)} />}
+      {body.fields?.length > 0 && (
+        <div class="api-table-wrap">
+          <table>
+            <thead><tr><th>{t(UI.name)}</th><th>{t(UI.type)}</th><th>{t(UI.description)}</th></tr></thead>
+            <tbody>
+              {body.fields.map(([name, type, required, desc]: any[]) => (
+                <tr>
+                  <td><code>{name}</code><span class="api-pill" data-required={String(Boolean(required))}>{required ? t(UI.required) : t(UI.optional)}</span></td>
+                  <td><span class="api-type">{type}</span></td>
+                  <td set:html={md(desc)} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )}
+
+  {(responses.length > 0 || fields.length > 0) && (
+    <>
+      {responses.length > 0 && (
+        <>
+          <p class="api-subhead"><strong>{t(UI.responses)}</strong></p>
+          <div class="api-table-wrap">
+            <table>
+              <thead><tr><th>{t(UI.status)}</th><th>{t(UI.description)}</th></tr></thead>
+              <tbody>{responses.map(([status, desc]: any[]) => <tr><td><code>{statusLine(status)}</code></td><td set:html={md(desc)} /></tr>)}</tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {fields.length > 0 && (
+        <>
+          <p class="api-subhead"><strong>{t(UI.responseFields)}</strong></p>
+          <div class="api-table-wrap">
+            <table>
+              <thead><tr><th>{t(UI.name)}</th><th>{t(UI.type)}</th><th>{t(UI.description)}</th></tr></thead>
+              <tbody>{fields.map(([name, type, desc]: any[]) => <tr><td><code>{name}</code></td><td><span class="api-type">{type}</span></td><td set:html={md(desc)} /></tr>)}</tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </>
+  )}
+
+  {example && (
+    <>
+      <p class="api-subhead"><strong>{t(UI.exampleRequest)}</strong></p>
+      <Tabs syncKey="api-client">
+        <TabItem label="cURL" icon="seti:shell"><Code code={curlExample(endpoint)} lang="sh" /></TabItem>
+        <TabItem label="JavaScript" icon="seti:javascript"><Code code={fetchExample(endpoint)} lang="js" /></TabItem>
+      </Tabs>
+      {response && (
+        <>
+          <p class="api-subhead"><strong>{t(UI.exampleResponse)}</strong></p>
+          {headerBlock && <Code code={headerBlock} lang="http" />}
+          {rendered ? <Code code={rendered.code} lang={rendered.lang} /> : <p class="api-note">{response.opaque ? t(UI.opaque) : response.binary ? t(UI.binary) : t(UI.noBody)}</p>}
+          {response.trimmed && <p class="api-note">{t(UI.trimmed)}</p>}
+        </>
+      )}
+    </>
+  )}
+
+  {errors.length > 0 && (
+    <>
+      <p class="api-subhead"><strong>{t(UI.errors)}</strong></p>
+      <div class="api-table-wrap">
+        <table>
+          <thead><tr><th>{t(UI.status)}</th><th>{t(UI.code)}</th><th>{t(UI.meaning)}</th></tr></thead>
+          <tbody>
+            {errors.map((error: any) => (
+              <tr><td><code>{error.status}</code></td><td>{error.code ? <code>{error.code}</code> : "—"}</td><td set:html={md(error.desc)} /></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )}
+</div>

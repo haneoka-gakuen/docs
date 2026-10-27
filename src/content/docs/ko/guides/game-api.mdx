@@ -1,0 +1,39 @@
+---
+title: 웹사이트·스크립트·Agent의 게임 데이터 호출
+description: 용도에 맞는 API, 지역, ID, 응답 형식을 선택합니다.
+---
+
+`GET https://haneoka.org/api/v1`에서 시작합니다. OpenAPI, 릴리스 목록, 리소스 카탈로그, 게임 기능 목록, 로컬 계산 모듈로 연결됩니다. 공개 읽기는 GET/HEAD를 사용합니다. 오류 형식은 `{ "error": { "code", "message", "requestId" } }`이며 HEAD에는 본문이 없습니다.
+
+| 용도 | API |
+| --- | --- |
+| 게임 자료와 규칙 | `/api/v1/servers/{server}/catalog`에서 리소스·뷰·관계 경로 확인 |
+| 단일·일괄·전체 목록 | `/api/v1/{resource}/{id}`, 반복 `id`, `nextCursor`가 null일 때까지 페이지 조회 |
+| 오디오·이미지·모델·글꼴·소재 정보 | 반환된 `/assets/`, `/runtime/`, 소재 설명 경로와 동일 release 사용 |
+| 채보와 통계 | `songs/{id}`의 `difficulty[].file`, `song-meta/{id}` |
+| 프로필·일괄 조회·즐겨찾기·프로필 카드 | `/api/v1/players/{profileId}?region={region}`, `/api/v1/players?accountId=…&region={region}`, `/api/v1/players/favorites?accountId={accountId}&region={region}`, `/api/v1/players/{profileId}/cards/{page}.png?region={region}` |
+| 곡·이벤트·챌린지·아레나 랭킹 | `/songs/{songId}/ranking`, `/events/{eventId}/ranking?rank=1&rank=100`, `/events/challenges/{challengeId}/ranking`, `/arena/seasons/{seasonId}/ranking?start=1&end=100` |
+| 이벤트 편성·인기 아레나 편성 | `/events/{eventId}/decks/{accountId}`, `/arena/seasons/{seasonId}/songs/{songId}/decks` |
+| 서클 상세·이름 검색 | `/circles/{circleId}`, `/circles?name=…`; `memberRange`, `joinRule`, `playStyle` 지원 |
+| 보관된 모집 풀·상품 | `/api/v1/gacha/{gachaId}?server={server}`의 `rates`, `featured`, `drawOptions`, 보장·선택 규칙 |
+| 상품·선택 픽업 확률 | `/api/v1/gacha/{gachaId}/rates?productId=…&pickupId=…&region={region}` |
+| 보관 공지·게임 내 공지 | `/api/v1/announcements?server={server}&locale={locale}`, `/api/v1/announcements/views/live?region={region}`, `/announcements/{announcementId}/live` |
+| 이벤트 일정·컷오프·수집 상태 | `/api/v1/events/views/live?region={region}`, `/events/views/current`, `/events/{eventId}/snapshots`, `/events/{eventId}/snapshots/latest`, `/events/{eventId}/challenges` |
+| 챌린지 스냅샷·공지 이전 버전 | `/events/{eventId}/challenges/{challengeId}/ranking`, `/announcements/{announcementId}/revisions` |
+| 비공개 Box·인벤토리·작업 공간·모집 기록 | [계정 동기화](/ko/auth/) |
+| 편성 검색·평가·성장 분석·채보 이미지 | [로컬 계산](/ko/guides/local-computation/) |
+
+server는 jp/intl, region은 jp/tw/en/kr, locale은 표시 언어입니다. 64비트 ID는 문자열로 유지하세요. profileId와 accountId, challengeId와 songId는 서로 다르며 ID는 같은 지역에서 가져와야 합니다.
+
+```js
+import { createGameClient } from "https://haneoka.org/tools/api-client.js";
+const game = createGameClient({ region: "jp" });
+const ranking = await game.songRanking("100001");
+for (const row of ranking.players ?? []) console.log(row.playerData?.profileId, row.score);
+const profiles = await game.profiles(accountIds);
+const circle = await game.circles({ name: circleName, joinRule: "AUTO" });
+```
+
+배열은 `accountId=1&accountId=2`, `rank=1&rank=100`, `pickupId=1&pickupId=2`처럼 키를 반복하며 최대 100개입니다. 스칼라 중복과 알 수 없는 매개변수는 400입니다. 필수 값은 [참고 문서](/ko/reference/game/)에서 확인하세요. 곡 랭킹은 응답 순서를 유지하고 누락 순위를 0으로 채우지 않습니다. 이벤트 스냅샷은 `stale`, `frozen`, `parts`, 수집 시각을 함께 저장합니다. 429/503은 `Retry-After`와 지수 백오프를 따르세요. 게임 OpenAPI는 `/api/v1/openapi.json`입니다.
+
+저장 파일 다운로드는 `GET /api/v1/players/{profileId}/save.gz?server={saveServer}`입니다. 서버나 로컬 스크립트에서 `X-Game-Application-Key`를 보내며 앱은 해당 저장 파일에 대한 명시적 권한이 있어야 합니다. profileId는 저장 파일 최상위 _profileId이며 계정 ID와 다릅니다. saveServer는 jp/intl입니다. 최대 8 MiB의 `application/gzip`을 `.json.gz`로 저장하세요. HTTP `Content-Encoding`은 없습니다. 권한이 없으면 404입니다. 키는 서버에 저장합니다. 하네오카 계정에 저장된 데이터는 기존 동기화 API와 하네오카 세션을 사용합니다.

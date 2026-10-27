@@ -10,7 +10,7 @@ export default defineConfig({
       description:
         "Public API and JavaScript embedding guides for Haneoka catalogs, stories, charts, scenes and community services.",
       favicon: "/favicon.svg",
-      customCss: ["./src/styles/md3.css"],
+      customCss: ["./src/styles/md3.css", "./src/styles/api-reference.css"],
       components: { SocialIcons: "./src/components/MainSiteSocialLinks.astro" },
       social: [
         {
@@ -21,10 +21,14 @@ export default defineConfig({
       ],
       locales: {
         root: { label: "English", lang: "en" },
+        ja: { label: "日本語", lang: "ja" },
+        ko: { label: "한국어", lang: "ko" },
+        "zh-tw": { label: "繁體中文", lang: "zh-TW" },
         "zh-cn": { label: "简体中文", lang: "zh-CN" },
       },
       defaultLocale: "root",
       sidebar: [
+        { label: "Public APIs and image exports", translations: { ja: "公開 API と画像保存", ko: "공개 API와 이미지 내보내기", "zh-CN": "公开 API 与图片导出", "zh-TW": "公開 API 與圖片匯出" }, items: ["guides/game-api", "guides/local-computation", "guides/image-exports", "reference/game", "reference/images", "reference/tools", "reference/chart-images"] },
         { label: "Haneoka.org", link: "https://haneoka.org/", translations: { "zh-CN": "Haneoka 主站" } },
         {
           label: "Start here",

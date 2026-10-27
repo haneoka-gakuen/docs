@@ -1,0 +1,543 @@
+{
+  "team": {
+    "locale": "zh-CN",
+    "data": {
+      "server": "intl",
+      "request": {
+        "members": [
+          {
+            "key": "1",
+            "cardId": 1,
+            "level": null,
+            "awake": null,
+            "rank": null,
+            "liveSkillLevel": null,
+            "gekisoSkillLevel": null
+          },
+          {
+            "key": "2",
+            "cardId": 2,
+            "level": null,
+            "awake": null,
+            "rank": null,
+            "liveSkillLevel": null,
+            "gekisoSkillLevel": null
+          },
+          {
+            "key": "3",
+            "cardId": 3,
+            "level": null,
+            "awake": null,
+            "rank": null,
+            "liveSkillLevel": null,
+            "gekisoSkillLevel": null
+          },
+          {
+            "key": "4",
+            "cardId": 4,
+            "level": null,
+            "awake": null,
+            "rank": null,
+            "liveSkillLevel": null,
+            "gekisoSkillLevel": null
+          },
+          {
+            "key": "5",
+            "cardId": 5,
+            "level": null,
+            "awake": null,
+            "rank": null,
+            "liveSkillLevel": null,
+            "gekisoSkillLevel": null
+          }
+        ],
+        "snaps": [],
+        "player": {
+          "characterRanks": {},
+          "characterTotalRank": null,
+          "bandItems": {},
+          "vipRank": null,
+          "characterMemory": {},
+          "musicMemory": {}
+        },
+        "unknownPolicy": "max",
+        "goal": {
+          "kind": "score",
+          "songs": [
+            {
+              "songId": 100001,
+              "difficulty": 3
+            }
+          ],
+          "criterion": "mean",
+          "play": {
+            "great": 0,
+            "good": 0,
+            "bad": 0,
+            "miss": 0
+          },
+          "challengeEventId": null
+        },
+        "constraints": {
+          "requiredMembers": [],
+          "excludedMembers": [],
+          "requiredSnaps": [],
+          "excludedSnaps": [],
+          "leader": null,
+          "bindings": [],
+          "noSnaps": true,
+          "minBonusPercent": null
+        },
+        "k": 1,
+        "timeLimitMs": 5000
+      },
+      "hit": {
+        "event": null,
+        "key": 1108389,
+        "members": [
+          "5",
+          "2",
+          "1",
+          "3",
+          "4"
+        ],
+        "potential": null,
+        "power": 231499,
+        "score": {
+          "bestOrder": [
+            "5",
+            "2",
+            "1",
+            "3",
+            "4"
+          ],
+          "max": 1108389,
+          "mean": 1108389,
+          "median": 1108389,
+          "min": 1108389,
+          "orders": [
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389,
+            1108389
+          ],
+          "ranks": {
+            "3": 120
+          },
+          "worstOrder": [
+            "5",
+            "2",
+            "1",
+            "3",
+            "4"
+          ]
+        },
+        "skipScore": null,
+        "slotPowers": [
+          46132,
+          51274,
+          45933,
+          44481,
+          43679
+        ],
+        "snaps": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "song": {
+          "difficulty": 3,
+          "songId": 100001
+        }
+      }
+    }
+  },
+  "gacha": {
+    "locale": "zh-CN",
+    "data": {
+      "mode": "pulls",
+      "title": "招募结果",
+      "subtitle": "5 次招募",
+      "summary": [],
+      "batches": [
+        {
+          "label": "招募",
+          "rows": [
+            {
+              "label": "1",
+              "cards": [
+                {
+                  "kind": "member",
+                  "rarity": 2,
+                  "pickup": false,
+                  "image": "/assets/intl/Assets/AddressableResources/MemberCard/1/member_thumbnail.png",
+                  "attribute": "",
+                  "rarityMark": "",
+                  "count": 1
+                },
+                {
+                  "kind": "member",
+                  "rarity": 2,
+                  "pickup": false,
+                  "image": "/assets/intl/Assets/AddressableResources/MemberCard/2/member_thumbnail.png",
+                  "attribute": "",
+                  "rarityMark": "",
+                  "count": 1
+                },
+                {
+                  "kind": "member",
+                  "rarity": 2,
+                  "pickup": false,
+                  "image": "/assets/intl/Assets/AddressableResources/MemberCard/3/member_thumbnail.png",
+                  "attribute": "",
+                  "rarityMark": "",
+                  "count": 1
+                },
+                {
+                  "kind": "member",
+                  "rarity": 2,
+                  "pickup": false,
+                  "image": "/assets/intl/Assets/AddressableResources/MemberCard/4/member_thumbnail.png",
+                  "attribute": "",
+                  "rarityMark": "",
+                  "count": 1
+                },
+                {
+                  "kind": "member",
+                  "rarity": 2,
+                  "pickup": false,
+                  "image": "/assets/intl/Assets/AddressableResources/MemberCard/5/member_thumbnail.png",
+                  "attribute": "",
+                  "rarityMark": "",
+                  "count": 1
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "groups": [],
+      "brand": {
+        "name": "haneoka",
+        "url": "haneoka.org",
+        "logo": "/android-chrome-192x192.png"
+      }
+    }
+  },
+  "history": {
+    "locale": "zh-CN",
+    "data": {
+      "title": "招募历史",
+      "scope": [
+        "intl"
+      ],
+      "metrics": [
+        {
+          "label": "招募次数",
+          "value": "40"
+        }
+      ],
+      "charts": [],
+      "groups": [
+        {
+          "label": "成员",
+          "cards": [
+            {
+              "name": "我们现在就在这里",
+              "kindLabel": "成员",
+              "quantity": 1,
+              "imageUrl": "/assets/intl/Assets/AddressableResources/MemberCard/1/member_thumbnail.png"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "stamp": {
+    "locale": "zh-CN",
+    "data": {
+      "image": "/assets/intl/Assets/AddressableResources/Stamp/illust/stamp_illust_tomori_001.png",
+      "layers": [
+        {
+          "id": "art",
+          "image": {
+            "x": 50,
+            "y": 50,
+            "scale": 100,
+            "rotation": 0
+          },
+          "settings": {
+            "text": "",
+            "x": 50,
+            "y": 75,
+            "size": 15,
+            "rotation": 0,
+            "font": "auto",
+            "fill": "#ffffff",
+            "stroke": "#000000",
+            "strokeWidth": 4,
+            "writingMode": "horizontal"
+          },
+          "colorCharacter": "custom",
+          "backgroundCharacter": "custom",
+          "colorWasChosen": false
+        }
+      ],
+      "sourceSize": {
+        "width": 512,
+        "height": 512
+      },
+      "size": 512
+    }
+  },
+  "chart": {
+    "locale": "en",
+    "data": {
+      "server": "intl",
+      "height": 720,
+      "chart": {
+        "version": 1,
+        "bpmChanges": [
+          {
+            "tick": 0,
+            "beat": 0,
+            "timeMs": 0,
+            "bpm": 120
+          }
+        ],
+        "signatureChanges": [
+          {
+            "tick": 0,
+            "beat": 0,
+            "timeMs": 0,
+            "numerator": 4,
+            "denominator": 4
+          }
+        ],
+        "timeScaleChanges": [],
+        "notes": [
+          {
+            "id": 0,
+            "tick": 0,
+            "timeMs": 0,
+            "beat": 0,
+            "pos": 0,
+            "size": 4,
+            "laneX": -0.8333333333333334,
+            "width": 0.3333333333333333,
+            "operateType": 1,
+            "judgementType": 1,
+            "judgementAreaOffsetType": 0,
+            "direction": 0,
+            "critical": false,
+            "judged": true,
+            "visible": true,
+            "lineIds": [],
+            "slideAlong": false,
+            "indexInLine": null,
+            "easeL": null,
+            "easeR": null
+          },
+          {
+            "id": 1,
+            "tick": 480,
+            "timeMs": 500,
+            "beat": 1,
+            "pos": 4,
+            "size": 4,
+            "laneX": -0.5,
+            "width": 0.3333333333333333,
+            "operateType": 1,
+            "judgementType": 1,
+            "judgementAreaOffsetType": 0,
+            "direction": 0,
+            "critical": false,
+            "judged": true,
+            "visible": true,
+            "lineIds": [],
+            "slideAlong": false,
+            "indexInLine": null,
+            "easeL": null,
+            "easeR": null
+          },
+          {
+            "id": 2,
+            "tick": 960,
+            "timeMs": 1000,
+            "beat": 2,
+            "pos": 8,
+            "size": 4,
+            "laneX": -0.16666666666666663,
+            "width": 0.3333333333333333,
+            "operateType": 1,
+            "judgementType": 1,
+            "judgementAreaOffsetType": 0,
+            "direction": 0,
+            "critical": false,
+            "judged": true,
+            "visible": true,
+            "lineIds": [],
+            "slideAlong": false,
+            "indexInLine": null,
+            "easeL": null,
+            "easeR": null
+          },
+          {
+            "id": 3,
+            "tick": 1440,
+            "timeMs": 1500,
+            "beat": 3,
+            "pos": 12,
+            "size": 4,
+            "laneX": 0.16666666666666674,
+            "width": 0.3333333333333333,
+            "operateType": 1,
+            "judgementType": 1,
+            "judgementAreaOffsetType": 0,
+            "direction": 0,
+            "critical": false,
+            "judged": true,
+            "visible": true,
+            "lineIds": [],
+            "slideAlong": false,
+            "indexInLine": null,
+            "easeL": null,
+            "easeR": null
+          }
+        ],
+        "lines": [],
+        "timeline": {
+          "skills": [],
+          "fever": [],
+          "callChanges": []
+        },
+        "durationMs": 1500
+      },
+      "meta": {
+        "title": "Custom chart",
+        "difficultyName": "expert",
+        "displayLevel": "1",
+        "locale": "en",
+        "stats": []
+      }
+    }
+  }
+}

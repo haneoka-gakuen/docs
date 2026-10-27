@@ -1,0 +1,81 @@
+---
+title: API でサイトの画像を保存する
+description: API でサイトの画像を保存する
+---
+
+サイトの画像保存には対応する HTTP API があります。原画はカタログのメディア URL、合成画像はサイトと同じ描画を使います。公開 API は PNG または ZIP を返します。
+
+## 画像の API
+
+| 画像 | API |
+| --- | --- |
+| 元画像 | `images.* / image / jacketUrl` |
+| 公式譜面の全体画像 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
+| プロフィールカード | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 編成結果 | `POST /api/v1/team-builder/image.png` |
+| ガチャシミュレーション | `POST /api/v1/gacha/simulation/image.png` |
+| ガチャ履歴 1 ページ／全ページ | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
+| スタンプ合成 | `POST /api/v1/stamps/image.png` |
+| ローカル・コミュニティ譜面 | `POST /api/v1/charts/image.png` |
+| Live2D／Spine | `GET / POST /api/v1/live2d/{id}/image.png` / `/api/v1/spine/{id}/image.png` |
+
+既存モデルと公式譜面は GET、合成と表示状態は POST です。本文は `{data, locale?, theme?, seed?}`。data の型は[リファレンス](/ja/reference/images/)、全フィールドは [OpenAPI](/openapi.json) を参照。[編成](/examples/team-image.json)、[ガチャ](/examples/gacha-image.json)、[履歴](/examples/history-image.json)、[スタンプ](/examples/stamp-image.json)の完全なリクエストを取得できます。編成の data.release は現在の release API から取得して固定してください。
+
+## モデルの撮影
+
+両モデルは server、release、表示領域の width／height、秒数 time、正規化 RGB または null の background、`transform: {offsetX, offsetY, scale}` を指定できます。サイトと同じ最大 400 万画素の撮影を行い、出力寸法は X-Haneoka-Image-Width／-Height にあります。GET は簡単な指定、POST は完全な状態です。`/api/v1/servers/{server}/live2d/{id}/image.png` と spine の形式も使えます。
+
+Live2D は motion、expression、loop、breath、blink、look、parameters、parts を指定できます。保存したポーズ JSON の parameters と parts をそのまま渡せます。Spine は animation、skin、loop、playbackRate を指定でき、time まで 60 Hz で進めます。ID、モーション名、スキンは同じサーバーのモデル詳細から取得します。既定の背景は透明です。
+
+```sh
+curl 'https://haneoka.org/api/v1/live2d/001_casual_spring_01/image.png?server=intl&time=0' -o live2d.png
+curl 'https://haneoka.org/api/v1/spine/01_mygo_01_cafe_01_anon/image.png?server=intl&time=1' -o spine.png
+```
+
+## スタンプを合成する
+
+image は原画または文字なし画像の URL。画像レイヤーで絵を配置し、文字レイヤーは StampText を使います。sourceSize はスタンプ資源の実効寸法、size は 1〜512 の正方形です。`fonts[{family,source}]` は追加フォントです。ホスト側はサイト内 URL と base64 PNG／JPEG／WebP・フォントデータを受け付けます。アカウント情報は保存しません。
+
+```sh
+curl 'https://docs.haneoka.org/examples/stamp-image.json' -o stamp-image.json
+curl -H 'Content-Type: application/json' --data-binary @stamp-image.json \
+  'https://haneoka.org/api/v1/stamps/image.png' -o stamp.png
+```
+
+## 端末上で実行する
+
+先に両方のスタイルシートを読み込みます。renderResourceImage は端末で処理し `{blob, width, height, fileName}` を返します。requestResourceImage は同じリクエストを HTTP API に送って Blob を返します。編成・ガチャ・履歴には画面の表示データを渡せるため、計算と描画を端末上で実行できます。
+
+```html
+<link rel="stylesheet" href="https://haneoka.org/tools/fonts.css">
+<link rel="stylesheet" href="https://haneoka.org/tools/image-theme.css">
+<script type="module">
+  import { renderResourceImage, requestResourceImage } from "https://haneoka.org/tools/images.js";
+  const recipe = await fetch("https://docs.haneoka.org/examples/stamp-image.json").then(r => r.json());
+  const local = await renderResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  const hosted = await requestResourceImage({ kind: "stamp", ...recipe }, { apiBase: "https://haneoka.org/api/v1/" });
+  console.log(local.blob, hosted);
+</script>
+```
+
+## カスタム譜面
+
+data.chart はエディターの ChartDocument、data.meta はタイトル・難易度・統計です。ゲームの譜面ファイルは parseChartScore で解析できます。同じゲームスキンと全体画像のレイアウトを使います。
+
+```js
+import { parseChartScore, requestResourceImage } from "https://haneoka.org/tools/images.js";
+const apiBase = "https://haneoka.org/api/v1/";
+const identity = await fetch(apiBase + "servers/intl/release?projection=identity").then(r => r.json());
+const song = await fetch(apiBase + `songs/100001?server=intl&release=${identity.releaseId}`).then(r => r.json());
+const difficulty = song.difficulty.find(d => d.difficultyName === "expert");
+const url = new URL(difficulty.file, apiBase); url.searchParams.set("release", identity.releaseId);
+const chart = await parseChartScore(await fetch(url).then(r => r.text()));
+const blob = await requestResourceImage({ kind: "chart", locale: "en", data: {
+  chart, server: "intl", release: identity.releaseId, height: 720,
+  meta: { title: "100001", difficultyName: "expert", displayLevel: "?", locale: "en", stats: [] },
+} }, { apiBase });
+```
+
+## ローカル HTTP と制限
+
+インストールと Bearer ファイルは[ローカル計算ガイド](/ja/guides/local-computation/)を参照。Cubism を準備した後、POST /v1/resource-image に `{kind, data, id?, locale?, theme?, seed?, page?, archive?}` を送り画像を取得します。resource-image ジョブではこのオブジェクトを request に指定します。同時実行は 1 件。同期画像は 50 秒、JSON 8 MiB、出力 16 MiB。/v1/jobs の本文は 2 MiB です。履歴 PNG は既定 1 ページ、?page=2 で 2 ページ、images.zip は全ページ。合成・譜面は最大 1200 万画素。ホストの上限時は 429 と Retry-After、端末処理は呼び出し元のリソースを使います。

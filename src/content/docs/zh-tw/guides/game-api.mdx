@@ -1,0 +1,39 @@
+---
+title: 網站、指令碼與 Agent 的遊戲資料呼叫
+description: 依使用情境選擇介面、區服、ID 與回應格式。
+---
+
+先讀取 `GET https://haneoka.org/api/v1`。入口列出完整 OpenAPI、版本列表、各版本資源目錄、遊戲能力與本機計算模組。公開讀取使用 GET 或 HEAD。錯誤沿用 `{ "error": { "code", "message", "requestId" } }`；HEAD 的狀態與標頭相同，本文為空。
+
+| 使用情境 | 介面 |
+| --- | --- |
+| 遊戲資料與規則 | `/api/v1/servers/{server}/catalog`，再依回傳的資源、檢視與關係路徑讀取 |
+| 單一、批次、完整集合 | `/api/v1/{resource}/{id}`、重複 `id`、游標分頁；讀至 `nextCursor` 為 null |
+| 音訊、封面、卡面、模型、字型與素材描述 | 使用回傳的 `/assets/`、`/runtime/` 與描述路徑，固定同一 release |
+| 原始譜面、統計與難度 | `songs/{id}` 的 `difficulty[].file`；`song-meta/{id}` 的各難度統計 |
+| 玩家資料、批次資料、收藏、資料卡 | `/api/v1/players/{profileId}?region={region}`、`/api/v1/players?accountId=…&region={region}`、`/api/v1/players/favorites?accountId={accountId}&region={region}`、`/api/v1/players/{profileId}/cards/{page}.png?region={region}` |
+| 歌曲榜、活動榜、挑戰榜、競技場榜 | `/songs/{songId}/ranking`、`/events/{eventId}/ranking?rank=1&rank=100`、`/events/challenges/{challengeId}/ranking`、`/arena/seasons/{seasonId}/ranking?start=1&end=100`，均位於遊戲區服下 |
+| 活動編隊、熱門競技場編隊 | `/events/{eventId}/decks/{accountId}`、`/arena/seasons/{seasonId}/songs/{songId}/decks` |
+| 圈子詳情與名稱搜尋 | `/circles/{circleId}`、`/circles?name=…`；可加入 `memberRange`、`joinRule`、`playStyle` |
+| 招募池與商品 | `/api/v1/gacha/{gachaId}?server={server}` 的 `rates`、`featured`、`drawOptions` 與保底、自選規則 |
+| 商品與自選 UP 機率 | `/api/v1/gacha/{gachaId}/rates?productId=…&pickupId=…&region={region}` |
+| 公告封存與遊戲內公告 | `/api/v1/announcements?server={server}&locale={locale}`；遊戲介面為 `/api/v1/announcements/views/live?region={region}` 與 `/announcements/{announcementId}/live` |
+| 活動時間與榜線快照 | `/api/v1/events/views/live?region={region}`、`/events/views/current`、`/events/{eventId}/snapshots`、`/events/{eventId}/snapshots/latest`、`/events/{eventId}/challenges` |
+| 挑戰快照與公告歷史版本 | `/events/{eventId}/challenges/{challengeId}/ranking`、`/announcements/{announcementId}/revisions` |
+| 私人庫存、Box、工作區、招募紀錄 | [帳號同步介面](/zh-tw/auth/) |
+| 配隊、評分、成長分析、譜面圖片 | [本機計算](/zh-tw/guides/local-computation/) |
+
+`server` 為 `jp` 或 `intl`；`region` 為 `jp`、`tw`、`en`、`kr`；`locale` 單獨決定語言。64 位元 ID 保留為字串。公開 profileId 與 accountId、challengeId 與 songId 各不相同。ID 必須來自同區服。
+
+```js
+import { createGameClient } from "https://haneoka.org/tools/api-client.js";
+const game = createGameClient({ region: "jp" });
+const ranking = await game.songRanking("100001");
+for (const row of ranking.players ?? []) console.log(row.playerData?.profileId, row.score);
+const profiles = await game.profiles(accountIds);
+const circle = await game.circles({ name: circleName, joinRule: "AUTO" });
+```
+
+陣列使用重複鍵，如 `accountId=1&accountId=2`、`rank=1&rank=100`、`pickupId=1&pickupId=2`，最多 100 項。標量只出現一次。未知參數或重複標量回傳 400。[參考文件](/zh-tw/reference/game/)列出必填參數。歌曲榜保持回傳順序；缺少名次不補零。保存活動快照時保留 `stale`、`frozen`、`parts` 與採集時間。429/503 遵守 `Retry-After` 並指數退避。遊戲 OpenAPI 位於 `/api/v1/openapi.json`。
+
+下載存檔：`GET /api/v1/players/{profileId}/save.gz?server={saveServer}`，以服務端或本機指令碼傳入 `X-Game-Application-Key`；應用須已獲得該存檔的明確授權。profileId 是存檔頂層 _profileId，與帳號／玩家 ID 分開。`saveServer` 為 `jp` 或 `intl`，結果是最多 8 MiB 的 `application/gzip`，儲存為 `.json.gz`。回應不帶 HTTP `Content-Encoding`，沒有授權回傳 404。金鑰保存在服務端。羽丘帳號已有資料則沿用帳號同步介面與羽丘工作階段。

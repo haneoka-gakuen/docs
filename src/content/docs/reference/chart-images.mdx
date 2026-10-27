@@ -1,0 +1,18 @@
+---
+title: "Chart images"
+description: "Render any chart of the current release as a shareable SVG or PNG overview."
+---
+
+import Endpoint from "../../../components/Endpoint.astro";
+
+Uses the same native note atlas, ribbons, jacket, icons, fonts and image layout as the website download. Pin a release for reproducible inputs. PNG is rendered by a browser service; SVG contains that same PNG. The complete chart is arranged in columns. Device-side export is available in the [local computation guide](/guides/local-computation/). ETag revalidation includes the release, image options and content hash.
+
+## Render a chart
+
+### Render a chart image
+
+<Endpoint id="chart-images.alias" />
+
+### Render a chart image for a server
+
+<Endpoint id="chart-images.scoped" />

@@ -1,0 +1,18 @@
+---
+title: "谱面图片"
+description: "把当前版本的任意谱面渲染为便于分享的 SVG 或 PNG 总览图。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+与网页下载共用原生音符图集、滑条、封面、图标、字体与图片排版。固定 release 可复现输入；浏览器服务生成 PNG，SVG 内嵌同一 PNG。整张谱面分栏排布。设备端导出见[本地计算指南](/zh-cn/guides/local-computation/)。ETag 包含版本、图片选项与内容哈希。
+
+## 渲染谱面
+
+### 渲染谱面图片
+
+<Endpoint id="chart-images.alias" />
+
+### 按服务器渲染谱面图片
+
+<Endpoint id="chart-images.scoped" />

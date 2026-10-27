@@ -1,0 +1,66 @@
+---
+title: "图片导出"
+description: "网页全部图片保存入口及对应 API。"
+---
+
+import Endpoint from "../../../../components/Endpoint.astro";
+
+原始卡面、封面等使用目录中的图片地址，见[媒体 API](/zh-cn/servers/media/)；官方谱面 PNG／SVG 见[谱面图片 API](/zh-cn/reference/chart-images/)，玩家资料卡见[玩家资源 API](/zh-cn/reference/game/)。以下接口补齐其余网页图片。POST JSON 为 &#123;data, locale?, theme?, seed?&#125;，完整嵌套字段已包含在 [OpenAPI](/openapi.json) 和[设备 schema](https://haneoka.org/tools/schema.json) 中。[图片导出指南](/zh-cn/guides/image-exports/)提供请求、设备执行与状态示例。
+
+## 合成图片
+
+### 配队结果图
+
+<Endpoint id="images.0.post" />
+
+### 招募模拟图
+
+<Endpoint id="images.1.post" />
+
+### 招募历史报表
+
+<Endpoint id="images.2.post" />
+
+### 历史报表 ZIP
+
+<Endpoint id="images.3.post" />
+
+### 贴图合成
+
+<Endpoint id="images.4.post" />
+
+### 自定义谱面图
+
+<Endpoint id="images.5.post" />
+
+### Live2D 默认截图
+
+<Endpoint id="images.6.get" />
+
+### Live2D 截图
+
+<Endpoint id="images.6.post" />
+
+### Live2D 默认截图（指定资源服）
+
+<Endpoint id="images.6.get.scoped" />
+
+### Live2D 截图（指定资源服）
+
+<Endpoint id="images.6.post.scoped" />
+
+### Spine 默认截图
+
+<Endpoint id="images.7.get" />
+
+### Spine 截图
+
+<Endpoint id="images.7.post" />
+
+### Spine 默认截图（指定资源服）
+
+<Endpoint id="images.7.get.scoped" />
+
+### Spine 截图（指定资源服）
+
+<Endpoint id="images.7.post.scoped" />
