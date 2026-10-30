@@ -32,7 +32,7 @@ const fields = [...params.map((param) => field(param, "path")), ...query.map((pa
     <button type="button" data-api-copy>{text.copy}</button>
     <span class="api-try__status" role="status" aria-live="polite" data-api-status>{text.idle}</span>
   </div>
-  <img class="api-try__image" data-api-image alt="" hidden />
+  <img class="api-try__image" data-api-image alt="" referrerpolicy="no-referrer" hidden />
   <pre class="api-try__output" tabindex="0" data-api-output hidden></pre>
 </api-try>
 <script>
@@ -103,7 +103,7 @@ const fields = [...params.map((param) => field(param, "path")), ...query.map((pa
   .api-try__line { display: flex; align-items: center; gap: var(--md-sys-spacing-2); min-width: 0; }
   .api-try__line code { overflow-wrap: anywhere; background: none; font-size: var(--sl-text-sm); }
   .api-try__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--md-sys-spacing-3); }
-  .api-try__fields label > * { margin-block: 0 !important; }
+  .api-try__fields > label, .api-try__fields label > * { margin-block: 0 !important; }
   .api-try__fields label { display: grid; gap: var(--md-sys-spacing-1); color: var(--md-sys-color-on-surface-variant); font-size: var(--sl-text-xs); }
   .api-try__fields :is(input, select) {
     box-sizing: border-box; width: 100%; height: var(--md-comp-control-height-touch); margin: 0; padding-inline: var(--md-sys-spacing-3);

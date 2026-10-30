@@ -37,10 +37,10 @@ console.log(songs.length);
 
 ## 3. Show it on a page
 
-Image fields are paths on haneoka.org. Add the origin to use them:
+Image fields are paths on haneoka.org. Add the origin to use them, and set `referrerpolicy="no-referrer"`: files refuse requests that name another site as the referrer.
 
 ```html
-<img id="jacket" alt="" width="240" height="240">
+<img id="jacket" alt="" width="240" height="240" referrerpolicy="no-referrer">
 <h1 id="title"></h1>
 <script type="module">
   const origin = "https://haneoka.org";
