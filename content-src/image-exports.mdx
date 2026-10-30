@@ -14,7 +14,7 @@ Every image saved by the website has an HTTP route. Raw artwork uses the catalog
 | --- | --- |
 | Original images | `images.* / image / jacketUrl` |
 | Official chart overview | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| Player profile card | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| Player profile card | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | Team result | `POST /api/v1/team-builder/image.png` |
 | Recruitment simulation | `POST /api/v1/gacha/simulation/image.png` |
 | Recruitment history page / all pages | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
@@ -98,7 +98,7 @@ description: 通过 API 导出网页图片
 | --- | --- |
 | 原始图片 | `images.* / image / jacketUrl` |
 | 官方谱面概览 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| 玩家资料卡 | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 玩家资料卡 | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | 配队结果 | `POST /api/v1/team-builder/image.png` |
 | 招募模拟 | `POST /api/v1/gacha/simulation/image.png` |
 | 招募历史单页／全部页 | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
@@ -182,7 +182,7 @@ description: 透過 API 匯出網頁圖片
 | --- | --- |
 | 原始圖片 | `images.* / image / jacketUrl` |
 | 官方譜面概覽 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| 玩家資料卡 | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 玩家資料卡 | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | 配隊結果 | `POST /api/v1/team-builder/image.png` |
 | 招募模擬 | `POST /api/v1/gacha/simulation/image.png` |
 | 招募歷史單頁／全部頁 | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
@@ -266,7 +266,7 @@ description: API でサイトの画像を保存する
 | --- | --- |
 | 元画像 | `images.* / image / jacketUrl` |
 | 公式譜面の全体画像 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| プロフィールカード | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| プロフィールカード | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | 編成結果 | `POST /api/v1/team-builder/image.png` |
 | ガチャシミュレーション | `POST /api/v1/gacha/simulation/image.png` |
 | ガチャ履歴 1 ページ／全ページ | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |
@@ -350,7 +350,7 @@ description: API로 사이트 이미지 내보내기
 | --- | --- |
 | 원본 이미지 | `images.* / image / jacketUrl` |
 | 공식 채보 개요 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| 프로필 카드 | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 프로필 카드 | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | 편성 결과 | `POST /api/v1/team-builder/image.png` |
 | 모집 시뮬레이션 | `POST /api/v1/gacha/simulation/image.png` |
 | 모집 기록 한 페이지／전체 | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |

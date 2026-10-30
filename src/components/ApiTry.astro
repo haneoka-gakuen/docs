@@ -1,0 +1,123 @@
+---
+// A live request: edit the parameters, send it, read the real response.
+interface Param { name: string; value: string; label?: string; options?: string[] }
+interface Props { method?: "GET"; path: string; params?: Param[]; query?: Param[]; locale?: "en" | "zh-CN"; image?: string }
+const { method = "GET", path, params = [], query = [], locale = "en", image } = Astro.props;
+const zh = locale === "zh-CN";
+const text = zh
+  ? { send: "发送请求", copy: "复制 curl", idle: "尚未发送", sending: "请求中…", failed: "请求失败", copied: "已复制" }
+  : { send: "Send request", copy: "Copy curl", idle: "Not sent yet", sending: "Sending…", failed: "Request failed", copied: "Copied" };
+const field = (param: Param, kind: string) => ({ ...param, kind });
+const fields = [...params.map((param) => field(param, "path")), ...query.map((param) => field(param, "query"))];
+---
+<api-try class="api-try" data-path={path} data-image={image} data-text={JSON.stringify(text)}>
+  <div class="api-try__line">
+    <span class="api-method" data-method={method}>{method}</span>
+    <code data-api-url>{path}</code>
+  </div>
+  {fields.length > 0 && (
+    <div class="api-try__fields">
+      {fields.map((item) => (
+        <label>
+          <span>{item.label ?? item.name}</span>
+          {item.options
+            ? <select data-kind={item.kind} data-name={item.name}>{item.options.map((option) => <option selected={option === item.value}>{option}</option>)}</select>
+            : <input data-kind={item.kind} data-name={item.name} value={item.value} spellcheck="false" autocomplete="off" />}
+        </label>
+      ))}
+    </div>
+  )}
+  <div class="api-try__actions">
+    <button type="button" data-api-send>{text.send}</button>
+    <button type="button" data-api-copy>{text.copy}</button>
+    <span class="api-try__status" role="status" aria-live="polite" data-api-status>{text.idle}</span>
+  </div>
+  <img class="api-try__image" data-api-image alt="" hidden />
+  <pre class="api-try__output" tabindex="0" data-api-output hidden></pre>
+</api-try>
+<script>
+  const ORIGIN = "https://haneoka.org";
+  const LIMIT = 6000;
+  class ApiTry extends HTMLElement {
+    connectedCallback() {
+      if (this.dataset.ready) return;
+      this.dataset.ready = "1";
+      const text = JSON.parse(this.dataset.text!);
+      const part = <T extends HTMLElement>(name: string) => this.querySelector<T>(`[data-api-${name}]`)!;
+      const url = () => {
+        let path = this.dataset.path!;
+        const search = new URLSearchParams();
+        for (const input of this.querySelectorAll<HTMLInputElement>("[data-kind]")) {
+          if (input.dataset.kind === "path") path = path.replace(`{${input.dataset.name}}`, encodeURIComponent(input.value));
+          else if (input.value) search.set(input.dataset.name!, input.value);
+        }
+        return ORIGIN + path + (search.size ? `?${search}` : "");
+      };
+      const show = () => { part("url").textContent = url(); };
+      this.addEventListener("input", show);
+      show();
+      part<HTMLButtonElement>("copy").addEventListener("click", async () => {
+        await navigator.clipboard.writeText(`curl --fail-with-body '${url()}'`);
+        part("status").textContent = text.copied;
+      });
+      part<HTMLButtonElement>("send").addEventListener("click", async () => {
+        const status = part("status"), output = part("output"), image = part<HTMLImageElement>("image");
+        status.textContent = text.sending;
+        image.hidden = true;
+        const started = performance.now();
+        try {
+          const response = await fetch(url(), { headers: { accept: "application/json" } });
+          const body = await response.text();
+          let shown = body;
+          try {
+            const value = JSON.parse(body);
+            shown = JSON.stringify(value, null, 2);
+            const pick = this.dataset.image?.split(".").reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], value);
+            if (typeof pick === "string" && pick) {
+              image.src = new URL(pick, ORIGIN).href;
+              image.hidden = false;
+            }
+          } catch { /* Not JSON: shown as text. */ }
+          const size = new Blob([body]).size;
+          status.textContent = `${response.status} · ${Math.round(performance.now() - started)} ms · ${size.toLocaleString()} B`;
+          output.textContent = shown.length > LIMIT ? `${shown.slice(0, LIMIT)}\n…` : shown;
+          output.hidden = false;
+        } catch (error) {
+          status.textContent = `${text.failed}: ${error instanceof Error ? error.message : error}`;
+        }
+      });
+    }
+  }
+  if (!customElements.get("api-try")) customElements.define("api-try", ApiTry);
+</script>
+<style is:global>
+  .api-try {
+    display: grid;
+    gap: var(--md-sys-spacing-3);
+    margin-block: var(--md-sys-spacing-4);
+    padding: var(--md-sys-spacing-4);
+    border-radius: var(--md-sys-shape-corner-large);
+    background: var(--md-sys-color-surface-container-low);
+  }
+  .api-try > * { margin-block: 0 !important; min-width: 0; }
+  .api-try__line { display: flex; align-items: center; gap: var(--md-sys-spacing-2); min-width: 0; }
+  .api-try__line code { overflow-wrap: anywhere; background: none; font-size: var(--sl-text-sm); }
+  .api-try__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--md-sys-spacing-3); }
+  .api-try__fields label > * { margin-block: 0 !important; }
+  .api-try__fields label { display: grid; gap: var(--md-sys-spacing-1); color: var(--md-sys-color-on-surface-variant); font-size: var(--sl-text-xs); }
+  .api-try__fields :is(input, select) {
+    box-sizing: border-box; width: 100%; height: var(--md-comp-control-height-touch); margin: 0; padding-inline: var(--md-sys-spacing-3);
+    border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small);
+    color: var(--md-sys-color-on-surface); background: var(--md-sys-color-surface); font: 1rem var(--sl-font-mono);
+  }
+  .api-try__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--md-sys-spacing-2); }
+  .api-try__actions button {
+    box-sizing: border-box; height: var(--md-comp-control-height-touch); margin: 0; padding-inline: var(--md-sys-spacing-4); border: 0;
+    border-radius: var(--md-sys-shape-corner-full); color: var(--md-sys-color-on-secondary-container);
+    background: var(--md-sys-color-secondary-container); font: var(--md-sys-typescale-label-large-weight) var(--md-sys-typescale-label-large-size) / 1 var(--app-font); cursor: pointer;
+  }
+  .api-try__actions button[data-api-send] { color: var(--md-sys-color-on-primary); background: var(--md-sys-color-primary); }
+  .api-try__status { color: var(--md-sys-color-on-surface-variant); font-size: var(--sl-text-xs); font-variant-numeric: tabular-nums; }
+  .api-try__image { max-width: 100%; max-height: 16rem; border-radius: var(--md-sys-shape-corner-medium); }
+  .api-try__output { max-height: 24rem; margin: 0; overflow: auto; padding: var(--md-sys-spacing-3); border-radius: var(--md-sys-shape-corner-medium); background: var(--md-sys-color-surface); font: var(--sl-text-xs) / 1.5 var(--sl-font-mono); }
+</style>

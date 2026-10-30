@@ -12,8 +12,6 @@ const errors = ["invalid_request", "not_found", "rate_limit_exceeded",
 const discovery = [
  ["/api/v1", "api.discover", L("Discover the API", "API の機能一覧", "API 기능 확인", "发现 API 能力", "探索 API 能力")],
  ["/api/v1/openapi.json", "api.openapi", L("Complete OpenAPI", "完全な OpenAPI", "전체 OpenAPI", "完整 OpenAPI", "完整 OpenAPI")],
- ["/api/v1/live-capabilities", "api.game", L("Game capabilities", "ゲーム機能", "게임 기능", "游戏能力", "遊戲能力")],
- ["/api/v1/live-capabilities/openapi.json", "api.game-schema", L("Game OpenAPI", "ゲーム OpenAPI", "게임 OpenAPI", "游戏 OpenAPI", "遊戲 OpenAPI")],
  ["/api/v1/tools", "api.tools", L("Device computation modules", "端末計算モジュール", "기기 계산 모듈", "设备计算模块", "裝置計算模組")],
 ].map(([path, id, title]) => ({ path, id, title, method: "GET", methods: ["GET", "HEAD"], auth: "none", cache: "public, max-age=300",
  description: L("Machine-readable entry points, request contracts and tool modules.", "機械可読の入口、リクエスト契約、ツールモジュール。", "기계가 읽을 수 있는 진입점·요청 계약·도구 모듈.", "机器可读的入口、请求契约与工具模块。", "機器可讀的入口、請求契約與工具模組。"),
@@ -41,13 +39,7 @@ localEndpoints.push({
 });
 localEndpoints.push({ ...local("tools.image-zip", "GET", "/v1/jobs/{id}/images.zip", L("Download report image ZIP", "レポート画像 ZIP の取得", "보고서 이미지 ZIP 다운로드", "下载报表图片 ZIP", "下載報表圖片 ZIP"), L("Use the exact image URL returned by a completed resource-image archive job.", "完了した resource-image の画像 URL を使います。", "완료된 resource-image 작업이 반환한 이미지 URL을 사용하세요.", "使用已完成 resource-image 归档任务返回的图片地址。", "使用已完成 resource-image 封存任務回傳的圖片位址。"), { request: { path: `/v1/jobs/${job.id}/images.zip`, binary: true }, response: { status: 200, binary: true } }, [jobParam]), responseContentType: "application/zip" });
 
-const save = { id: "game.save", method: "GET", methods: ["GET", "HEAD"], path: "/api/v1/players/{profileId}/save.gz", title: L("Download an authorized save", "許可済みセーブの取得", "허가된 저장 파일 다운로드", "下载已授权存档", "下載已授權存檔"), description: L("Original gzip bytes, at most 8 MiB. The caller's application key must have explicit access to this save. Missing access returns 404. Keys belong in server or local script configuration.", "元の gzip（最大 8 MiB）。呼び出しアプリがそのセーブへの明示的な許可を持つ必要があります。許可がなければ 404。キーはサーバーかローカルスクリプトに保存。", "원본 gzip(최대 8 MiB). 호출 앱 키는 해당 저장 파일의 명시적 권한이 있어야 합니다. 권한이 없으면 404. 키는 서버나 로컬 스크립트에 저장하세요.", "原始 gzip 字节，最多 8 MiB；调用应用密钥须有该存档的明确授权，缺少授权返回 404。密钥保存在服务端或本地脚本配置中。", "原始 gzip 位元組，最多 8 MiB；呼叫應用金鑰須有該存檔的明確授權，缺少授權回傳 404。金鑰保存在服務端或本機指令碼設定。"), auth: "gameApplication", cache: "no-store", params: [
- { name: "server", in: "query", type: "string", schema: { enum: ["jp", "intl"] }, required: true, desc: L("Save server: jp or intl.", "セーブのサーバー：jp/intl。", "저장 서버: jp/intl.", "存档服：jp 或 intl。", "存檔服：jp 或 intl。") },
- { name: "profileId", in: "path", type: "string", required: true, desc: L("The save’s top-level _profileId. Distinct from the account/player ID used for favorites.", "セーブ最上位の _profileId。お気に入りで使うアカウント ID とは別。", "저장 파일 최상위 _profileId. 즐겨찾기의 계정 ID와 다릅니다.", "存档顶层 _profileId，与收藏接口的账号／玩家 ID 不同。", "存檔頂層 _profileId，與收藏介面的帳號／玩家 ID 不同。") },
- { name: "X-Game-Application-Key", in: "header", type: "string", required: true, desc: L("Application key with access to this save.", "このセーブへの許可を持つアプリキー。", "해당 저장 파일 권한을 가진 앱 키.", "拥有该存档访问权限的应用密钥。", "擁有該存檔存取權限的應用金鑰。") },
-], responseContentType: "application/gzip", example: { request: { path: "/api/v1/players/1/save.gz?server=jp", headers: { "X-Game-Application-Key": "${gameApplicationKey}" }, binary: true }, response: { status: 200, binary: true } }, errors };
 export default { slug: "reference/tools", title: L("Programmatic tools", "プログラム用ツール", "프로그램 도구", "程序化工具", "程式化工具"), description: L("Discovery, local jobs and authorized exports.", "機能一覧、ローカルジョブ、許可済みエクスポート。", "기능 확인·로컬 작업·허가된 내보내기.", "能力发现、本地任务与授权导出。", "能力探索、本機任務與授權匯出。"), intro: L("Public discovery runs on haneoka.org. Job endpoints run on your local service; see the [local computation guide](/guides/local-computation/) for startup and complete examples.", "公開機能一覧は haneoka.org、ジョブはローカルサービスで実行します。起動と例は[ローカル計算ガイド](/guides/local-computation/)を参照。", "공개 기능 확인은 haneoka.org에서, 작업은 로컬 서비스에서 실행합니다. 시작과 예제는 [로컬 계산 안내](/guides/local-computation/)를 확인하세요.", "公开发现接口位于 haneoka.org，任务接口运行在本地服务。启动与完整示例见[本地计算指南](/guides/local-computation/)。", "公開探索介面位於 haneoka.org，任務介面執行於本機服務。啟動與完整範例見[本機計算指南](/guides/local-computation/)。"), sections: [
  { title: L("Discover", "機能一覧", "기능 확인", "发现", "探索"), endpoints: discovery },
  { title: L("Local computation", "ローカル計算", "로컬 계산", "本地计算", "本機計算"), endpoints: localEndpoints },
- { title: L("Authorized export", "許可済みエクスポート", "허가된 내보내기", "授权导出", "授權匯出"), endpoints: [save] },
 ] };

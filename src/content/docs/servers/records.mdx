@@ -1,0 +1,90 @@
+---
+title: Game records
+description: Rankings, Arena boards and player profiles, read from Haneoka's own official snapshots.
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+Game records are snapshots of the official game, collected by Haneoka's own account pool. Every read is public and needs no key.
+
+Requests use a **region**, because each one is a separate game server:
+
+| Region | Server |
+| --- | --- |
+| `jp` | JP |
+| `tw` | TW/HK/MO |
+| `en` | EN Regions |
+| `kr` | KR |
+
+Regions are different from the `jp` and `intl` catalog servers: `tw`, `en` and `kr` all share the Global catalog.
+
+## Pending responses
+
+Data is read from stored snapshots, so a request never waits on the game. When something has not been collected yet, the API queues it and answers `503`:
+
+```json
+{ "error": { "kind": "pending", "retryAfter": 30 } }
+```
+
+Wait `retryAfter` seconds, then repeat the same request. Most reads complete within a few minutes.
+
+## Current event
+
+The running event, its dates and which boards it has. `event` is `null` between events.
+
+<ApiTry path="/api/v1/game/records/{region}/events/current" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }]} />
+
+## Event boards
+
+The total board, or one challenge song's board, with the top 100 players and their decks.
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/total/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} />
+
+```http
+GET /api/v1/game/records/{region}/events/{eventId}/challenges/{challengeId}/latest
+```
+
+| Field | Meaning |
+| --- | --- |
+| `rows[].rank`, `tied` | Position, and whether another row shares it |
+| `rows[].scoreExact` | Score as a decimal string. Use it for totals past 2^53 |
+| `rows[].profileId` | Pass to the player endpoint |
+| `rows[].profileCard` | Name card, or `null` |
+| `rows[].cards` | The five deck slots: member and Snapshot IDs with growth |
+| `observedAtMs`, `stale` | When it was collected, and whether it is overdue |
+
+## Song rankings
+
+The top 100 for one song.
+
+<ApiTry path="/api/v1/game/records/{region}/songs/{musicId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "musicId", value: "100007" }]} />
+
+## Arena boards
+
+One league's board, 100 rows at a time. `bandId` is the league's band, and `start` is a rank.
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "start", value: "1" }]} />
+
+Rows match event boards, with `point` in place of a score.
+
+## Players
+
+A public profile by the ID shown in the game.
+
+<ApiTry path="/api/v1/game/records/{region}/players/{profileId}" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "profileId", value: "59231009908" }]} image="profile.profileCard.thumbnailUrls.0" />
+
+The first read of a player may answer `pending`. Records refresh after six hours.
+
+`profileCard.pages[].downloadUrl` gives a PNG download for each page of the card.
+
+## In JavaScript
+
+```js
+import { createGameClient } from "https://haneoka.org/tools/api-client.js";
+
+const game = createGameClient({ region: "jp" });
+const { event } = await game.currentEvent();
+const board = await game.eventRanking(event.id);
+for (const row of board.rows.slice(0, 3)) console.log(row.rank, row.name, row.scoreExact);
+```
+
+The client also has `profile`, `songRanking`, `challengeRanking` and `arenaRanking`.

@@ -316,21 +316,50 @@ mobile-starlight-toc .toggle {
 .docs-demo fieldset { border: 0; padding: 0; }
 .docs-demo__languages label { display: flex; align-items: center; min-height: var(--md-comp-control-height-touch); }
 .docs-demo button {
-  min-height: var(--md-comp-control-height-touch);
-  padding: var(--md-sys-spacing-2) var(--md-sys-spacing-4);
-  border: 1px solid var(--md-sys-color-outline);
+  display: inline-flex;
+  box-sizing: border-box;
+  height: var(--md-comp-control-height-touch);
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--md-sys-spacing-4);
+  border: 0;
   border-radius: var(--md-sys-shape-corner-full);
-  font: inherit; color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-surface-container-high); cursor: pointer;
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+  font: var(--md-sys-typescale-label-large-weight) var(--md-sys-typescale-label-large-size) / 1 var(--app-font);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-radius var(--sl-doc-motion-duration) var(--sl-doc-motion-easing);
 }
-.docs-demo button[data-demo-run] { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border-color: transparent; }
+.docs-demo button:hover:not(:disabled) { border-radius: var(--md-sys-shape-corner-medium); }
+.docs-demo button:is([data-demo-run], [data-player-run]) {
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+}
+.docs-demo :is(.docs-demo__presets, .docs-demo__actions, .docs-demo__languages) { align-items: center; }
+.docs-demo .docs-demo__presets button {
+  border-radius: var(--md-sys-shape-corner-small);
+  color: var(--md-sys-color-on-surface-variant);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
+}
 .docs-demo button:disabled { opacity: .5; cursor: default; }
 .docs-demo__output { min-height: 8rem; max-height: 28rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--md-sys-spacing-3); background: var(--md-sys-color-surface); }
 .docs-demo__stage { height: clamp(22rem, 60vh, 38rem); min-width: 0; position: relative; overflow: hidden; background: var(--md-sys-color-surface-container); border-radius: var(--md-sys-shape-corner-medium); }
 .docs-demo--player input[type="number"] { width: 100%; box-sizing: border-box; min-height: var(--md-comp-control-height-touch); font: inherit; padding: var(--md-sys-spacing-2); background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small); }
-.docs-demo button[aria-pressed="true"] { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); border-color: var(--md-sys-color-secondary); }
+.docs-demo .docs-demo__presets button[aria-pressed="true"], .docs-demo button[aria-pressed="true"] { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); border-color: var(--md-sys-color-secondary); }
 .docs-demo details { padding: var(--md-sys-spacing-3); border: 1px solid var(--md-sys-color-outline-variant); border-radius: var(--md-sys-shape-corner-medium); }
 .docs-demo details[open] { display: grid; gap: var(--md-sys-spacing-3); }
 .docs-demo summary { cursor: pointer; min-height: var(--md-comp-control-height-touch); display: flex; align-items: center; font-weight: var(--md-sys-typescale-label-large-weight); }
 .docs-demo input[type="range"] { width: 100%; accent-color: var(--md-sys-color-primary); min-height: var(--md-comp-control-height-touch); }
 .docs-demo input[type="url"] { width: 100%; box-sizing: border-box; min-height: var(--md-comp-control-height-touch); font: inherit; padding: var(--md-sys-spacing-2); border: 1px solid var(--md-sys-color-outline); border-radius: var(--md-sys-shape-corner-small); background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); }
+
+/* Hero and page actions share the demo controls' height and shape. */
+.sl-link-button {
+  box-sizing: border-box;
+  height: var(--md-comp-control-height-touch);
+  padding-block: 0;
+  padding-inline: var(--md-sys-spacing-5);
+  font-size: var(--md-sys-typescale-label-large-size);
+}
+.hero .sl-link-button { min-width: 0; }

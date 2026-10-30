@@ -91,7 +91,7 @@ window.addEventListener("pagehide", () => { generation++; controller?.abort(); }
 
 ## 1. 读取当前歌曲索引
 
-省略 `server` 时，直接 resource API 读取当前国际服资料：
+省略 `server` 时，直接 resource API 读取当前Global资料：
 
 ```bash
 curl --fail-with-body https://haneoka.org/api/v1/songs
@@ -163,7 +163,7 @@ curl --fail-with-body 'https://haneoka.org/api/v1/songs/100001?server=jp'
 }
 ```
 
-省略 `server` 时使用国际服 `intl`。其他标识从[当前服务器列表](https://haneoka.org/api/v1/releases)取得，再填入 server；可用服务器随发布变化。
+省略 `server` 时使用Global `intl`。其他标识从[当前服务器列表](https://haneoka.org/api/v1/releases)取得，再填入 server；可用服务器随发布变化。
 
 ## 4. 批量读取 ID
 

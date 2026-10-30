@@ -1,0 +1,90 @@
+---
+title: 游戏记录
+description: 排行榜、激奏竞技场榜单和玩家资料，来自 Haneoka 自己采集的官方数据。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+游戏记录是官方游戏数据的快照，由 Haneoka 自己的号池采集。所有读取都是公开的，不需要密钥。
+
+请求使用 **region**，因为每个区都是独立的游戏服务器：
+
+| region | 服务器 |
+| --- | --- |
+| `jp` | JP |
+| `tw` | TW/HK/MO |
+| `en` | EN Regions |
+| `kr` | KR |
+
+region 和资料目录的 `jp`、`intl` 服务器是两回事：`tw`、`en`、`kr` 共用 Global 资料目录。
+
+## 等待中的响应
+
+数据读自已存储的快照，所以请求不会等待游戏。还没采集到的内容会进入队列，并返回 `503`：
+
+```json
+{ "error": { "kind": "pending", "retryAfter": 30 } }
+```
+
+等待 `retryAfter` 秒后重复同一请求。多数读取会在几分钟内完成。
+
+## 当前活动
+
+正在进行的活动、起止时间和它开放的榜单。活动之间 `event` 为 `null`。
+
+<ApiTry locale="zh-CN" path="/api/v1/game/records/{region}/events/current" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }]} />
+
+## 活动榜单
+
+总榜或单曲榜的前 100 名及其队伍。
+
+<ApiTry locale="zh-CN" path="/api/v1/game/records/{region}/events/{eventId}/total/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} />
+
+```http
+GET /api/v1/game/records/{region}/events/{eventId}/challenges/{challengeId}/latest
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `rows[].rank`、`tied` | 名次，以及是否与其他行同名次 |
+| `rows[].scoreExact` | 十进制字符串形式的分数，总分超过 2^53 时请用它 |
+| `rows[].profileId` | 传给玩家接口 |
+| `rows[].profileCard` | 名片，可能为 `null` |
+| `rows[].cards` | 五个队伍位置：成员、留影 ID 及养成值 |
+| `observedAtMs`、`stale` | 采集时间，以及是否已过期 |
+
+## 乐曲榜
+
+一首歌的前 100 名。
+
+<ApiTry locale="zh-CN" path="/api/v1/game/records/{region}/songs/{musicId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "musicId", value: "100007" }]} />
+
+## 激奏竞技场榜单
+
+一个联赛的榜单，每次 100 行。`bandId` 是联赛对应的乐队，`start` 是起始名次。
+
+<ApiTry locale="zh-CN" path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "start", value: "1" }]} />
+
+行结构和活动榜相同，用 `point` 代替分数。
+
+## 玩家
+
+用游戏内显示的 ID 查询公开资料。
+
+<ApiTry locale="zh-CN" path="/api/v1/game/records/{region}/players/{profileId}" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "profileId", value: "59231009908" }]} image="profile.profileCard.thumbnailUrls.0" />
+
+首次读取某位玩家时可能返回 `pending`。记录超过六小时后会刷新。
+
+`profileCard.pages[].downloadUrl` 提供名片每一页的 PNG 下载。
+
+## 在 JavaScript 中使用
+
+```js
+import { createGameClient } from "https://haneoka.org/tools/api-client.js";
+
+const game = createGameClient({ region: "jp" });
+const { event } = await game.currentEvent();
+const board = await game.eventRanking(event.id);
+for (const row of board.rows.slice(0, 3)) console.log(row.rank, row.name, row.scoreExact);
+```
+
+客户端还提供 `profile`、`songRanking`、`challengeRanking` 和 `arenaRanking`。

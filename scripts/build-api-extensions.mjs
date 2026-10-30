@@ -17,7 +17,7 @@ for (const locale of LOCALES) for (const page of REFERENCE_PAGES) {
  for(const section of page.sections){text.push(`## ${tr(section.title,locale)}`,'');for(const endpoint of section.endpoints)text.push(`### ${tr(endpoint.title,locale)}`,'',`<Endpoint id="${endpoint.id}" />`,'');}
  await writeFile(file,text.join('\n'));
 }
-for(const name of ['game-api','local-computation','image-exports']) {
+for(const name of ['local-computation','image-exports']) {
  const input=await readFile(`content-src/${name}.mdx`,'utf8'); const slug=/^slug:\s*(\S+)/mu.exec(input)[1];
  for(const section of input.split(/^@@ /mu).slice(1)){
   const line=section.indexOf('\n'),locale=section.slice(0,line).trim();let body=patchLinks(section.slice(line+1));

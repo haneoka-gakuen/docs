@@ -26,7 +26,7 @@ curl --fail-with-body https://haneoka.org/api/v1/songs/100001
 curl --fail-with-body 'https://haneoka.org/api/v1/events?server=jp'
 ```
 
-接口默认返回国际服当前资料。添加 `?server=jp` 即可读取日服的数据。
+接口默认返回Global当前资料。添加 `?server=jp` 即可读取JP的数据。
 
 ## 选择入口
 

@@ -5,7 +5,7 @@ description: "サイトの画像保存と対応 API。"
 
 import Endpoint from "../../../../components/Endpoint.astro";
 
-原画は[メディア API](/ja/servers/media/)、公式譜面は[譜面画像 API](/ja/reference/chart-images/)、プロフィールカードは[プレイヤー API](/ja/reference/game/)。以下は残りの画像保存に対応。POST JSON は &#123;data, locale?, theme?, seed?&#125;。全フィールドは [OpenAPI](/openapi.json) と[端末スキーマ](https://haneoka.org/tools/schema.json)。例は[画像ガイド](/ja/guides/image-exports/)。
+原画は[メディア API](/ja/servers/media/)、公式譜面は[譜面画像 API](/ja/reference/chart-images/)、プロフィールカードは[プレイヤー API](/ja/servers/records/)。以下は残りの画像保存に対応。POST JSON は &#123;data, locale?, theme?, seed?&#125;。全フィールドは [OpenAPI](/openapi.json) と[端末スキーマ](https://haneoka.org/tools/schema.json)。例は[画像ガイド](/ja/guides/image-exports/)。
 
 ## 生成画像
 

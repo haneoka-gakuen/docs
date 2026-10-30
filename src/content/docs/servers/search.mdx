@@ -1,0 +1,43 @@
+---
+title: Search
+description: Full-text search across the catalog, in every language at once.
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+Search covers songs, cards, characters, events, recruitment, stories and items for one catalog server. A query matches every language, so `千早爱音`, `千早愛音` and `Anon Chihaya` find the same character.
+
+<ApiTry path="/api/v1/search" query={[{ name: "q", value: "千早爱音" }, { name: "server", value: "jp", options: ["jp", "intl"] }, { name: "locale", value: "zh-CN", options: ["ja", "en", "zh-TW", "zh-CN", "ko"] }, { name: "limit", value: "5" }]} image="hits.0.image" />
+
+## Parameters
+
+| Name | Required | Meaning |
+| --- | --- | --- |
+| `q` | Yes | Search text, up to 200 characters |
+| `server` | Yes | `jp` or `intl` |
+| `locale` | Yes | Language of returned titles: `ja`, `en`, `zh-TW`, `zh-CN` or `ko` |
+| `section` | No | `catalog` or `stories` |
+| `kind` | No | One kind from `kinds`, such as `songs` |
+| `limit` | No | 1–50, default 20 |
+| `offset` | No | 0–1000 |
+
+## Response
+
+| Field | Meaning |
+| --- | --- |
+| `total` | Matches for this query |
+| `kinds` | Matches per kind, for filter chips |
+| `hits[].title`, `excerpt` | Escaped HTML with matches in `<mark>` |
+| `hits[].url` | Path of the page on haneoka.org |
+| `hits[].kind`, `section` | What the result is |
+| `hits[].image` | Thumbnail, when there is one |
+
+## Matching
+
+- Every word must match. If none match, any word may.
+- A misspelt Latin word retries on its stem, so `Mujika` finds Ave Mujica.
+- Simplified, traditional and Japanese forms of a character are the same.
+- The things themselves rank first: characters and songs, then cards and events, then stickers and items.
+
+Community posts are not included, because what they show depends on who is reading. Search them with `GET /api/v1/community/posts?q=`.
+
+`503` means the index is not ready. Try again later.

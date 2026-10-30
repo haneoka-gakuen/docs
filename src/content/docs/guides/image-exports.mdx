@@ -11,7 +11,7 @@ Every image saved by the website has an HTTP route. Raw artwork uses the catalog
 | --- | --- |
 | Original images | `images.* / image / jacketUrl` |
 | Official chart overview | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| Player profile card | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| Player profile card | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | Team result | `POST /api/v1/team-builder/image.png` |
 | Recruitment simulation | `POST /api/v1/gacha/simulation/image.png` |
 | Recruitment history page / all pages | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |

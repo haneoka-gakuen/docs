@@ -11,7 +11,7 @@ description: 透過 API 匯出網頁圖片
 | --- | --- |
 | 原始圖片 | `images.* / image / jacketUrl` |
 | 官方譜面概覽 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| 玩家資料卡 | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| 玩家資料卡 | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | 配隊結果 | `POST /api/v1/team-builder/image.png` |
 | 招募模擬 | `POST /api/v1/gacha/simulation/image.png` |
 | 招募歷史單頁／全部頁 | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |

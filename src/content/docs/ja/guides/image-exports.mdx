@@ -11,7 +11,7 @@ description: API でサイトの画像を保存する
 | --- | --- |
 | 元画像 | `images.* / image / jacketUrl` |
 | 公式譜面の全体画像 | `GET /api/v1/songs/{id}/charts/{difficulty}/image.png` |
-| プロフィールカード | `GET /api/v1/players/{id}/cards/{page}.png?region={region}` |
+| プロフィールカード | `GET /api/v1/game/records/{region}/players/{id}/cards/{page}/download?file={file}` |
 | 編成結果 | `POST /api/v1/team-builder/image.png` |
 | ガチャシミュレーション | `POST /api/v1/gacha/simulation/image.png` |
 | ガチャ履歴 1 ページ／全ページ | `POST /api/v1/gacha-history/image.png` / `POST /api/v1/gacha-history/images.zip` |

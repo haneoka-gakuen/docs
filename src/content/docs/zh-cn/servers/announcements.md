@@ -11,7 +11,7 @@ description: 获取当前游戏公告、正文与图片。
 GET /api/v1/announcements?server=intl&limit=2
 ```
 
-`server` 默认使用国际服 `intl`，日服填写 `jp`。`limit` 控制返回条数，范围为 1–100，默认 100。列表提供公告摘要，正文通过详情接口读取。
+`server` 默认使用Global `intl`，JP填写 `jp`。`limit` 控制返回条数，范围为 1–100，默认 100。列表提供公告摘要，正文通过详情接口读取。
 
 本节 JSON 是历史响应的结构示例，实际 ID、标题和图片以当前列表为准。
 
