@@ -1,0 +1,32 @@
+---
+title: Haneoka Docs
+description: Public API, embeds and tools for BanG Dream! Our Notes data.
+template: splash
+hero:
+  title: Build with Our Notes data
+  tagline: Songs, cards, stories, rankings and more, through one public API. No key needed.
+  actions:
+    - text: Quickstart
+      link: /quickstart/
+      icon: right-arrow
+    - text: API reference
+      link: /reference/openapi/
+      variant: minimal
+---
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import ApiTry from "../../components/ApiTry.astro";
+
+## Try it
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100091" }]} query={[{ name: "server", value: "jp", options: ["jp", "intl"] }]} image="jacketUrl" />
+
+## What you can build with
+
+<CardGrid>
+  <LinkCard title="Game data" description="Songs, cards, characters, events and stories, in five languages." href="/servers/catalog/" />
+  <LinkCard title="Search" description="One query across the catalog, in every language." href="/servers/search/" />
+  <LinkCard title="Game records" description="Rankings, Arena boards and player profiles from every region." href="/servers/records/" />
+  <LinkCard title="Images" description="Chart images and card artwork as PNG or SVG." href="/guides/image-exports/" />
+  <LinkCard title="Embeds" description="Play stories, charts and scenes on your own page." href="/embed/" />
+  <LinkCard title="Community" description="Posts, profiles and uploads." href="/community/" />
+</CardGrid>

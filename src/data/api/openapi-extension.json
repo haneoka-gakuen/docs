@@ -87,7 +87,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -324,7 +324,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -458,7 +458,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -637,7 +637,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -989,7 +989,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -1202,7 +1202,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -3312,7 +3312,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -3422,7 +3422,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -3977,7 +3977,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -4284,7 +4284,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -4602,7 +4602,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -4908,7 +4908,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -11024,7 +11024,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }
@@ -11282,7 +11282,7 @@
       "name": "release",
       "in": "query",
       "required": false,
-      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/concepts/servers-and-releases/).",
+      "description": "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](https://docs.haneoka.org/servers/releases/).",
       "schema": {
        "type": "string"
       }

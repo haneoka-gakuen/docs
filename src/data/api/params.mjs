@@ -18,11 +18,11 @@ export const P = {
     "資源伺服器代稱，預設 `intl`，只能傳送一次。",
   ), { default: "intl" }),
   release: p("release", "query", "string", false, L(
-    "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](/concepts/servers-and-releases/).",
-    "不変のリリースに固定します。`r-` と小文字 16 進 20 桁。省略すると現在のリリースを読みます。[サーバーとリリース](/concepts/servers-and-releases/)を参照。",
-    "변경되지 않는 릴리스로 고정합니다. `r-` 뒤에 소문자 16진수 20자리. 생략하면 현재 릴리스를 읽습니다. [서버와 릴리스](/concepts/servers-and-releases/) 참고.",
-    "固定到不可变的发布版本，格式为 `r-` 加 20 位小写十六进制。省略时读取当前版本。参见[服务器与发布版本](/concepts/servers-and-releases/)。",
-    "固定到不可變的發行版本，格式為 `r-` 加 20 位小寫十六進位。省略時讀取目前版本。參見[伺服器與發行版本](/concepts/servers-and-releases/)。",
+    "Pin an immutable release, `r-` followed by 20 lowercase hex digits. Omit it to read the current release. See [Servers and releases](/servers/releases/).",
+    "不変のリリースに固定します。`r-` と小文字 16 進 20 桁。省略すると現在のリリースを読みます。[サーバーとリリース](/servers/releases/)を参照。",
+    "변경되지 않는 릴리스로 고정합니다. `r-` 뒤에 소문자 16진수 20자리. 생략하면 현재 릴리스를 읽습니다. [서버와 릴리스](/servers/releases/) 참고.",
+    "固定到不可变的发布版本，格式为 `r-` 加 20 位小写十六进制。省略时读取当前版本。参见[服务器与发布版本](/servers/releases/)。",
+    "固定到不可變的發行版本，格式為 `r-` 加 20 位小寫十六進位。省略時讀取目前版本。參見[伺服器與發行版本](/servers/releases/)。",
   )),
   locale: p("locale", "query", "string", false, L(
     "Validated against `ja`, `en`, `zh-TW`, `zh-CN`, `ko`. Catalog payloads always carry every language, so this does not change the body.",

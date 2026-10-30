@@ -1,0 +1,58 @@
+---
+title: Quickstart
+description: Make your first request, then read a list and show an image.
+---
+import ApiTry from "../../components/ApiTry.astro";
+
+The API is public and needs no key. Every example here runs on this page.
+
+## 1. Read one song
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100091" }]} query={[{ name: "server", value: "jp", options: ["jp", "intl"] }]} image="jacketUrl" />
+
+`server` chooses the catalog: `jp`, or `intl` for Global, which is the default. Text fields are arrays in the order Japanese, English, Traditional Chinese, Simplified Chinese, Korean. An empty string means that language has no text yet.
+
+## 2. Read a list
+
+<ApiTry path="/api/v1/songs" query={[{ name: "server", value: "jp", options: ["jp", "intl"] }, { name: "limit", value: "3" }]} />
+
+Lists return `items`, plus `nextCursor` while there is more. Pass it back as `cursor` for the next page:
+
+```js
+const base = "https://haneoka.org/api/v1/songs?server=jp&limit=100";
+const songs = [];
+let cursor = null;
+
+do {
+  const url = cursor ? `${base}&cursor=${encodeURIComponent(cursor)}` : base;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const page = await response.json();
+  songs.push(...page.items);
+  cursor = page.nextCursor;
+} while (cursor);
+
+console.log(songs.length);
+```
+
+## 3. Show it on a page
+
+Image fields are paths on haneoka.org. Add the origin to use them:
+
+```html
+<img id="jacket" alt="" width="240" height="240">
+<h1 id="title"></h1>
+<script type="module">
+  const origin = "https://haneoka.org";
+  const song = await (await fetch(`${origin}/api/v1/songs/100091?server=jp`)).json();
+  document.querySelector("#title").textContent = song.musicTitle[0];
+  document.querySelector("#jacket").src = origin + song.jacketUrl;
+</script>
+```
+
+## Next
+
+- [Search](/servers/search/) across the whole catalog
+- Read [rankings and players](/servers/records/) from each region
+- [Handle errors](/errors/) and retries
+- Use the [JavaScript client](/servers/client/) instead of `fetch`
