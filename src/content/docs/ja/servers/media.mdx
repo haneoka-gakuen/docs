@@ -1,0 +1,74 @@
+---
+title: メディアとファイル
+description: カタログのメディアパスを、画像・音声・動画・譜面のリクエストに変えます。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+多くのアプリケーションは、現在のカタログ DTO が返す URL からメディアにアクセスします。`/assets/intl/...png` や `/runtime/intl/...mp3` のようなパスを `https://haneoka.org` に対して解決し、そのまま要求してください。
+
+```bash
+curl --fail-with-body \
+  https://haneoka.org/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png \
+  -o jacket.png
+```
+
+実際のジャケットを開く:
+
+<ApiTry path="/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png" image="true" locale="ja" />
+
+サーバーは選んだサーバーの現在のリリースを使います。ファイルをキャッシュ・表示するときは、返された `ETag` と `Content-Type` を保持してください。リリースマニフェスト、ソースツリー、内容アドレス方式のバンドルは、クローラーやクライアントのビルドツール向けの上級者向け入力です。
+
+## リリースのメディアツリー
+
+```http
+GET /assets/{server}/{path}
+HEAD /assets/{server}/{path}
+GET /runtime/{server}/{path}
+HEAD /runtime/{server}/{path}
+GET /objects/{server}/{path}
+HEAD /objects/{server}/{path}
+```
+
+有効なリリース索引がこれらのパスを内容アドレス方式のオブジェクトに解決します。`assets` と `runtime` は公開リリースのパスを受け付けます。`assets` のパスは `Assets/` か `Packages/` で、`objects` のパスは `unity/` で始まる必要があります。正確なパスはリリースマニフェストかカタログ DTO から得られます。
+
+レスポンスには `ETag`、`Content-Length`、`Accept-Ranges: bytes`、`Content-Security-Policy: default-src 'none'; sandbox` が含まれます。未知のパスはプレーンな `not found` 付きの `404` を返します。
+
+## バイト範囲
+
+```http
+GET /assets/{server}/{path}
+Range: bytes=0-1048575
+If-Range: "etag-from-a-previous-response"
+```
+
+有効な範囲には `206` と `Content-Range: bytes <start>-<end>/<size>` を、無効な範囲には `416` と `Content-Range: bytes */<size>` を返します。`If-Range` が一致しない場合はオブジェクト全体を返します。
+
+## 内容アドレス方式の成果物
+
+```http
+GET /artifacts/{server}/{sourceId}/android/bundles/{filename}
+HEAD /artifacts/{server}/{sourceId}/android/bundles/{filename}
+```
+
+このルートは、`sourceId` のソース記述子に元のファイル名が記載された Unity バンドルを返します。ファイル名は 1 つのセグメントだけを受け付け、`application/octet-stream` を返します。`{sourceId}` とファイル名はソースメタデータから得る必要があり、任意のオブジェクトストレージのパスではありません。
+
+成果物のレスポンスは、リリースのオブジェクトと同じ単一範囲のリクエスト方式（`206`、`416`、`ETag`、`Content-Range`）に対応します。
+
+## 言語別メディアのフォールバック
+
+`(en)`、`(ko)`、`(zh-Hans)`、`(zh-Hant)` を含むリリースパスは、対応する別バージョンや言語指定のないファイルにフォールバックすることがあります。利用側は返されたレスポンスを使い、フォールバック順を独自の URL 生成に組み込まないでください。
+
+## コミュニティ添付のコンテンツ
+
+コミュニティのアップロードには、認証付きの別の流れがあります。公開準備ができた添付のコンテンツは次から取得できます。
+
+```http
+GET /api/v1/community/attachments/{attachmentId}/content
+HEAD /api/v1/community/attachments/{attachmentId}/content
+```
+
+このエンドポイントでは、閲覧者が添付の属する投稿を読める必要がある場合があります。添付のレスポンスに対応する URL が示されていれば、`?variant=media`、`poster`、`thumb` でメディア処理のバリアントを要求できます。
+
+## 譜面画像を描く
+
+譜面ファイルは[譜面画像 API](../chart-images/) で SVG や PNG に描画することもできます。実際の難易度名を選び、パネルの高さは最終的なキャンバス寸法とは別に指定し、レスポンスの ETag を保持してください。ページ内での再生は [Cassiopeia の埋め込み](../../embed/cassiopeia/)を参照してください。

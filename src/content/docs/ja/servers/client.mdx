@@ -1,0 +1,214 @@
+---
+title: 型付き JavaScript API クライアント
+description: Haneoka 専用の ESM クライアントで、最新のエンティティ、ページ、バッチ、リレーションを読みます。
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+
+
+まず[完全な楽曲リーダーの HTML](/examples/api-start.html) から始めます。一覧を読み、楽曲を選ぶとタイトルとジャケットがページに表示されます。index.html として保存してローカルの HTTP で開く方法は[クイックスタート](/ja/quickstart/)にあります。このスターターは npm のインストールなしで `https://haneoka.org/embed/api-client.js` を使います。以下のパッケージのインポートと TypeScript の断片は、それらのモジュールをすでにビルドしているアプリケーション向けです。
+
+`@haneoka/api-client/haneoka` はリソース API 用の `createHaneokaClient` を提供します。ルートの `createApiClient` は、自分のサービス向けの汎用 HTTP クライアントのままです。`./haneoka` エントリーを含む対応したビルドを使ってください。ブラウザーや Node の Fetch、または渡した `transport(Request)` で動きます。
+
+## 読み取りと取り消し
+
+```ts
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+import { ApiClientError } from "@haneoka/api-client";
+
+const api = createHaneokaClient({ baseUrl: "https://haneoka.org/api/v1/" });
+const controller = new AbortController();
+try {
+  const servers = await api.servers({ signal: controller.signal });
+  const song = await api.entity("songs", "100070", {
+    server: "intl", locale: "en", signal: controller.signal,
+  });
+  console.log(servers, song);
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    console.error(error.code, error.status, error.requestId, error.retryable);
+  } else throw error;
+}
+// Cancel a pending call: controller.abort().
+```
+
+`baseUrl` は `/api/v1/` のルートです。`server` の既定は `intl` で、値は `servers()` から得られます。`locale` は `ja`、`en`、`zh-TW`、`zh-CN`、`ko` を受け付けます。カタログの値には提供されたすべての言語が残ります。自作の埋め込みドキュメントは [embed-core](../../embed/core/) を通してほかのロケールも使えます。
+
+## ページとバッチ
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await api.page("songs", { server: "intl", limit: 20, ...(cursor ? { cursor } : {}) });
+  for (const entry of page.items) console.log(entry.id, entry.value);
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+
+const batch = await api.batch("songs", ["100001", "100070"], { server: "intl" });
+console.log(batch.items, batch.missing);
+```
+
+`page` の既定は limit 50 で、項目の ID、limit、カーソル、スナップショットの識別子を検証します。件数が少ない、または空のページでも続きがあることがあります。バッチは送信した ID を 1〜100 個受け付け、エンベロープを検証します。どちらもマニフェストで宣言された名前で `view` を選べます。
+
+`index(resource, scope)` はプロバイダーの索引全体を、`entity(resource,id,scope)` は 1 件を、`relation(resource,relation,key,scope)` はマニフェストで定義されたリレーションを読みます。リレーションはビューを受け付けません。いずれも `signal` と `decode(value: unknown)` のコールバックに対応します。既定の結果は JSON の値で、デコーダーは実行時の検証を行い、業務用の DTO 型を与えます。
+
+```ts
+const song = await api.entity("songs", "100070", {
+  decode(value) {
+    if (!value || typeof value !== "object" || !("musicId" in value)) {
+      throw new TypeError("Expected a song");
+    }
+    return value;
+  },
+});
+```
+
+`release` は、記録済みの不変のカタログ ID の場合だけ渡してください。クライアントは自動で `/servers/{server}/...` に切り替えます。通常の直接エイリアスは release クエリを拒否します。`chartImageUrl()` は現在データの画像のアドレスを作るだけで、バイナリの取得やデコードはしません。
+
+```ts
+const url = api.chartImageUrl("100070", "expert", {
+  server: "intl", locale: "en", format: "svg", height: 720, download: false,
+});
+```
+
+## エラーと通信
+
+`ApiClientError` は、メソッド、URL、ステータス、コード、任意の requestId、詳細、再試行の可否を保持します。中断したリクエストは `request_aborted` で、再試行できません。HTTP のゲートウェイの失敗は、エラー本文が HTML や不正な形式でもステータスを保ちます。成功したが JSON やスキーマが不正なレスポンスは `invalid_content_type`、`invalid_json`、`invalid_payload` を報告します。クライアントは自動で再試行しません。
+
+ホストに合わせて、構築時に `headers` を渡すか、独自の `transport(request)` を渡してください。認証ヘッダーは意図したオリジンにだけ届くようにします。公開カタログの読み取りにセッションは不要です。画像のバイト列や、[ゲームの記録](../records/)のようなエンドポイント固有のエラーの形が必要な場合は、汎用クライアントの生の `response()` を使ってください。
+
+## ここでクライアントを試す
+
+操作を選び、JSON を編集して **Load and run** を押します。各プリセットは実際のクライアントのメソッドを呼びます。ページのリクエストは次のクリックのために `nextCursor` をエディターに残します。`client` は構築時のオプション、`scope` はカタログの呼び出しのオプション、`request` は汎用 HTTP のオプションです。`validateMusicId: true` で表示している例のデコーダーが有効になります。読み取りのデモは汎用リクエストを GET/HEAD に限り、リクエストの URL とステータスを記録しますが、ヘッダーの値は記録しません。
+
+<DemoData kind="api" locale="ja" />
+
+例は実行したときだけ、公開されている `https://haneoka.org/embed/api-client.js` を動的にインポートします。[マニフェスト](https://haneoka.org/embed/manifest.json)が現在の不変のリリースとモジュールのパスを示します。SDK のファイルはコミットされたソースから作られるデプロイの成果物です。npm への公開は別の配布手順です。
+
+## 構築時のオプション
+
+`createHaneokaClient(options = {})` は Haneoka のリソース用メソッドを、`createApiClient(options)` は汎用 HTTP のメソッドを提供します。どちらも次の公開フィールドを受け付けます。
+
+| フィールド | 型と必須かどうか | 既定 | 意味、制約、エラー |
+| --- | --- | --- | --- |
+| `baseUrl` | `string`。汎用クライアントでは必須、Haneoka クライアントでは任意 | Haneoka: `https://haneoka.org/api/v1/` | API のディレクトリ。汎用クライアントは前後の空白を除き、末尾にスラッシュを補う。空文字列は TypeError。不正なベースや URL は、URL の構築や Request の作成時に拒否される。ブラウザーや SSR の例では絶対 HTTP(S) の URL を使う。 |
+| `headers` | 任意の `HeadersInit`（Headers、レコード、ペア） | 追加なし | 共通のリクエストヘッダー。汎用クライアントの呼び出しごとのヘッダーは、大文字と小文字を区別せず同じ名前の構築時のヘッダーを上書きする。ネイティブの Headers が不正な値を拒否する。スコープのメソッドには呼び出しごとのヘッダーのフィールドはない。 |
+| `transport` | 任意の `(request: Request) => Promise<Response>` | ネイティブの `fetch` | シグナルを含む完全なリクエストを受け取る。実際の Response を返す。通信が拒否されると network_error か request_aborted になり、ApiClientError を投げた場合はそれが保たれる。オリジン、資格情報、期限はここで調整する。 |
+
+Haneoka の構築関数は、通信のリクエストを `credentials: "omit"`、`mode: "cors"`、`referrerPolicy: "no-referrer"` で包みます。これはレジストリとリソースの読み取りに適用されます。汎用クライアントはネイティブの Request の既定値のままで、コールバックで変更した Request を作れます。どちらの構築関数にも、タイムアウト、再試行、バイト数の予算、キャッシュ、破棄のオプションはありません。これらの方針は呼び出し側のシグナルと通信で制御します。
+
+```ts
+import { createApiClient } from "@haneoka/api-client";
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+const api = createHaneokaClient({
+  baseUrl: "https://haneoka.org/api/v1/",
+  headers: { Accept: "application/json" },
+  transport(request) {
+    console.log(request.method, request.url);
+    return fetch(request);
+  },
+});
+const general = createApiClient({ baseUrl: "https://haneoka.org/api/v1/" });
+```
+
+## リソースの引数と共通のスコープ
+
+以下は `HaneokaScope`/`HaneokaReadOptions` の全フィールドです。呼び出しに必要なフィールドを渡してください。`servers()` が受け付けるのは `signal` だけで、`chartImageUrl()` には下記の別のオプションがあります。
+
+| フィールド・引数 | 型、既定 | 制約、効果、失敗 |
+| --- | --- | --- |
+| `resource` | 必須の文字列の位置引数 | マニフェストのリソース名。小文字、数字、ハイフンで 1〜64 文字、先頭と末尾は英数字。予約済みのグループ `game`、`search`、`account`、`admin`、`announcements`、`auth`、`catalog`、`community`、`garupa`、`me`、`release`、`releases`、`servers`、`sources`、`ui-marks` は拒否される。構文やグループの誤りは TypeError、構文は正しいが存在しないリソースは HTTP 404。 |
+| `id`、リレーションの `key`、画像の `songId` | メソッドが挙げる箇所で必須の文字列 | 1〜256 文字、先頭は英数字。残りには `.`、`_`、`:`、`~`、`-` も使える。クライアントは 1 つのセグメントとしてエンコードし、`/` は使えない。構文の誤りは TypeError、存在しない場合はエンドポイントごとの 404。 |
+| `server` | 任意の文字列、既定は `intl` | 有効なレジストリのスラッグ。小文字の英数字とハイフンで 1〜40 文字、先頭と末尾は英数字。構文の誤りは TypeError、無効なサーバーは 404。locale とは独立にデータを選ぶ。 |
+| `locale` | 任意の `"ja" \| "en" \| "zh-TW" \| "zh-CN" \| "ko"`、既定は省略 | locale クエリを加え、カタログの言語別のフィールドは保つ。不正なロケールは TypeError。省略するとエンドポイントが対応言語を交渉する。自作の埋め込みドキュメントはほかの言語も使える。 |
+| `release` | 任意の文字列、既定は現在のデータ | 返された `r-` と小文字の 16 進 20 桁。リソースの URL を `/servers/{server}/…` に変える。構文の誤りは TypeError、利用できないスナップショットは 404。直接の HTTP エイリアスは release クエリを拒否する。 |
+| `signal` | 任意の AbortSignal、既定はなし | リクエストを取り消す。中断した通信は ApiClientError（request_aborted、ステータス 0、retryable は false）になる。取り消したら操作ごとに新しいコントローラーを使う。 |
+| `view` | 任意の文字列、既定は正規のリソース | resource と同じ構文のマニフェストのビュー名。index/entity/batch/page に `/views/{view}` を加える。不正な名前は TypeError、存在しないビューは 404。リレーションはビューを指定すると拒否する。 |
+| `decode` | 任意の `(value: unknown) => T`、既定は JSON 値のデコーダー | 同期的な実行時の検証・変換。索引、エンティティ、リレーション全体、バッチの各エンティティ、ページの各項目に適用される。例外を投げると invalid_payload になり、投げた ApiClientError は保たれる。ジェネリック型だけでは検証は行われない。 |
+
+## Haneoka のメソッド一覧
+
+| メソッド | 引数・オプション | 結果と挙動 |
+| --- | --- | --- |
+| `servers(scope = {})` | `{ signal? }` のみ | レジストリの `releases` 配列から検証した `{id,displayName,region}[]` の Promise。`id` はスラッグで、リリースの識別子ではない。 |
+| `index(resource, options = {})` | 共通の読み取りオプション | リソースかビューの索引全体、またはデコードした値の Promise。自動のページ分割はない。 |
+| `entity(resource, id, options = {})` | 必須の ID と共通の読み取りオプション | 正規またはビューのエンティティ 1 件の Promise。 |
+| `batch(resource, ids, options = {})` | 必須の読み取り専用の文字列配列と共通の読み取りオプション | 送信した ID は、サーバーでの重複排除前の重複も数えて 1〜100 個。空、100 個超、不正な ID は TypeError。`{items: Record<id,T>, missing: string[]}` を返す。見つからないエントリーもバッチとしては正常な結果。 |
+| `page(resource, options = {})` | 共通の読み取りオプションと `limit?`、`cursor?` | 下記のエンベロープを返す。エンドポイントにコレクションかビューのエンティティストレージが必要。 |
+| `relation(resource, relation, key, options = {})` | リレーション名はリソース名の構文、キーは ID の構文 | マニフェストで定義された値をデコードして返す。ビューとリレーションの併用は TypeError。キーはあるが空の結果は `{}` のことがあり、存在しないリレーションは 404。 |
+| `chartImageUrl(songId, difficulty, options = {})` | 下記の別の画像オプション | URL を同期的に返す。リクエストはせず、取り消しやデコーダーもない。 |
+
+### ページのフィールドとスナップショットの規則
+
+`limit?: number` の既定は 50 で、1〜100 の整数である必要があります。不正な値は取得前に TypeError を投げます。`cursor?: string` の既定はカーソルなしです。空でないカーソルはそのまま返してください。不正な、または一致しない値はサーバーが拒否します。カーソルはサーバー、リソース、ビューと最初のリリースに結び付いています。スコープを揃え、保持したリリースが使えなくなったら最初のページからやり直してください。
+
+| レスポンスのフィールド | 型 | 使い方 |
+| --- | --- | --- |
+| `items` | 読み取り専用の `{id:string,value:T}[]` | 要求した limit まで。8 シャードの走査予算により、まだ続きがあっても件数が少ない、または空のページになることがある。 |
+| `total` | 0 以上の安全な整数 | マニフェストの件数で、このページの長さではない。 |
+| `limit` | 1〜100 の整数 | 要求した有効な limit。クライアントがリクエストと一致するか確認する。 |
+| `nextCursor` | 空でない文字列か null | null のときだけ完了を意味する。 |
+| `release.schema` | リテラル `haneoka-resource-release-identity-v1` | スナップショットのエンベロープのバージョン。 |
+| `release.server` | 文字列 | 要求した、または既定のサーバーと一致する必要がある。 |
+| `release.releaseId` | 文字列 | 明示的な release を指定した場合はそれと一致する必要がある。 |
+| `release.sourceId` | 文字列 | ソースのスナップショット ID。組み立てずにそのまま保持する。 |
+
+クライアントは ID、エンベロープ、スナップショットの形を検証します。結果の並べ替え、ページの自動追跡、バッチとページ分割の組み合わせはしません。メソッドのインターフェースはこの 2 つの形を分けています。
+
+### 画像 URL の引数
+
+| フィールド | 型・既定 | 範囲と意味 |
+| --- | --- | --- |
+| `difficulty` | 必須のパスの引数 | `easy`、`normal`、`hard`、`expert`、`special`、`master`。不正な選択は TypeError。エンドポイント側でもその楽曲にその難易度が必要。 |
+| `server` | 任意の文字列、既定は intl | スコープと同じサーバーの検証。 |
+| `locale` | 任意の、Haneoka が対応するロケール | 見出しの言語のクエリ。 |
+| `format` | 任意の `svg`/`png`、既定は svg | 不正な値は TypeError。 |
+| `height` | 任意の整数。URL では省略され、エンドポイントの既定は 720 | パネルの 360〜1440 ピクセル。不正な値は TypeError。最終的なキャンバスの寸法はレスポンスヘッダーから得る。 |
+| `download` | 任意の真偽値、既定は省略 | true で 1、false で 0 を送る。省略するとエンドポイントの既定（attachment）のまま。 |
+
+画像のオプションには release、view、decode、signal はありません。バイト列は URL を別に取得してください。描画エラーとデプロイ・フォントの要件は[譜面画像](../chart-images/)を参照してください。
+
+## 汎用 HTTP のリクエストオプションとメソッド
+
+| フィールド | 型・既定 | 意味と制約 |
+| --- | --- | --- |
+| `path` | 必須の文字列の引数 | 先頭のスラッシュを除き baseUrl の下で解決する相対パス。絶対 HTTP(S) の URL はそのオリジンを保つ。不正な URL や Request はネイティブのエラーを投げる。 |
+| `method` | 任意の DELETE/GET/HEAD/PATCH/POST/PUT、既定は GET | `request`/`response` のオプション。`get` は JavaScript で method を渡しても GET に固定する。不正な本文とメソッドの組み合わせはネイティブの Request が拒否する。 |
+| `query` | 任意の読み取り専用レコード | 値は string/number/boolean/null/undefined か、それらの読み取り専用配列。キーは並べ替えた順に追加し、配列はキーを繰り返す。null/undefined は省く。URL の既存のクエリは残り、新しい値が追加される。 |
+| `headers` | 任意の HeadersInit、既定は構築時のヘッダー | 呼び出しごとの値が同じ名前の共通ヘッダーを上書きする。 |
+| `body` | 任意の BodyInit か null、既定は省略 | リクエストの本文。JSON は自分でエンコードしてコンテンツタイプを設定する。ストリームやフォームデータはネイティブの Fetch の規則に従う。 |
+| `signal` | 任意の AbortSignal、既定はなし | 呼び出し側の取り消し。AbortSignal.timeout のような期限のシグナルも含む。 |
+| `decode` | 任意の `(unknown)=>T`、既定は変換なし | `get`/`request` で使える。解析した JSON か、HEAD/204/205 では undefined を受け取る。デコーダーのエラーは invalid_payload になる。`response` にはこのオプションはない。 |
+
+`get(path, options)` は成功した JSON のレスポンスを解析・検証します。`request(path, options)` はメソッドを選べるようにしたものです。どちらも 2xx 以外を ApiClientError で拒否し、本文のあるレスポンスには application/json か `+json` の MIME を求め、不正な JSON は別に報告します。`response(path, options)` は成功以外のステータスも含め、実際の Response を返します。ok/status を確認し、本文は自分で読んでください。`url(path, query)` はリクエストせずに文字列を作ります。
+
+```ts
+const request = new AbortController();
+const dto = await general.request("songs/100070", {
+  method: "GET", query: { server: "intl", locale: "en" },
+  headers: { Accept: "application/json" }, signal: request.signal,
+});
+const raw = await general.response("songs/100070", { method: "HEAD" });
+console.log(raw.status, raw.headers.get("X-Haneoka-Release-Id"));
+console.log(general.url("songs", { id: ["100001", "100070"] }));
+```
+
+## エラーオブジェクトの全体
+
+`ApiClientError` は Error を拡張します。公開フィールドは `name`、`message`、継承した `cause`、`code`、`details`、`method`、`url`、`status`、任意の `requestId`、`retryable` です。HTTP のエラーは、返された入れ子の error.code/message/details があればそれを使い、HTML や不正なエラーの JSON ではステータスを保ったまま http_STATUS にフォールバックします。リクエスト ID は X-Request-Id から得ます。ネットワークの失敗はステータス 0、network_error、retryable は true、取り消しは request_aborted で retryable は false です。HTTP 408/429/5xx は再試行可能とされます。成功したレスポンスの形式やデコードの失敗は invalid_content_type/invalid_json/invalid_payload で、自動では再試行されません。
+
+独自の通信で構造化した失敗を作るために、必須の `{code,message,method,url}` と、任意の `cause?`、`details?`、`requestId?`、`retryable?`（既定は false）、`status?`（既定は 0）でクラスを構築できます。メソッドには subscribe、イベント、dispose のインターフェースはありません。結果は Promise や Response で届き、AbortController とレスポンスのストリームは呼び出し側が所有します。
+
+パッケージの `./browser` ソースエントリーは createApiClient、ApiClientError、createHaneokaClient をまとめたもので、別のオプションやブラウザー専用の副作用は加えません。ホスト済みの窓口のエクスポートはリリースマニフェストで選ばれます。
+
+## 現在の公式ブラウザーモジュール
+
+安定したモジュールは `https://haneoka.org/embed/{name}.js` を使い、名前には api-client、core、vega、cassiopeia、home-spot、vega-theme があります。バージョンを固定するには[リリースマニフェスト](https://haneoka.org/embed/manifest.json)を読み、そのモジュールのパスを `https://haneoka.org/embed/` に対して解決してください。対応するリリースには同じレスポンスのパスを使います。以前の不変の URL は、それぞれの挙動を保ちます。
+
+```js
+import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
+const api = createHaneokaClient();
+console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
+```
+
+マニフェストは選ばれている本番のリリースを示します。安定したエイリアスがあとのリリースに移っても、不変のパスは固定されたままです。

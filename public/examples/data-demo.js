@@ -1,3 +1,4 @@
+import { demoText } from "./demo-text.js";
 const coreUrl = "https://haneoka.org/embed/core.js";
 const exampleBase = new URL("./", import.meta.url).href;
 const languages = ["ja", "en", "zh-TW", "zh-CN", "ko"];
@@ -5,7 +6,6 @@ const authored = { language: "fr", title: "Une promenade", background: "garden.s
 
 export function install(root, { loadClient } = {}) {
   const kind = root.dataset.demoKind;
-  const zh = root.dataset.uiLocale === "zh-CN";
   const field = (name) => root.querySelector(`[data-demo-${name}]`);
   const editor = field("config");
   const output = field("output");
@@ -17,7 +17,7 @@ export function install(root, { loadClient } = {}) {
   let data;
   let generation = 0;
   let entries = [];
-  const text = (en, cn) => zh ? cn : en;
+  const text = demoText(root.dataset.uiLocale);
   const show = (value) => {
     entries.push(value);
     entries = entries.slice(-32);

@@ -1,0 +1,418 @@
+---
+title: Cassiopeia 譜面の埋め込み
+description: 現在のデータや自作のデータで譜面プレーヤーをマウントし、再生、スキン、ライフサイクルを操作します。
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+import DocsDisclosure from "../../../../components/DocsDisclosure.astro";
+
+[完全なサンプル chart.json](/examples/chart.json) は、用意した [original-tone.wav](/examples/original-tone.wav) を参照します。ダウンロードするときは両方のファイルを一緒に置いてください。このページのオリジナルの図は例の rendererAdapter を使います。公開のゲームテーマを使う方法は下にあります。
+
+
+普通の Web サイトの中に Cassiopeia の譜面プレーヤーをマウントします。標準のプレーヤーは既存の Vue のプレーヤー、Three のレンダラー、Our Notes プラグイン、Web のオーディオ・入力のホストを使います。独自のレンダラーなら、カーネルと Web ホストで自作のアートワークを使えます。各マウントは、自分の DOM、メディア、入力、レンダラー、リソースのローダーを所有します。
+
+
+## 1. 動く完全なプレーヤーを保存する
+
+[完全な観賞用の HTML](/examples/chart-watch.html) を `index.html` として保存します。同じ場所に [chart.json](/examples/chart.json) と [original-tone.wav](/examples/original-tone.wav) を保存します。譜面は 8 秒の完全なオリジナルの `ChartEmbedDocument` で、WAV は小さな音量のオリジナルのテストトーンです。
+
+```text
+my-chart/
+  index.html
+  chart.json
+  original-tone.wav
+```
+
+`my-chart` でターミナルを開き、`python3 -m http.server 8000`（Windows では `py -m http.server 8000`）を実行します。[http://localhost:8000/](http://localhost:8000/) を開きます。Python のインストールやエディターの HTTP プレビューを使う方法は[クイックスタート](/ja/quickstart/)を参照してください。終わったら Ctrl+C でサーバーを止めます。
+
+**Load my chart.json** をクリックし、**Ready** になるまで待ってから **Play** をクリックします。標準のゲームの表示でサンプルのノーツが動き、オリジナルのトーンがメディアのクロックになります。**Pause** で止まり、位置のスライダーで秒単位にシークできます。**Close player** はメディアを止めてプレーヤーを取り除き、その後どちらの読み込みボタンでも新しいインスタンスを始められます。エラーはステージの上に表示されるので、ファイルや接続を直して再試行できます。
+
+ホスト済みのモジュールが標準のプレーヤーとそのレイアウトのスタイルを提供します。サンプルにはそのモジュールと公開の表示用アセットのためにインターネットが必要ですが、譜面と WAV は自分のフォルダーから配信されます。この最初の例ではノーツの効果音は無効で、用意した音楽は有効のままです。
+
+<DocsDisclosure title="完全な index.html：すべてを 1 つのファイルにコピーする">
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Watch a Cassiopeia chart</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input,select{font:inherit}button{min-height:48px;margin:.25rem;padding:.5rem 1rem}label{display:block;margin:.5rem 0}#stage{height:min(70vh,640px);min-height:320px;position:relative}#progress{width:100%}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p><h1>Watch a Cassiopeia chart</h1>
+<p>Keep chart.json and original-tone.wav beside this HTML for the original eight-second sample.</p>
+<button id="load-example">Load my chart.json</button>
+<label>Haneoka song ID <input id="song-id" value="100070"></label>
+<label>Difficulty <select id="difficulty"><option>easy</option><option>normal</option><option>hard</option><option selected>expert</option><option>special</option><option>master</option></select></label>
+<button id="load-game">Load Haneoka song</button><button id="cancel" disabled>Cancel loading</button><button id="close">Close player</button>
+<p id="status" role="status" aria-live="polite">Choose a source and load it.</p>
+<button id="play" disabled>Play</button><button id="pause" disabled>Pause</button>
+<label>Playback position <input id="progress" type="range" min="0" max="0" step="0.1" value="0" disabled><output id="time">0.0 / 0.0 s</output></label>
+<div id="stage"></div>
+<link rel="stylesheet" href="https://docs.haneoka.org/examples/disclosure.css">
+<section class="docs-disclosure" data-docs-disclosure>
+<button id="state-trigger" class="docs-disclosure__trigger" type="button" aria-expanded="false" aria-controls="state-panel" data-docs-disclosure-trigger disabled><span>Current player state</span><svg class="docs-disclosure__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg></button>
+<div id="state-panel" class="docs-disclosure__panel" role="region" aria-labelledby="state-trigger" data-docs-disclosure-panel hidden><pre id="output"></pre></div>
+</section>
+<script defer src="https://docs.haneoka.org/examples/disclosure.js"></script>
+<script type="module">
+const by = id => document.getElementById(id);
+let player, controller, generation = 0;
+function controls(ready) { for (const id of ["play", "pause", "progress"]) by(id).disabled = !ready; }
+function loading(value) { for (const id of ["load-example", "load-game"]) by(id).disabled = value; by("cancel").disabled = !value; }
+function refresh() {
+  if (!player) return;
+  const state = player.snapshot;
+  by("progress").max = String(state.duration || 0);
+  if (document.activeElement !== by("progress")) by("progress").value = String(state.time || 0);
+  by("time").textContent = `${(state.time || 0).toFixed(1)} / ${(state.duration || 0).toFixed(1)} s`;
+  by("output").textContent = JSON.stringify(state, null, 2);
+}
+async function dispose() {
+  ++generation; controller?.abort(); controls(false);
+  const old = player; player = undefined; await old?.dispose();
+}
+async function load(game) {
+  loading(true); const current = ++generation;
+  const old = player; player = undefined; controller?.abort(); controls(false);
+  try {
+    await old?.dispose(); if (current !== generation) return;
+    controller = new AbortController(); const signal = controller.signal;
+    by("status").textContent = "Loading chart and presentation…"; by("output").textContent = "";
+    const [sdk, core] = await Promise.all([
+      import("https://haneoka.org/embed/cassiopeia.js"),
+      import("https://haneoka.org/embed/core.js"),
+    ]);
+    signal.throwIfAborted(); if (current !== generation) return;
+    const songId = by("song-id").value.trim();
+    if (game && !songId) throw new Error("Enter a song ID.");
+    const source = game
+      ? sdk.haneokaChartSource({ songId, difficulty: by("difficulty").value })
+      : core.httpDataSource({ url: new URL("./chart.json", location.href).href });
+    player = sdk.mountChart(by("stage"), {
+      source, theme: sdk.haneokaChartTheme(), server: "intl", locale: document.documentElement.lang,
+      mode: "watch", volume: 0.3, rate: 1, noteSoundEnabled: false,
+      skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+      signal, loadTimeoutMs: 45000,
+      onEvent(event) {
+        if (current !== generation) return;
+        if (event.type === "state" || event.type === "player") refresh();
+        if (event.type === "error") by("status").textContent = String(event.error?.message ?? event.error);
+      },
+    });
+    await player.ready; signal.throwIfAborted(); if (current !== generation) return;
+    controls(true); refresh(); by("status").textContent = "Ready. Press Play.";
+  } catch (error) {
+    if (current === generation) {
+      const failed = player; player = undefined; controls(false);
+      await failed?.dispose().catch(() => {});
+      if (current === generation) by("status").textContent = `Failed: ${error.message}`;
+    }
+  } finally { if (current === generation) loading(false); }
+}
+async function action(operation, label) {
+  const active = player, current = generation;
+  try {
+    if (!active) throw new Error("Load a chart first.");
+    await operation(active);
+    if (current === generation && player === active) { refresh(); by("status").textContent = label; }
+  } catch (error) { if (current === generation) by("status").textContent = `Failed: ${error.message}`; }
+}
+by("load-example").onclick = () => { void load(false); };
+by("load-game").onclick = () => { void load(true); };
+by("play").onclick = () => { void action(active => active.play(), "Playing"); };
+by("pause").onclick = () => { void action(active => active.pause(), "Paused"); };
+by("progress").onchange = () => { void action(active => active.seek(Number(by("progress").value)), "Playback position changed."); };
+by("cancel").onclick = () => { controller?.abort(); player?.cancel(); };
+by("close").onclick = async () => {
+  by("close").disabled = true; const current = generation + 1;
+  try { await dispose(); if (current !== generation) return; by("status").textContent = "Player closed. You can load again."; }
+  catch (error) { by("status").textContent = `Failed: ${error.message}`; }
+  finally { if (current === generation) { loading(false); by("close").disabled = false; by("output").textContent = ""; by("progress").value = "0"; by("time").textContent = "0.0 / 0.0 s"; } }
+};
+window.addEventListener("pagehide", () => { void dispose().catch(() => {}); }, { once: true });
+</script></html>
+```
+
+</DocsDisclosure>
+
+## 2. 実際の Haneoka の楽曲を読み込む
+
+同じ HTML で、楽曲 ID `100070` と難易度 `expert` のまま **Load Haneoka song** をクリックします。**Ready** のあとに **Play** をクリックします。このソースは現在の楽曲を読み、返された譜面ファイルを解析し、返された音楽の URL を使います。ID は [API のスターター](/examples/api-start.html)にある楽曲に変えられますが、選んだ難易度がその楽曲に存在する必要があります。ソースを切り替える前にプレーヤーを閉じてください。
+
+ソースとテーマは独立したファクトリーです。完全な HTML はそれらの公開ブラウザー用エントリーを使います。
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/cassiopeia.js";
+const chart = mountChart(container, {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(), server: "intl", locale: "en", mode: "watch",
+});
+await chart.ready;
+// In your Play button: await chart.play().
+// When your component closes: await chart.dispose().
+```
+
+この断片は組み込みの箇所を示すものです。上の完全な HTML が `container`、ボタン、読み込み中の状態、取り消し、エラー、後始末を用意しています。軽量なアセット品質 2 を使います。サーバーとテキストの言語は別々のままで、アカウントやリリースの選択は不要です。
+
+## 3. オプションを 1 つずつ変える
+
+完全な HTML の `mountChart` のオプションで、`volume: 0.3` を 0〜1 の値に、または `rate: 1` を `0.8` に変え、ページを再読み込みしてもう一度読み込みます。`mode: "watch"` は Play をクリックしたあとに自動で再生し、`mode: "play"` は手動の譜面入力を有効にします。スクロール速度には `settings: { noteSpeed: 9 }` を加えます。オプション、スキン、設定、ソース、ハンドルの完全な表に、公開の既定値、範囲、制限があります。`chart.json` は標準の形式のままにしてください。別のゲームの生の譜面にはそのパーサーやコンバーターが必要です。
+
+このあとのパッケージのインポートは、既存のバンドルするアプリケーション向けの参考です。npm への公開は別です。最初の素の HTML では上のホスト済みの ESM を使ってください。バンドラーでは `@haneoka/embed-cassiopeia/style.css` を別にインポートします。公式の窓口は対応するスタイルを取り付け、最後のインスタンスが破棄されると取り除きます。
+
+## 譜面と音源を持ち込む
+
+標準の `ChartDocument` は、`@haneoka/cassiopeia` が書き出すとおり、`version`、`bpmChanges`、`signatureChanges`、`timeScaleChanges`、`notes`、`lines`、`timeline`、`durationMs` を持ちます。`document` か `source` のどちらか 1 つだけを渡してください。作者のドキュメントは 1 つの言語と任意の Unicode のリソース名を使えます。
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "musique/été.wav", bgmOffsetMs: 250 },
+  assetsBase: "https://my.example/project/",
+  theme: haneokaChartTheme(), // optional original presentation
+  locale: "fr-CA",
+  labels: { player: "Partition", pause: "Pause", loading: "Chargement" },
+});
+await handle.ready;
+```
+
+オーディオ要素がタイミングの基準です。`seek(seconds)` はメディア・表示の秒を使い、譜面の時刻はメディアの時刻から `bgmOffsetMs` を引いたものです。正のオフセットは前置きの時間を作ります。音源がない場合は一時停止した表示のプレビューになるので、内部の再生を進めるには再生できる音源を渡してください。
+
+互換性のある独自のテーマのリソースを渡すには、既存の `OurNotesAssetManifest` を `document.assets` に使うか、`theme({loader, signal, skin})` のファクトリーを使います。元のプラグインの `createOurNotesAssetManifest` は、その公開のメディア・リゾルバーの契約からこのマニフェストを作ります。URL のフィールド、HUD の画像の対応表、サウンドの文字列・レイヤー、アニメーションのクリップの対応表はマウントが解決し、名前とインラインの atlas のメタデータはそのまま保たれます。
+
+HTTP の JSON とローカルファイルには、`@haneoka/embed-core` の既存のソースを使います。
+
+```js
+import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
+const source = httpDataSource({
+  url: "https://my.example/project/chart.json",
+  decode: (value) => value, // validate/convert your envelope here
+});
+const fromHttp = mountChart(element, { source, theme: haneokaChartTheme() });
+// source.assetsBase defaults to the JSON URL's directory.
+
+const local = mountChart(otherElement, {
+  source: fileDataSource(jsonFile),
+  resolveResource: fileResourceResolver(new Map([["musique/été.wav", audioFile]])),
+  theme: myLocalTheme,
+});
+```
+
+`fileResourceResolver` はキーの文字列そのままで解決します。標準のオリジナルのテーマは公開の API とアセットも要求するため、それらの絶対 URL をそのまま通すリゾルバーが必要です。ローダーが作った Blob URL はプレーヤーの破棄後に破棄されます。自分で作った URL は自分で管理してください。
+
+## 自作のレンダラーを使う
+
+これは独自のグラフィックスのための拡張ポイントです。`drawMyChart` は自分で用意します。上の完全な観賞用の HTML は標準のレンダラーを使うので、この関数は不要です。
+
+`rendererAdapter` を渡すと、標準の Vue/Three/Our Notes の表示の構成を読み込まずに、カーネルと Web ホストを読み込みます。アダプターは `render`、`resize`、`dispose`、任意の `laneAtClientPoint` を返します。アートワークは、渡された `signal` を使って `loader.resourceUrl` か `resourceBytes` で解決してください。所有するグラフィックスは `dispose` で解放します。
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "audio.ogg" },
+  assetsBase: "https://my.example/project/",
+  rendererAdapter: {
+    async create({ element, chart, loader, signal }) {
+      const canvas = document.createElement("canvas");
+      element.append(canvas);
+      const context = canvas.getContext("2d");
+      const artwork = await loader.resourceUrl("notes.svg", { signal });
+      // Load your artwork with the same signal and render your own chart geometry.
+      return {
+        render(snapshot, options) {
+          drawMyChart(context, chart, snapshot, options, artwork);
+        },
+        resize(width, height, ratio) {
+          canvas.width = width * ratio;
+          canvas.height = height * ratio;
+        },
+        dispose() {
+          canvas.remove();
+        },
+      };
+    },
+  },
+});
+```
+
+埋め込みは既存の `MediaClock`、`MusicTimeAnchor`、セッションの update/reset のメソッドを使います。`laneAtClientPoint(x,y)` を持つレンダラーは、既存のホストを通してプレイモードの入力を受け取れます。0〜23 の連続したネイティブのレーンを返し、外側なら -1 を返します。ホールドの判定はセッションが進め、実際のポインターの移動は 1 回だけ転送されます。`createSession(chart, options)` を使うと、自作のレンダラーで別のカーネルの規則を使えます。規則の異なる元のゲームにはこのポートを選んでください。ない場合は現在の Cassiopeia のセッションの規則が適用されます。独自のレンダラーは表示と効果音を自分で受け持ちます。`noteSoundEnabled`、`noteSoundVolume`、元のスキンの選択は標準のプレーヤーのものです。
+
+## 再生、変更、終了
+
+`mountChart()` はすぐに返ります。最初の表示の準備は `handle.ready` を待ってください。最初の音声の準備の失敗はイベントで報告され、既存のプレーヤーは再生が許可されたときに失敗した音を再試行します。準備ができてもメディアのダウンロードが終わったとは限りません。音声を許可するために、準備ができたあとユーザーの操作から `play()` を呼んでください。`pause()` と `seek()` は同期的で、`play()`、`setOptions()`、`setSkin()`、`dispose()` は Promise を返します。
+
+```js
+await handle.setOptions({ rate: 0.8, volume: 0.6, noteSoundVolume: 0.4, settings: { noteSpeed: 9 } });
+await handle.setSkin({ noteSkin: "skin003", noteEffectSkin: "effect001Simple", noteSeGroup: 4 });
+// Changing the default theme rebuilds the player paused at its current media time.
+handle.seek(12);
+await handle.play();
+await handle.dispose();
+```
+
+`setSkin` には標準のプレーヤーのテーマのファクトリーが必要です。元のスキンの ID は `skin001`（Our Notes）、`skin002`（ガルパ）、`skin003`（Honeycomb）、エフェクトの ID は `effect001` と `effect001Simple` です。ノーツ音のグループの ID は 1〜4（Our Notes、Solid、Wood、Typing）です。言語ごとの名前と音声のループのメタデータは実際のプラグインのものが正です。
+
+`setOptions` は、モード、部分的な描画設定、音楽の音量・速度・ループ、ノーツ音の有効化・音量を既存のプレーヤーに渡します。モードの変更は既存のリセットの挙動に従います。`cancel()` を呼ぶとマウントを中断して再生を止め、このハンドルは終端状態になります。`dispose()` は DOM を取り除きローダーを解放します。破棄は冪等で、読み込み中や、ファクトリーが遅れて返る場合でも動きます。外部の `signal` はマウントを取り消します。`loadTimeoutMs` の既定は 30000 で、構築に適用され、再生できる期間には適用されません。同じコンテナーに再びマウントする前に破棄してください。
+
+`handle.snapshot` は phase、playing、time、duration を公開します。読み込みの進捗、エラー、現在の状態を見るには構築時に購読します。
+
+```js
+const handle = mountChart(element, {
+  document: myDocument,
+  rendererAdapter: myRenderer,
+  onEvent(event) {
+    if (event.type === "load") showResourceProgress(event.event);
+    if (event.type === "state") updateTransport(event.snapshot);
+    if (event.type === "error") showError(event.error);
+    if (event.type === "player" && event.name === "judgement") showJudgement(event.args[0]);
+  },
+});
+// const unsubscribe = handle.subscribe(listener);
+```
+
+## オリジン、資格情報、ブラウザーの ESM
+
+`assetsBase` は絶対のディレクトリの URL です。相対のキーはその下に、ルート相対のパスはそのオリジンで解決され、絶対 URL はそのオリジンを保ちます。`resolveResource(key, context)` は URL、文字列、Blob を非同期に返せます。テーマの `apiBase` は API のルートを、`publicBase` は公開アセットのオリジンを選び、これらは作者のドキュメントのリソースとは別です。返されるパスは最新の公開リソースを使い、サーバーの更新で変わることがあります。
+
+`fetcher(request)`、`headers`、`credentials`（既定は `omit`）、`maxBytes` は embed-core のものです。ローダーを通したドキュメントとリソースの読み取りに適用されます。標準のプレーヤーは、メディア、テクスチャー、効果音を既存の独自のローダーと匿名の CORS でダウンロードするため、それらのリクエストは注入した fetcher や非公開のヘッダーを使いません。非公開のメディアには、公開 CORS の URL か Blob のリソースを渡してください。`include` の資格情報の方針が影響するのはローダーのリクエストだけで、そのサーバーは資格情報と埋め込み元のオリジンを明示的に許可する必要があります。CSP は、スクリプト・モジュール、アセット、メディアのオリジンと、使う場合は自分の `blob:` の URL を許可する必要があります。
+
+バンドラーは標準のプレーヤーとその依存関係の遅延チャンクを出力します。素の `<script type="module">` では、出力された ESM ファイルとチャンクを一緒にホストするか、すべてのベアの依存関係とエクスポートのサブパスのインポートマップを用意してください。そのマップでは互換性のある Vue/Three とすべての Cassiopeia パッケージのバージョンを固定します。`style.css` は別にリンクしてください。パッケージをインポートしただけでは DOM は作られず、データの取得も Three の初期化もしません。
+
+小さな画面のページでは、高さを確保し、ステージの外にタッチに適した大きさの再生操作を置き、読み込み中・エラーの状態をページの既存の Material のコンポーネントで示してください。レンダラーの性能とメディアの形式はブラウザーや端末に依存するので、対象の端末で最終的な利用側を確認してください。
+
+## Haneoka のクレジット表示
+
+ホストは、透明な背景と不透明度 55% の SVG で、元の Haneoka のアイコンを全面のプレーヤーの左上に浮かせて表示します。全画面やテーマの変更にもプレーヤーに追従し、破棄すると取り除かれます。自作のコンテンツは独自のライセンスのままです。
+
+## このページの実際の譜面アプリケーション
+
+まず 8 秒のオリジナルの譜面を読み込みます。そのレンダラーは、Cassiopeia の実際のセッションと MediaClock で動く自作の Canvas のアダプターで、生成した静かな WAV の Blob を使います。組み込み方を示すもので、ゲームの見た目のスキンではありません。HTTP は[この譜面 JSON](/examples/chart.json) を、ローカル JSON は選んだ File を読み込みます。Haneoka のデータを選ぶと、実際の楽曲のソースとネイティブのテーマを使います。読み込む前に `options` を編集し、Play/Pause/Seek/setOptions を使ってください。setSkin は標準のテーマで使えます。
+
+<DemoPlayer kind="chart" locale="ja" />
+
+SDK のインポートとプレーヤーの作成はクリックしたときだけです。ほかの例が動いていれば先に破棄します。`input`、`publicSource`、`nativeTheme`、`url` は、実際のソース、テーマ、レンダラーのコールバックを作るアプリケーション側のフィールドです。JSON では関数を表せないため、実行できるアダプターはリンク先の例のソースにあります。5 つの言語の操作に加えて、作者のロケールのフィールドもあります。
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js";
+const chart = mountChart(element, {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(), server: "intl", locale: "en", mode: "watch",
+});
+await chart.ready;
+await chart.play(); // call from a user's button
+await chart.dispose();
+```
+
+動く例は安定した公式のエイリアスを使います。ホスト済みの窓口はマウント時にパッケージのスタイルシートを用意し、最後のインスタンスが破棄されると解放します。パッケージやバンドラーで使う場合は style.css を別にインポートします。r22 には nonce のオプションはありません。以降の nonce の API は、そのリリースの実際の受領記録やインターフェースから得てください。生成される CDN のファイルはデプロイのビルド成果物で、ソースはパッケージのリポジトリで管理されています。
+
+ローカルの音楽で編集できるノーツを作るには[譜面作成のガイド](../../creation/chart-editor/)を使ってください。その Project JSON と持ち運べる音源のバックアップは、下の再生用の ChartDocument とは別のものです。
+
+## mountChart の全オプション
+
+位置引数の `container` は必須で、ownerDocument/defaultView を持ち、安定した 0 でない大きさのブラウザーの HTMLElement です。ブラウザー以外なら TypeError、破棄前の再マウントは Error です。実行時には source か document のどちらか 1 つだけが必要です（両方・どちらもなしは TypeError）。標準の構成には theme か document.assets も必要で、authoredRenderer は自分のアートワークを用意します。
+
+| フィールド | 型・既定 | 役割、組み合わせ、エラー |
+| --- | --- | --- |
+| document | ChartEmbedDocument、必須の選択肢の一方 | 下記のメモリ内のエンベロープ。notes/lines は配列、durationMs は有限である必要があり、そうでなければ ready が TypeError。 |
+| source | DataSource&lt;ChartEmbedDocument&gt;、必須の選択肢の一方 | memory/http/file/独自のソース。読み込み・デコードのエラーは ready を拒否する。 |
+| server | 任意の文字列、既定は undefined、Haneoka では intl | locale とは独立したレジストリ。 |
+| locale | 任意の文字列、既定は en | 作者・UI の言語。任意の作者のロケール。 |
+| assetsBase | 任意の絶対 HTTP(S) のディレクトリ、既定はソースのベース | リソースのディレクトリを上書きする。クエリ・フラグメントなし、不正なベースは TypeError。 |
+| resolveResource | 任意の (key,DataContext)→string/URL/Blob/Promise | 作者のキーの文字列そのまま、URL・Blob に対応付ける。既定はキーそのまま。見つからないパスは拒否する。 |
+| fetcher | 任意の (Request)→Promise&lt;Response&gt;、既定は fetch | core のデータとネイティブのリソースのバイト列。Haneoka の公開アセット・runtime・embed のリクエストは no-referrer を使い、作者元や API のリクエストは方針を保つ。音楽はネイティブの匿名 CORS を使う。 |
+| credentials | omit/same-origin/include、既定は omit | ローダーの通信。サービス側のオリジン・資格情報の許可が必要。 |
+| headers | HeadersInit、既定はなし | core のヘッダー。音楽のリクエストは非公開のヘッダーを引き継がない。 |
+| maxBytes | 正の安全な整数、既定は 67108864 | デコード後のレスポンスごとの予算。不正なら RangeError。URL だけの解決やオーディオ要素のダウンロードはローダーの読み取りではない。 |
+| onListenerError | 任意の (unknown)→void | 隔離されたオブザーバーのエラーの受け口。 |
+| theme | 任意の (ChartThemeContext)→OurNotesAssetManifest/Promise | 標準の表示・音声のファクトリー。document.assets より優先する。エラーは構築を拒否する。setSkin に必要。 |
+| skin | 任意の ChartSkin、既定は \{\} | 下記の 4 つの任意フィールド。自作のレンダラーはネイティブのスキンを使わない。 |
+| rendererAdapter | 任意の ChartRendererAdapter | Vue/Three のネイティブの表示の構成の代わりに、自作の表示でカーネルと Web ホストを選ぶ。アートワークと効果音はこれが受け持つ。 |
+| createSession | 任意の (chart,playbackOptions)→CassiopeiaSessionPort | 自作のレンダラー用の独自の規則。ない場合は ChartSession。このフィールドは標準の Vue のドライバーには渡されない。 |
+| signal | 任意の AbortSignal | ready のあとも含めて、ハンドルを中断・終了する。 |
+| loadTimeoutMs | 正の安全な整数、既定は 30000 | ドキュメントの読み込みと構築の各段階に適用し、プレーヤーの使用期間には適用しない。不正な値は RangeError、期限切れは TimeoutError。 |
+| labels | 任意の \{player?,pause?,loading?\} | 文字列のラベル。既定は Chart player/Pause/Loading。標準の Vue の構成でのみ使う。 |
+| onEvent | 任意の (ChartEmbedEvent)→void | 読み込みの前に登録される。 |
+| mode | chart/watch/play、既定は watch | セッションのモード。譜面のプレビュー・自動観賞・プレイ入力。モードの変更はドライバーのリセット・一時停止の挙動に従う。 |
+| settings | 任意の Partial&lt;RenderSettings&gt; と judgementOffsetMs、既定は \{\} | 全設定は下記。setOptions は指定しないフィールドを置き換えずに設定をマージする。 |
+| volume | 数値、既定は 0.8 | 音楽の音量 0〜1。初期のネイティブのメディアは範囲外の値を拒否し、更新時は範囲内に収める。有限の値を使う。 |
+| rate | 数値、既定は 1 | 正の再生速度。0.25〜4 に正規化する。不正・0 以下はフォールバックする。 |
+| loop | 真偽値、既定は false | 音楽のループ。 |
+| noteSoundEnabled | 真偽値、既定は true | 標準のプレーヤーのノーツの効果音。自作のレンダラーは自分の音の挙動を受け持つ。 |
+| noteSoundVolume | 数値、既定は 0.7 | 標準のノーツの効果音の音量。有限の 0〜1 を使う。 |
+
+リソースやコールバックの共通の詳細は [core](../core/) にあります。自動再生のフィールドはありません。準備を待ち、ユーザーの操作から play を呼んでください。構築のタイムアウトはその各段階を対象とするもので、ready の時点で楽曲のダウンロードが終わっていることを約束するものではありません。
+
+### スキン、ラベル、ファクトリーの全オプション
+
+| skin のキー | Haneoka のテーマで使える値・既定 | 意味 |
+| --- | --- | --- |
+| noteSkin | skin001/skin002/skin003、既定は skin001 | Our Notes/ガルパ/Honeycomb。 |
+| noteEffectSkin | effect001/effect001Simple、既定は effect001 | ネイティブのエフェクトの選択。 |
+| noteSeGroup | 1/2/3/4、既定は 1 | Our Notes/Solid/Wood/Typing。 |
+| currentQuality | 0/1/2、既定は 2 | 高/中/低のアセットのプロファイル。graphicsQuality の設定とは独立。 |
+
+スキンのフィールドは型付きのユニオンで、選んだテーマが解決します。元のアセットが不正・ない場合は、勝手なフォールバックのスキンを作らずに構築を拒否します。labels.player/labels.pause/labels.loading はすべて任意の文字列で、データのロケールは変えません。
+
+`haneokaChartSource({songId,difficulty,apiBase?})`: songId と difficulty は必須です。difficulty は easy/normal/hard/expert/special/master のいずれかで、楽曲の DTO に存在する必要があります。apiBase の既定は `https://haneoka.org/api/v1/` です。ソースは楽曲の構造を検証し、返された譜面ファイルを読み、解析して標準の譜面を作り、返された musicUrl を使います。難易度がなければ Error で拒否し、データ・予算・パーサーのエラーは原因を保ちます。`server` はマウントの文脈に属します。
+
+`haneokaChartTheme({apiBase?,publicBase?,server?}={})`: API のディレクトリの既定は `https://haneoka.org/api/v1/`、publicBase の既定はそのオリジンのルート、server の上書きの既定は loader.server、次に intl です。URL のフィールドは作者の assetsBase とは別に解決されます。実際のソース・出力の記述子を探し、必要な出力がない、または曖昧な場合は Error で拒否します。
+
+`ChartThemeContext` が持つのは、loader:EmbedLoader&lt;ChartEmbedDocument&gt;、signal:AbortSignal、skin:ChartSkin だけです。独自のテーマはそのシグナルで loader.resourceBytes を呼び、公開のマニフェストを返せます。追加の文脈のキャッシュやレンダラーは注入されません。
+
+## playback.settings の全フィールド
+
+下の既定値は公開の Our Notes プラグインの RenderSettings の既定値で、マウント自体は空の部分オブジェクトを渡します。固定した古い SDK は自分のプラグインのリビジョンを保ちます。マウントが明示的に検証しないフィールドはそのまま渡されます。有限の値と文書化された描画の範囲を使ってください。SDK がフィールドごとに検証することを約束するものではありません。
+
+| キー | 型・既定 | 描画・正規化 |
+| --- | --- | --- |
+| noteSpeed | 数値/5 | スクロール速度。自作・ネイティブの表示が解釈する。 |
+| noteSpeedCurve | 数値/1.30999994 | ノーツの表示オフセットの曲線の定数。 |
+| mirror | 真偽値/false | 元の 24 レーンの座標を左右反転する。 |
+| effects | 真偽値/true | ノーツのエフェクト。 |
+| noteSize | 数値/1 | フレームの構築で 0.1〜2 に制限する。 |
+| longAlpha | 数値/0.6 | ロングの線の不透明度。0.1〜1 に制限する。 |
+| guideAlpha | 数値/0.6 | ガイドの不透明度。0.1〜1 に制限する。 |
+| graphicsQuality | 数値/1 | 品質の設定。ネイティブでは 0/1/2 が高/中/低。 |
+| guidelineCount | 数値/6 | レーンの区切りの表示。 |
+| guidelineOpacity | 数値/0.25 | 区切り線の透明度。0〜1 を使う。 |
+| laneOpacity | 数値/0.8 | レーンの透明度。0〜1 を使う。 |
+| showJudgementLine | 真偽値/false | 判定ライン。 |
+| showSimultaneousLine | 真偽値/true | 同時押しのノーツをつなぐ線。 |
+| showEaseNote | 真偽値/false | イージング・クリティカルの印を強調する。 |
+| backgroundBrightness | 数値/0.7 | 背景の明るさ。0〜1 を使う。 |
+| judgeResultPosition | center/lane/none、既定は center | 判定の表示位置。 |
+| noteOverlapLaneBuffer | 数値/0 | 判定レーンの重なりのバッファー。 |
+| showFastSlow | 真偽値/true | タイミングのラベル。 |
+| showPerfectFastSlow | 真偽値/true | PERFECT のタイミングのラベルも含める。 |
+| showJudgeOffsetMs | 真偽値/false | ミリ秒のずれの文字。 |
+| alwaysShowFastSlow | 真偽値/false | タイミングのラベルを常に表示する設定。 |
+| scoreRankScores | 任意の読み取り専用 number[]、既定はなし | 元データの C/B/A/S/SS のスコアの閾値。 |
+| judgementOffsetMs | 数値/0 | セッションのタイミングのオフセット（ミリ秒）。自作のアダプターは setOffset で更新する。 |
+
+## ドキュメントのエンベロープとレンダラーのアダプターの全体
+
+`ChartEmbedDocument.chart` は必須です。`audio?:string`/`background?:string` はリソースキーか URL で、既定はなしです。`bgmOffsetMs?:number` の既定は 0 で、譜面の時刻はメディアのミリ秒からオフセットを引いたものです。`assets?:OurNotesAssetManifest` は theme がないときの標準のアートワークを渡し、rendererAdapter を使うなら省けます。音源がなければ一時停止した表示のプレビューになります。
+
+標準の譜面のルートのフィールドはすべて必須です: version:number、bpmChanges:BpmChange[]、signatureChanges:ChartSignatureChange[]、timeScaleChanges:\{timeMs,scale\}[]、notes:ChartNote[]、lines:ChartLine[]、timeline:\{skills,fever,callChanges\}、durationMs:number。BPM の行は tick/beat/timeMs/bpm、拍子は tick/beat/timeMs/numerator/denominator を持ちます。スキルの行は index/tick/timeMs、フィーバーの行は index/startTick/endTick/startTimeMs/endTimeMs、callChanges は index/tick/timeMs/rhythms:number[] を持ちます。lines は id、kind:long|guide、critical:boolean、noteIds:number[] を持ちます。
+
+各ノーツは id、tick、timeMs、beat、pos、size、laneX、width、operateType、judgementType、judgementAreaOffsetType、direction、critical・judged・visible:boolean、lineIds:number[]、slideAlong:boolean、indexInLine:number|null、easeL/easeR:ease の列挙|null を持ちます。元のゲームのノーツのフラグを推測せず、公開のコンバーターと列挙を使ってください。オリジナルの自作の例には必須フィールドがすべて入っています。
+
+ネイティブのアセットマニフェストは、id、source\{game,noteSkin,laneSkin,noteEffectSkin,authoredProfile\}、liveQuality\{quality,effectRenderingScale,backgroundCameraFps,live2dFps\}、noteAtlas、任意の arrowGradient、lane、particles、slideLineStyle、hud、任意の tmpSdfFont、noteSeGroup、noteSounds、palette、tiltThresholds[\{distance,value\}] を持ちます。これらはプロバイダーの DTO で、マウントのオプションの 2 つ目の一覧ではありません。スプライト、パーティクル、音声の記述子は[公開のマニフェストのスキーマ](https://github.com/haneoka-gakuen/cassiopeia-plugin-our-notes/blob/main/src/assets/manifest.ts)を使い、宣言したリソースはローダーで渡してください。
+
+`rendererAdapter.create({element,chart,loader,signal})` は `{render,resize,dispose,laneAtClientPoint?}` を同期的に、または Promise で返します。render(snapshot,options) は、その呼び出しの間だけ使い回される SessionSnapshot を読みます。不変の未来の状態として保持しないでください。resize(width,height,pixelRatio) でグラフィックスを更新し、dispose() で解放します。laneAtClientPoint(clientX,clientY) は 0〜23 の連続したレーンに対応付け、外側なら -1 を返します。自作のアダプターは、勝手なタイマーではなく MediaClock、入力、ChartSession を使います。createSession(chart,options) は別の公開セッションのポートを返せます。その reset/update/input/finish の契約に従ってください。
+
+## ハンドルのメソッド、状態、イベントの全体
+
+| メンバー | シグネチャー・結果 | 制約とライフサイクル |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | 最初の表示の準備。必要な効果音の失敗で拒否されることがあり、メディアはまだバッファリング中のことがある。 |
+| snapshot | 読み取り専用 \{phase,playing,time,duration\} | phase は loading/ready/cancelled/error/disposed。メディアの秒。 |
+| play | ()=&gt;Promise&lt;void&gt; | ready が必要。ブラウザーの音声の拒否が返る。 |
+| pause | ()=&gt;void | ready が必要。一時停止の状態を通知する。 |
+| seek | (seconds:number)=&gt;void | 有限の 0 以上の値、そうでなければ RangeError。既知の長さに収め、ready が必要。 |
+| setOptions | (ChartPlaybackOptions)=&gt;Promise&lt;void&gt; | ready が必要。部分的な設定をマージする。音量、速度、ループ、モード、効果音は選んだドライバーに渡す。 |
+| setSkin | (ChartSkin)=&gt;Promise&lt;void&gt; | ready と標準のテーマのファクトリーが必要。自作のレンダラーやファクトリーなしでは Error。メディアの位置で、一時停止して作り直す。 |
+| subscribe | listener=&gt;購読解除 | 以降のイベント。破棄後は Error。 |
+| cancel | ()=&gt;void | 読み込み中・準備済みのハンドルを終端状態にする。プレーヤー、入力、リソースの呼び出しを止める。 |
+| dispose | 共有の Promise&lt;void&gt; | 読み込み中も含めて冪等。DOM と全画面のフックを取り除き、メディアとレンダラーを止め、所有する URL を破棄する。後始末の失敗は AggregateError。 |
+
+イベント: load\{event:EmbedEvent\}、state\{snapshot\}、player\{name,args:readonly unknown[]\}、error\{error\}。転送される標準の名前は playing、media-playing、timeupdate、duration、judgement、skill、fever、callchange で、型付きのペイロードは元のプレーヤーが定めます。timeupdate/duration は秒を使い、judgement には note/judgement/timing/diffMs/judgedAtMs/combo/maxCombo/score/scoreDelta/life が含まれます。オブザーバーの失敗は onListenerError に渡ります。ソース、通信、テーマ、デコーダーの失敗は元の Error オブジェクトのままで、埋め込みが新しいエラーコードのエンベロープを加えることはありません。同じコンテナーに再びマウントする前に破棄してください。
+
+現在のソースは、ビューポート全体の上で、透明なクレジット表示の背景、不透明度 55% のアイコン、48px の角のタッチ領域を使います。対応するビルドがデプロイされると、安定したエイリアスがこの挙動を採用します。不変の r22 のプレーヤーは以前の専用の行を確保するレイアウトのままです。明示的に固定する場合は、文書化されたそのバージョンの挙動に従ってください。

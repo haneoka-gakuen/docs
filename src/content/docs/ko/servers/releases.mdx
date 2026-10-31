@@ -1,0 +1,74 @@
+---
+title: 서버와 릴리스
+description: 활성 서버를 고르고 재현 가능한 빌드를 위해 불변 릴리스를 고정합니다.
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+이 페이지는 서버 단위의 고급 계약을 다룹니다. 평소에는 `/api/v1/songs` 같은 직접 별칭을 쓰면 기본값인 `intl`의 현재 데이터를 읽을 수 있습니다.
+
+## 활성 서버 슬러그 목록
+
+<ApiTry path="/api/v1/releases" locale="ko" />
+
+```http
+GET /api/v1/releases
+HEAD /api/v1/releases
+```
+
+호환성을 위해 예전 라우트 이름을 유지합니다. 응답은 활성 서버 슬러그와 표시용 메타데이터 목록입니다.
+
+```json
+{
+  "releases": [
+    { "id": "intl", "displayName": "Global", "region": "global" },
+    { "id": "jp", "displayName": "JP", "region": "jp" }
+  ]
+}
+```
+
+이 응답의 `id`는 서버 슬러그입니다. `?server=`와 서버 단위 명시적 라우트의 `{server}` 세그먼트에 쓰는 값입니다. 배포로 서버가 추가되거나 종료되면 목록도 바뀝니다.
+
+## 현재 릴리스 매니페스트 읽기
+
+<ApiTry path="/api/v1/servers/{server}/release" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} query={[{ name: "projection", value: "identity" }]} locale="ko" />
+
+```http
+GET /api/v1/servers/{server}/release
+GET /api/v1/servers/{server}/release?projection=identity
+```
+
+전체 매니페스트는 릴리스의 카탈로그, 소스 트리, 게임 클라이언트 구성, 파일을 설명합니다. `projection=identity`는 선택한 릴리스를 기록해야 하는 도구를 위해 간결한 기술자를 반환합니다.
+
+```json
+{
+  "schema": "haneoka-resource-release-identity-v1",
+  "server": "intl",
+  "releaseId": "r-0123456789abcdef0123",
+  "sourceId": "source-snapshot-id"
+}
+```
+
+`releaseId`는 서비스가 반환하는 불투명한 값입니다. 위 JSON은 자리표시자이므로, 쓸 수 있는 값은 현재 식별자를 읽어 얻으세요.
+
+## 명시적 요청 고정
+
+서버 단위의 카탈로그, 소스, 릴리스 라우트는 모두 release 쿼리를 받습니다.
+
+```js
+const base = "https://haneoka.org/api/v1/servers/intl/";
+const identityResponse = await fetch(`${base}release?projection=identity`);
+if (!identityResponse.ok) throw new Error(`Identity HTTP ${identityResponse.status}`);
+const identity = await identityResponse.json();
+const query = new URLSearchParams({ release: identity.releaseId });
+const response = await fetch(`${base}songs/100001?${query}`);
+if (!response.ok) throw new Error(`Song HTTP ${response.status}`);
+console.log(await response.json(), response.headers.get("X-Haneoka-Release-Id"));
+```
+
+응답에는 `X-Haneoka-Release-Id`와 `X-Haneoka-Source-Id`가 포함됩니다. 아카이브에 감사 기록이 필요하면 내려받은 데이터와 함께 이 헤더를 저장하세요. 잘못된 릴리스는 `404 release_not_found`를 반환하고, 고정하지 않은 요청은 서버의 현재 포인터를 사용합니다.
+
+릴리스 미디어와 게임 클라이언트 파일도 활성 서버 포인터로 선택됩니다. 내용 주소 방식의 산출물 라우트는 소스 ID를 명시적으로 사용합니다. [미디어와 파일](/ko/servers/media/), [게임 클라이언트 전달](/ko/servers/game-client/), [소스 트리](/ko/servers/sources/)를 참고하세요.
+
+## 이 페이지를 쓰는 경우
+
+이전 출력을 재현해야 하는 빌드, 전체 스냅숏을 저장하는 크롤러, 릴리스의 스토리지 기술자가 필요할 때 릴리스를 고정합니다. 현재 곡, 이벤트, 스토리를 보여 주는 웹 앱은 직접 별칭을 그대로 쓰고 각 요청이 현재 카탈로그를 따르게 하면 됩니다.

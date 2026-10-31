@@ -1,0 +1,77 @@
+---
+title: 規約
+description: API 全体で共通の URL、レスポンス、キャッシュ、認証、ページ分割の規則。
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+## ベース URL と現在データのエイリアス
+
+本番のオリジンは `https://haneoka.org` です。カタログの直接ルートは次のとおりです。
+
+```text
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/relations/{relation}/{key}
+```
+
+これらのルートは既定で現在の `intl` サーバーを使います。別の有効なサーバーを選ぶには `?server=jp` など、`GET /api/v1/releases` が返すスラッグを付けます。明示的な `/api/v1/servers/{server}/...` の形は同じカタログ処理に届き、再現可能なビルドで使う `release` オプションが加わります。
+
+`resource`、`id`、`view`、`relation`、`key` はデータで決まる値です。ルートを組み立てる前にカタログマニフェストか索引のレスポンスを読んでください。`releases`、`servers`、`account`、`me`、`community`、`garupa` などの最上位グループは独自の API ルートを持ち、カタログのリソース名ではありません。動的な各セグメントは URL エンコードし、`/` は文書化されたルートがパスを受け付ける箇所でだけそのまま残してください。
+
+直接ルートを試す:
+
+<ApiTry path="/api/v1/bands" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="ja" />
+
+## JSON とフィールド
+
+JSON のレスポンスは `application/json; charset=utf-8` を使います。カタログの索引レスポンスは通常、エンティティ ID をキーにしたオブジェクトです。エンティティの値は元の DTO の形を保ちます。たとえば楽曲は `musicId`、`musicTitle` のような言語別配列、難易度のレコード、メディアパスを使い、events リソースは `{ "entries": {}, "hasGameEvents": false }` を返すことがあります。要求したリソースの文書化されたフィールドに合わせて実装し、ほかのフィールドは保持してください。
+
+API はプロバイダーの DTO に共通の `id`、`title`、`data` ラッパーを加えません。値がリソース固有の ID フィールドを使っていても、索引のキーが検索用の ID です。`null` のフィールドは、元データに現在その値がないことを示します。
+
+## 役に立つレスポンスヘッダー
+
+| ヘッダー | 意味 |
+| --- | --- |
+| `X-Request-Id` | エラーや診断報告のための相関 ID。 |
+| `X-Haneoka-Release-Id` | サーバー単位のレスポンスを返した現在のリリース。 |
+| `X-Haneoka-Source-Id` | そのリリースに対応するソースのスナップショット。 |
+| `ETag` | 条件付きリクエストのための表現の検証子。 |
+| `Cache-Control` | サービスが選んだ鮮度と再検証の方針。 |
+| `Content-Range` | 返したバイト範囲、または満たせない範囲の `bytes */size`。 |
+
+現在のエイリアスは、サービスが新しいカタログを公開すると変わります。利用者がどのデータを見たかを説明する必要がある場合は、キャッシュのエントリーと一緒にリリースヘッダーを保存してください。安定した再現が必要なアプリケーションは明示的な `release` リクエストに切り替えられます。その手順は上級者向けのリリースのページにあります。
+
+## バッチ、ビュー、リレーション
+
+バッチリクエストでは `id` を繰り返します:
+
+```text
+GET /api/v1/songs?id=100001&id=100002
+```
+
+カタログのバッチは `{ "items": { ... }, "missing": [ ... ] }` を返します。サービスはキャッシュキーのために ID を並べ替えて重複を除きます。見つからない ID はその ID に対する結果であり、リクエストの失敗ではありません。
+
+カタログマニフェストは各リソースのビューとリレーションを宣言します。ビューは独自の索引とエンティティの形を持ちます。リレーションは、ID をキーにした正規のエンティティ（`valueMode: "ids"`）か、プロバイダーのレコード（`valueMode: "records"`）を返します。マニフェストの名前と形に従ってください。値はリソースによって異なります。
+
+## キャッシュとメディア
+
+`ETag` と `Cache-Control` に従ってください。`If-None-Match` を送ると、表現が変わっていない場合に `304` を受け取れます。`/assets/intl/...` や `/runtime/intl/...` などの相対メディアパスは `https://haneoka.org` に対して解決します。
+
+バイナリのルートはメディアタイプを宣言し、単一のバイト範囲に対応することがあります。有効な部分レスポンスは `206`、満たせない範囲は `Content-Range: bytes */<size>` 付きの `416` です。`416` を変更なしで再試行しないでください。
+
+## 認証と同一オリジンの書き込み
+
+公開のカタログ、メディア、Sonolus、Bestdori の読み取りにセッションは不要です。コミュニティへの書き込み、プロフィールの変更、設定、アップロード、Better Auth の操作は HTTP-only の Cookie と同一オリジンのブラウザーリクエストを使います。
+
+```ts
+await fetch("/api/v1/account/profile", {
+  credentials: "include",
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ bio: "Hello", version: 4 }),
+});
+```
+
+セッションの Cookie をログやクライアントのバンドルに含めないでください。認証が必要な各ページに、その操作のリクエスト本文、衝突時のフィールド、モデレーションの状態が書かれています。

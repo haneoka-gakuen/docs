@@ -1,10 +1,10 @@
+import { demoText } from "./demo-text.js";
 import { activate, release } from "./demo-lifecycle.js";
 const sdkBase = "https://haneoka.org/embed/";
 const assetsBase = new URL("./home-spot/", import.meta.url).href;
 export function install(root) {
   const field = name => root.querySelector(`[data-spot-${name}]`);
-  const zh = root.dataset.uiLocale === "zh-CN";
-  const text = (en, cn) => zh ? cn : en;
+  const text = demoText(root.dataset.uiLocale);
   const editor = field("config"), output = field("output"), status = field("status"), stage = field("stage");
   const initial = JSON.parse(editor.value).options.document;
   let handle, controller, generation = 0, exportUrl, records = [], availableCharacters = [];

@@ -1,0 +1,74 @@
+---
+title: 미디어와 파일
+description: 카탈로그 미디어 경로를 이미지, 오디오, 동영상, 채보 요청으로 바꿉니다.
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+대부분의 애플리케이션은 현재 카탈로그 DTO가 반환하는 URL로 미디어에 접근합니다. `/assets/intl/...png`나 `/runtime/intl/...mp3` 같은 경로를 `https://haneoka.org` 기준으로 해석해 그대로 요청하세요.
+
+```bash
+curl --fail-with-body \
+  https://haneoka.org/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png \
+  -o jacket.png
+```
+
+실제 재킷 열기:
+
+<ApiTry path="/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png" image="true" locale="ko" />
+
+서버는 선택한 서버의 현재 릴리스를 사용합니다. 파일을 캐시하거나 표시할 때는 반환된 `ETag`와 `Content-Type`을 유지하세요. 릴리스 매니페스트, 소스 트리, 내용 주소 방식 번들은 크롤러와 클라이언트 빌드 도구를 위한 고급 입력입니다.
+
+## 릴리스 미디어 트리
+
+```http
+GET /assets/{server}/{path}
+HEAD /assets/{server}/{path}
+GET /runtime/{server}/{path}
+HEAD /runtime/{server}/{path}
+GET /objects/{server}/{path}
+HEAD /objects/{server}/{path}
+```
+
+활성 릴리스 색인이 이 경로들을 내용 주소 방식 객체로 해석합니다. `assets`와 `runtime`은 공개 릴리스의 경로를 받습니다. `assets` 경로는 `Assets/` 또는 `Packages/`로, `objects` 경로는 `unity/`로 시작해야 합니다. 정확한 경로는 릴리스 매니페스트나 카탈로그 DTO에서 얻습니다.
+
+응답에는 `ETag`, `Content-Length`, `Accept-Ranges: bytes`, `Content-Security-Policy: default-src 'none'; sandbox`가 포함됩니다. 알 수 없는 경로는 일반 `not found` 응답과 함께 `404`를 반환합니다.
+
+## 바이트 범위
+
+```http
+GET /assets/{server}/{path}
+Range: bytes=0-1048575
+If-Range: "etag-from-a-previous-response"
+```
+
+유효한 범위는 `206`과 `Content-Range: bytes <start>-<end>/<size>`를, 잘못된 범위는 `416`과 `Content-Range: bytes */<size>`를 반환합니다. `If-Range`가 맞지 않으면 객체 전체를 반환합니다.
+
+## 내용 주소 방식 산출물
+
+```http
+GET /artifacts/{server}/{sourceId}/android/bundles/{filename}
+HEAD /artifacts/{server}/{sourceId}/android/bundles/{filename}
+```
+
+이 라우트는 `sourceId`의 소스 기술자에 원래 파일 이름이 기재된 Unity 번들을 반환합니다. 파일 이름 세그먼트 하나만 받으며 `application/octet-stream`을 반환합니다. `{sourceId}`와 파일 이름은 소스 메타데이터에서 얻어야 하며, 임의의 객체 저장소 경로가 아닙니다.
+
+산출물 응답은 릴리스 객체와 같은 단일 범위 요청 방식(`206`, `416`, `ETag`, `Content-Range`)을 지원합니다.
+
+## 언어별 미디어 대체
+
+`(en)`, `(ko)`, `(zh-Hans)`, `(zh-Hant)`가 들어간 릴리스 경로는 해당하는 다른 버전이나 언어 지정이 없는 파일로 대체될 수 있습니다. 사용하는 쪽은 반환된 응답을 쓰고, 대체 순서를 자체 URL 생성에 넣지 마세요.
+
+## 커뮤니티 첨부 콘텐츠
+
+커뮤니티 업로드에는 인증이 필요한 별도의 흐름이 있습니다. 공개 준비가 된 첨부 콘텐츠는 다음에서 얻을 수 있습니다.
+
+```http
+GET /api/v1/community/attachments/{attachmentId}/content
+HEAD /api/v1/community/attachments/{attachmentId}/content
+```
+
+이 엔드포인트는 보는 사람이 첨부가 속한 게시물을 읽을 수 있어야 할 수 있습니다. 첨부 응답에 해당 URL이 있으면 `?variant=media`, `poster`, `thumb`으로 미디어 처리 변형본을 요청할 수 있습니다.
+
+## 채보 이미지 그리기
+
+채보 파일은 [채보 이미지 API](../chart-images/)로 SVG나 PNG로 그릴 수도 있습니다. 실제 난이도 이름을 고르고, 패널 높이는 최종 캔버스 크기와 따로 지정하며, 응답 ETag를 보관하세요. 페이지 안에서 재생하려면 [Cassiopeia 임베드](../../embed/cassiopeia/)를 참고하세요.

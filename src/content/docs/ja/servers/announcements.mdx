@@ -1,0 +1,113 @@
+---
+title: 運営のお知らせ
+description: 現在のゲーム内お知らせフィードと、その正規のメディアを読みます。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+お知らせ API は、選んだサーバーで現在公開されているお知らせ、記事本文、画像を返します。お知らせは独立して更新されるため、クライアントはリソースのバージョンを選ばずに直接読めます。
+
+## 最新のお知らせを一覧する
+
+<ApiTry path="/api/v1/announcements" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }, { name: "limit", value: "2" }]} locale="ja" />
+
+```http
+GET /api/v1/announcements?server=intl&limit=2
+```
+
+`server` は任意で、既定は `intl` です。`limit` は任意で 1〜100 を受け付け、現在の一覧からその件数まで返します。一覧のレコードには詳細本文の `html` フィールドが含まれません。
+
+レスポンスの形:
+
+```json
+{
+  "server": "intl",
+  "available": true,
+  "fetchedAt": "2026-09-30T04:14:16.536328Z",
+  "announcements": [
+    {
+      "id": 23,
+      "category": 6,
+      "title": "緊急維護公告",
+      "startAt": 1790730300,
+      "endAt": 1790751600,
+      "updatedAt": 1790695244,
+      "bodyImage": "https://haneoka.org/api/v1/announcements/media/intl/1aaf53f946ee62d677d1d8cb3b0e54ef6e7556ebe48af07bfeb76bd6f13851e3.jpg",
+      "bodyImageWidth": 420,
+      "bodyImageHeight": 180,
+      "sourceLanguage": "zh-Hant"
+    },
+    {
+      "id": 24,
+      "category": 3,
+      "title": "「由我主演的賽博之夜」轉蛋舉辦預告！",
+      "startAt": 1790730000,
+      "endAt": 1790751600,
+      "updatedAt": 1790695246,
+      "sourceLanguage": "zh-Hant"
+    }
+  ]
+}
+```
+
+`startAt`、`endAt`、`updatedAt` は Unix 秒です。`fetchedAt` は現在公開中のスナップショットの UTC ISO-8601 時刻です。フィードが利用できない場合、レスポンスは `available: false`、`fetchedAt: null`、空の `announcements` 配列になります。スナップショットの値は運営フィードの更新に合わせて変わります。
+
+## お知らせを 1 件読む
+
+お知らせは入れ替わります。詳細を読む前に現在の一覧から実際の `id` を取得してください。以前の例の ID 23 は一覧に残っていないことがあります。次の完全な JavaScript がその読み取りを行います。
+
+```js
+const origin = "https://haneoka.org";
+const response = await fetch(`${origin}/api/v1/announcements?server=intl&limit=1`);
+if (!response.ok) throw new Error(`Announcement list HTTP ${response.status}`);
+const feed = await response.json();
+const first = feed.announcements[0];
+if (first) {
+  const detailResponse = await fetch(`${origin}/api/v1/announcements/${encodeURIComponent(first.id)}?server=intl`);
+  if (!detailResponse.ok) throw new Error(`Announcement detail HTTP ${detailResponse.status}`);
+  const detail = await detailResponse.json();
+  console.log(detail.title, detail.bodyImage);
+} else {
+  console.log("No current announcements.");
+}
+```
+
+詳細のレスポンスは、完全なレコードの横にスナップショットのメタデータを保持します。
+
+```json
+{
+  "server": "intl",
+  "available": true,
+  "fetchedAt": "2026-09-30T04:14:16.536328Z",
+  "id": 23,
+  "category": 6,
+  "title": "緊急維護公告",
+  "startAt": 1790730300,
+  "endAt": 1790751600,
+  "updatedAt": 1790695244,
+  "sourceLanguage": "zh-Hant",
+  "html": "<p>…</p>"
+}
+```
+
+`html` はお知らせの元データにある任意の生の HTML です。信頼できない入力として扱ってください。描画する前に DOMPurify などの実績あるサニタイザーと、タグ、属性、URL プロトコル、画像パスの明示的な許可リストで無害化します。スクリプト、イベントハンドラー属性、安全でない URL、未対応の要素は取り除いてください。元の文字列を `innerHTML`、`dangerouslySetInnerHTML` などの HTML の出力先に直接渡してはいけません。サニタイザーが使えない場合は値をエスケープしてテキストとして表示してください。
+
+### 言語と描画
+
+`sourceLanguage` は、返されたタイトルと本文から推定した任意の BCP 47 言語タグです（`ja`、`zh-Hant`、`zh-Hans`、`ko`、`en` など）。描画する記事の `lang` に使ってください。サーバーの元の文章はそのまま保持され、アプリケーションは自身の UI 言語を選びます。`sourceLanguage` がない、または不正な場合はコンテンツの言語に `und` を使い、アプリの UI ロケールは別に保ってください。
+
+### 画像と寸法
+
+`bodyImage` と `banner` は任意の絶対 HTTPS URL です。対応する `bodyImageWidth`、`bodyImageHeight`、`bannerWidth`、`bannerHeight` は任意の本来のピクセル寸法です。レイアウトの場所を確保し、元の縦横比を保つために使ってください。CSS はビューポートに合わせて画像を拡縮して構いません。
+
+`html` 内の `<img src>` は同じ公開メディアのルートに正規化されています。返された URL と示された寸法を使い、元データからオリジンの URL を組み立て直さないでください。
+
+## お知らせのメディアをダウンロードする
+
+```http
+GET /api/v1/announcements/media/{server}/{fullhash}.{ext}
+HEAD /api/v1/announcements/media/{server}/{fullhash}.{ext}
+```
+
+`fullhash` はダウンロードしたバイト列の小文字 64 文字の SHA-256 ダイジェストです。対応する拡張子は `avif`、`gif`、`jpg`、`jpeg`、`png`、`webp` で、レスポンスは実際のメディアタイプを返します。メディアのレスポンスは不変で、長期間のキャッシュヘッダーが付きます。ID やメディアオブジェクトが見つからない場合は `404` を返します。
+
+楽曲、キャラクター、関連するゲームのレコードは、`/api/v1/songs` などの直接エンドポイントを含む[カタログ API](../catalog/) から引き続き取得できます。

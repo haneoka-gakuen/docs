@@ -1,0 +1,494 @@
+---
+title: Vega ストーリー埋め込み
+description: 完全なストーリー JSON を作ってブラウザーで読み込み、背景、音声、Live2D を加えます。
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+
+テキストファイルでストーリーを作り、自分のウェブページで再生します。まず 2 行の会話から始め、背景、サウンド、モデルを加えていきます。この手順はホストされた [Vega ブラウザーモジュール](https://haneoka.org/embed/vega.js)を使うので、npm パッケージをインストールせずに進められます。
+
+## 1. ここでプレーヤーを試す
+
+**完全なオリジナル例** を選んだまま **選んだ内容を読み込む**、続けて **再生** を押します。庭とミラの最初の台詞が表示されます。**次の台詞** で進み、**一時停止** で再生を止め、スライダーでストーリー内を移動します。**プレーヤーを終了** はプレーヤーを閉じるので、その後別のストーリーを読み込めます。
+
+<DemoPlayer kind="story" locale="ja" />
+
+オリジナル例は[この完全な story.json](/examples/story.json) と [garden.svg](/examples/garden.svg) を使います。**Our Notes: Treasure** は、モデルとサウンドリソースを含む公開済みのゲームストーリーを読み込みます。**高度なパラメーター** の設定は次の読み込みで反映されます。言語の選択は作成済みのテキストから選ぶもので、単一言語のストーリーを翻訳するものではありません。
+
+## 2. 最初のストーリーを保存する
+
+`my-story` というフォルダーを作ります。テキストエディターに次の完全な JSON を貼り付け、そのフォルダーに UTF-8 で **story.json** として保存します。ファイル名が `story.json.txt` ではなく `story.json` であることを確認してください。JSON はデータです。引用符とカンマはそのまま残し、`const` や `import` のような JavaScript の語は書きません。
+
+```json
+{"localization":{"locales":["en"],"defaultLocale":"en"},"commands":[
+  {"command":2,"targetName":"Mira","text":"This is my first story."},
+  {"command":2,"targetName":"Mira","text":"Press Next line to continue."}
+]}
+```
+
+[この完全な会話 JSON を開いて](/examples/dialogue.json) `story.json` として保存することもできます。`commands` はストーリーの動作を順に並べたリストです。ここでの `2` は Talk、`targetName` は話者、`text` は画面に表示される台詞です。まず 2 行の台詞を編集し、ほかのフィールドはそのままにします。
+
+## 3. ウェブページを作って開く
+
+[完全なスターター HTML を開き](/examples/first-story.html)、**index.html** として `story.json` の隣に保存します。[スターターフォルダー全体の ZIP](/examples/first-story.zip) をダウンロードして展開し、このディレクトリを得ることもできます。コピーできる完全なソースは下にあります。
+
+```text
+my-story/
+  index.html
+  story.json
+```
+
+フォルダーを HTTP で配信します。Python がなければ [Python.org](https://www.python.org/downloads/) からインストールしてください。Python 3 があれば `my-story` でターミナルを開いて次を実行します。
+
+```sh
+python3 -m http.server 8000
+```
+
+Windows では `py -m http.server 8000` を使います。ブラウザーで [http://localhost:8000/](http://localhost:8000/) を開きます。エディターのローカル HTTP プレビューでも構いません。ファイルをダブルクリックすると `file://` アドレスで開きますが、JSON の読み込みには HTTP アドレスが必要です。終わったら Ctrl+C でサーバーを止めます。
+
+**Load / retry** を押して **Loaded** を待ち、**Play** を押します。最初の台詞が表示され、**Next line** で台詞の表示や次への進行を行います。この最初のストーリーには画像がないので、背景は無地です。プレーヤーを閉じるとリソースが解放され、再度読み込めます。
+
+<details>
+<summary>完全な index.html:すべてを 1 つのファイルにコピー</summary>
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My first story</title>
+<style>
+  body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+  #stage { height: 60vh; min-height: 320px; position: relative; }
+  button { font: inherit; min-height: 48px; margin: .25rem; }
+</style>
+<h1>My first story</h1>
+<p id="status" role="status" aria-live="polite">Press Load to read story.json.</p>
+<div id="stage"></div>
+<button id="load">Load / retry</button>
+<button id="play" disabled>Play</button>
+<button id="pause" disabled>Pause</button>
+<button id="next" disabled>Next line</button>
+<button id="close">Close</button>
+<script type="module">
+const button = id => document.getElementById(id);
+const status = document.getElementById("status");
+let handle, controller, generation = 0;
+
+function controls(enabled) {
+  for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
+}
+async function close() {
+  generation++; controller?.abort(); controls(false);
+  const old = handle; handle = undefined;
+  await old?.dispose();
+}
+button("load").onclick = async () => {
+  button("load").disabled = true;
+  let current;
+  try {
+    await close(); current = ++generation;
+    controller = new AbortController(); const signal = controller.signal;
+    status.textContent = "Loading…";
+    const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+    const response = await fetch("./story.json", { signal });
+    if (!response.ok) throw new Error(`story.json: HTTP ${response.status}`);
+    const storyData = await response.json();
+    signal.throwIfAborted(); if (current !== generation) return;
+    handle = mountStory(document.getElementById("stage"), {
+      document: storyData,
+      locale: storyData.localization?.defaultLocale ?? "en",
+      assetsBase: new URL("./", response.url).href,
+      signal,
+      onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
+    });
+    await handle.ready;
+    if (current !== generation) return;
+    controls(true); status.textContent = "Loaded. Press Play, then Next line.";
+  } catch (error) {
+    if (current === generation) {
+      const failed = handle; handle = undefined; await failed?.dispose().catch(() => {});
+      if (current === generation) status.textContent = `Loading failed: ${error.message}. Check the file, then retry.`;
+    }
+  } finally { button("load").disabled = false; }
+};
+button("play").onclick = () => handle?.play();
+button("pause").onclick = () => handle?.pause();
+button("next").onclick = () => handle?.next();
+button("close").onclick = async () => { await close(); status.textContent = "Closed. Press Load to try again."; };
+window.addEventListener("pagehide", () => { void close(); }, { once: true });
+</script>
+</html>
+```
+
+</details>
+
+スクリプトは 3 つの動作を別々に行います。
+
+```js
+const response = await fetch("./story.json"); // request the saved file
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+const storyData = await response.json(); // turn JSON text into a JavaScript object
+const player = mountStory(document.getElementById("stage"), {
+  document: storyData, // pass that object to the player
+  locale: "en",
+  assetsBase: new URL("./", response.url).href,
+});
+await player.ready; // the page enables Play only when loading succeeds
+```
+
+この抜粋は完全な HTML の読み込み部分の説明です。ファイル名、URL、パース済みオブジェクトはそれぞれ別の入力です。
+
+| 手元にあるもの | 使い方 |
+| --- | --- |
+| JavaScript で作成済みのストーリーオブジェクト | `mountStory(container, { document: storyData })` |
+| ストーリー JSON ファイルを指す HTTP アドレス | 上のように取得してパースするか、手順 6 の `httpDataSource` を使う |
+| ファイル入力で選んだ JSON ファイル | `fileDataSource` を使い、画像と音声の取得元を選ぶ |
+| 公開 Haneoka ゲームストーリー ID | 手順 7 の `haneokaStorySource` を使う |
+
+## 4. 背景を加える
+
+[garden.svg](/examples/garden.svg) を同じ場所に保存します。`story.json` を[背景付きの完全なストーリー](/examples/story.json)に置き換えるか、次の動作を `commands` 配列の**先頭**、最初の Talk の前に挿入します。
+
+```json
+{"command":25,"background":{"url":"garden.svg"}}
+```
+
+`25` は Stage です。`background.url` が画像ファイルを指します。この動作と続く Talk の間にカンマを残してください。フォルダーには `index.html`、`story.json`、`garden.svg` があります。プレーヤーを読み込み直すと、会話の後ろに庭が表示されます。スターターの `assetsBase` はこのフォルダーを指すので、`garden.svg` は `story.json` の隣で解決されます。
+
+## 5. サウンドを 1 つ加え、次に複数のキューを対応付ける
+
+[cue-tone.wav](/examples/cue-tone.wav) を `story.json` の隣に保存し、JSON を[サウンド付きの完全なストーリー](/examples/story-sound.json)に置き換えます。最初の台詞と一緒に小さなオリジナルのテストトーンが再生されます。その Talk 動作に加えたフィールドは次のとおりです。
+
+```json
+"voices": [{"soundId":10000001,"categoryName":"Voice","playableUrl":"cue-tone.wav","volume":0.5}]
+```
+
+音声付きの台詞にするには、WAV を自分の録音に置き換え、`playableUrl` をそのファイル名どおりに変更します。`soundId` はキューの識別、`playableUrl` は再生可能な音声の場所です。ブラウザーが音声を許可できるよう、**Play** はクリックやタップで押してください。SDK は宣言された音声を共有リソース転送で読み込み、再生用 URL を自動で準備します。リソース要求には設定したバイト予算と期限が適用され、破棄すると所有する再生用 URL が解放されます。
+
+既存のストーリーにキュー ID があるなら、アドレスを JavaScript のマップ 1 つにまとめ、マウント前に音声レコードを埋めます。スターター HTML では `const storyData = await response.json();` の直後に次を加えます。
+
+```js
+const sounds = { 10000001: "./cue-tone.wav" };
+for (const command of storyData.commands) {
+  for (const voice of command.voices ?? []) {
+    const key = voice.soundId ?? voice.id;
+    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
+  }
+}
+```
+
+これはサンプルの `commands[].voices` に対するホスト側の準備で、`sounds` は `mountStory` のオプションではありません。BGM と効果音の動作は `bgm.playableUrl` と `se.playableUrl` レコードを使います。公開 Haneoka ストーリーでは `voiceRefs`、`bgmRef`、`seRef` がサウンドレジストリで解決済みです。ほかの形式には、タイムラインやコマンドグループ内のキューも含めて、キューフィールドをこれらのレコードに変換するアダプターが必要です。
+
+## 6. 別の URL や選んだファイルを読み込む
+
+[ソース選択付きの完全な HTML](/examples/story-player.html) には、4 つの方法すべて、読み込みエラーの表示、キャンセル、再生、進行スライダーが含まれます。同じ JSON とアセットの隣に `index.html` として保存します。**Another JSON address** を選んでアドレスを貼り付け、Load を押します。保存した JSON を選ぶには **A JSON file on my computer** を選びます。
+
+HTTP の場合、より短い SDK の方法ではスターターの fetch/JSON/mount のブロックを次に置き換えます。
+
+```js
+const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
+handle = mountStory(document.getElementById("stage"), {
+  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  locale: "en",
+  signal,
+});
+await handle.ready;
+```
+
+`httpDataSource` は JSON の取得とパースを内部で行います。相対リソースパスは JSON アドレスのディレクトリを基準にし、絶対 URL は自身のオリジンを保ちます。`assetsBase` はリソースが別のディレクトリにあるときだけ設定します。
+
+JSON ファイルの選択で許可されるのはそのファイルだけです。隣の画像、モデル、音声へのアクセスは許可されません。完全な HTML は `fileDataSource(file)` を使い、それらのリソースを HTML のフォルダーから配信します。すべてローカルで選んだリソースを使う場合は[ローカルファイルと fileResourceResolver](../core/#local-files) を参照してください。モデルの付属ファイルのパスも、そのリソースマップで解決できる必要があります。
+
+## 7. 公開済みの Our Notes ストーリーを 1 つの入口で読み込む
+
+Haneoka のストーリー ID があるときは `mountHaneokaStory` を使います。1 つのリリースマニフェストから、対応するプレーヤーモジュール、テーマ、Cubism ランタイムを選びます。指定するのはストーリー ID、サーバー、言語です。
+
+[短編ストーリーの完全な HTML を開き](/examples/haneoka-story-en.html)、`index.html` として保存して、手順 3 と同様に配信します。**Load** を押して **Ready** を待ち、**Play** を押します。この例は **afterlive_10109** を使います。作成済みのコマンドとアセット参照は[完全なカタログ JSON](https://haneoka.org/api/v1/stories/afterlive_10109?server=intl) で確認できます。
+
+```js
+import { mountHaneokaStory } from "https://haneoka.org/embed/vega-haneoka.js";
+const player = mountHaneokaStory(document.getElementById("stage"), {
+  id: "afterlive_10109", server: "intl", locale: "en",
+});
+await player.ready;
+// Call from a button click:
+player.play();
+```
+
+完全な HTML は要素、ボタン、読み込み段階、キャンセル、エラー表示、破棄を備えています。ネイティブプレーヤーにはシーン操作もあります。外部ボタンはハンドルのメソッドを示すためのもので、自分のページではレイアウトに合う操作を残せます。
+
+<details>
+<summary>公開短編ストーリーの完全な index.html</summary>
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Haneoka story</title>
+<style>
+body{font:16px system-ui;margin:16px;background:Canvas;color:CanvasText}
+#stage{height:min(70vh,600px);position:relative;width:100%}
+button{font:inherit;margin:4px;min-height:48px;padding:8px 16px}
+output{display:block;margin:8px}
+</style>
+<h1>Haneoka story</h1>
+<button id="load" disabled>Load</button>
+<button id="cancel" disabled>Cancel loading</button>
+<button id="play" disabled>Play</button>
+<button id="next" disabled>Next line</button>
+<button id="exit" disabled>Dispose</button>
+<output id="status" role="status">Preparing player</output>
+<div id="stage"></div>
+<script type="module">
+import {mountHaneokaStory} from "https://haneoka.org/embed/vega-haneoka.js";
+let player, generation=0;
+const by=id=>document.getElementById(id);
+const labels={manifest:"Preparing player",modules:"Preparing player",runtime:"Preparing player",data:"Loading story",resources:"Loading assets",ready:"Ready"};
+const controls=ready=>{by("play").disabled=!ready;by("next").disabled=!ready;};
+by("load").onclick=async()=>{
+  const current=++generation;
+  by("load").disabled=true;controls(false);
+  try{
+    await player?.dispose();
+    if(current!==generation)return;
+    player=mountHaneokaStory(by("stage"),{
+      id:"afterlive_10109",server:"intl",locale:"en",
+      onEvent:event=>{
+        if(current!==generation)return;
+        if(event.type==="stage")by("status").textContent=labels[event.stage];
+        if(event.type==="error"){controls(false);by("status").textContent=String(event.error?.message??event.error);}
+      },
+    });
+    window.storyPlayer=player;
+    by("exit").disabled=false;by("cancel").disabled=false;
+    await player.ready;
+    if(current===generation){controls(true);by("status").textContent="Ready";}
+  }catch(e){if(current===generation)by("status").textContent=player?.snapshot.phase==="cancelled"?"Cancelled":String(e.message??e);}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{player?.cancel();};
+by("play").onclick=()=>{player.play();by("status").textContent="Playing";};
+by("next").onclick=()=>{player.next();};
+by("exit").onclick=async()=>{
+  ++generation;controls(false);by("cancel").disabled=true;by("exit").disabled=true;
+  try{await player?.dispose();by("status").textContent="Disposed";}
+  catch(e){by("status").textContent=String(e.message??e);}
+  finally{by("load").disabled=false;}
+};
+by("load").disabled=false;by("status").textContent="Not loaded";
+window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
+</script>
+</html>
+```
+
+</details>
+
+ページ内の **Our Notes: Treasure** プリセットは、より長い **millsage_004_1_02** ストーリーを使います。[完全な公開 JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl) には 728 個のコマンドがあります。どちらのプリセットも同じ短い API を使います。`id` はストーリーカタログが返す ID に置き換えてください。
+
+カタログ JSON には参照が含まれます。Haneoka アダプターがランタイム、モデルメタデータ、メディアレコードを準備します。自分の完全な Vega ストーリー JSON を再生するには、手順 3~6 の `fetch → response.json() → mountStory({ document })` の経路を保ちます。Haneoka ヘルパーがリソースオリジンを提供するので、リソースベースを設定するのは、高度なプレーヤーオプションで意図的にアセットを差し替えるときだけです。
+
+## 8. 標準 Live2D モデルを準備する
+
+Cubism プロバイダーは標準の `*.model3.json` と旧式の `*.model.json` を受け付けます。標準モデルでは、キャラクター記述子がマニフェストを指せます。
+
+```json
+{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```
+
+書き出したディレクトリ構成を保ちます。
+
+```text
+models/Mira/
+  Mira.model3.json
+  Mira.moc3
+  Mira.2048/texture_00.png
+  motions/...
+  expressions/...
+```
+
+| コンポーネント | 必要なとき |
+| --- | --- |
+| `model3.json`、参照される `.moc3`、参照されるすべてのテクスチャ | 基本のモデル描画。名前とパスはマニフェストと一致させる |
+| Cubism プラグイン、Web ランタイムモジュール、互換の Cubism Core | モデル描画の実行。メインのストーリー埋め込みはモデルプロバイダーを自動でインストールしない |
+| 物理、ポーズ、ユーザーデータの JSON | `FileReferences` で宣言されているとき。未使用の宣言を削除するか、参照先のファイルを用意する |
+| モーションと表情のファイル | ストーリーが使うとき。マニフェストのカタログとファイルパスを保つ |
+| 追加のシェーダー JSON やシェーダーディレクトリ | このランタイムに外部シェーダー設定は不要。描画シェーダーは同梱されている |
+
+Live2D の[書き出しモデルファイルのガイド](https://docs.live2d.com/ja/cubism-editor-manual/export-moc3-motion3-files/)と [model3.json 仕様](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md)を参照してください。プロバイダーはマニフェストから付属ファイルを探します。
+
+[完全なモデルストーリーのテンプレート](/examples/story-model.json)を `story.json` として保存します。`command: 0` は入口の動作、`targets` はミラの識別、`positionType: 5` は中央への配置、`characterModel` はモデルの指定です。`runtime.model` を実際のマニフェストパスにし、モデルの付属ファイル名とディレクトリはそのままにします。手順 6 の完全な HTML を使い、**Advanced: standard Live2D in my own story** を開いて Cubism プロバイダーを有効にし、オリジナルの JSON を選んで Load、Play を押します。このテンプレートには自分で書き出したモデルファイルが必要で、ダウンロードには図のモデルディレクトリは含まれません。
+
+**ZIP 入力は現在実装されていません。** モデルのアーカイブを展開し、パスを保ったまま展開済みファイルを配信して、記述子をそのマニフェストに向けてください。既存のモデル書き出しは ZIP のダウンロードを作るもので、ZIP を読み込むものではありません。公開オプションには `shaders` や `shadersDir` もありません。独自のシェーダーパックローダーには別のランタイム拡張が必要で、これらのキーをストーリーに加えても効果はありません。
+
+## 読み込みの失敗を直す
+
+| 表示されるもの | 対処 |
+| --- | --- |
+| `story.json: HTTP 404` | `http://localhost:8000/story.json` を開き、ファイル名、ディレクトリ、大文字小文字を確認する |
+| JSON パースエラー | 提供された完全な JSON を使い、テキストの値を 1 つだけ編集する。JSON は二重引用符を使い、末尾カンマは使えない |
+| `Failed to fetch` | JSON のアドレスを直接開く。HTTP のページを使い、ブラウザーで失敗した要求のアドレスを確認する |
+| 別ドメインの CORS エラー | ファイルをページと同じオリジンで配信するか、リソースサーバーの応答でページのオリジンを許可する。クライアントの要求ヘッダーでは CORS の許可は得られない |
+| 会話は動くが画像や音声ファイルが失敗する | リテラルのパスと `assetsBase` を確認する。JSON を 1 つ選んでも付属ファイルは選ばれない |
+| モデルランタイムが失敗する | ランタイムモジュール、Core、マニフェスト、バイナリ、テクスチャの要求を別々に確認する。JSON の取得成功はストーリーファイルが読めることしか示さない |
+| 読み込みがキャンセルされた、またはプレーヤーが閉じられた | `await player.dispose()` の後に新しいハンドルで再試行する。完全な例はこれを自動で行う |
+
+## 再生、後始末、高度な連携
+
+`play()` は開始または再開、`pause()` は一時停止、`next()` は台詞を進めます。`await player.seek(0.5)` は、選択肢を含む現在到達可能なストーリー経路の中間にあるコマンド境界へ移動し、復元したコマンド番号を返します。`player.snapshot` は状態と進行を提供します。状態イベントは約 100 ms ごとに更新され、操作時はすぐに更新されます。
+
+`ready` はレンダラー、必要なリソース、フォント、シーク索引を待ちます。`cancel()` は読み込みを止めます。準備完了後に渡したシグナルを中止するとプレーヤーを破棄します。`dispose()` は冪等です。同じ要素に別のプレーヤーをマウントする前に待ってください。リソースの失敗は `ready` の拒否とエラーイベントで現れ、オブザーバーのエラーは `onListenerError` で隔離されます。
+
+ランタイムは宣言された URL を解決し、台詞、ID、ソースのラベルはそのままにします。ローカルのリソースマップは Unicode を含むリテラルのパスを使います。コアローダーは所有する Blob URL を解放し、モデルプロバイダーとレンダラーはデコード済みリソースと GPU リソースを解放します。転送の既定値は CORS、資格情報なし、応答ごと 64 MiB、リソース期限 30 秒です。動的なランタイムモジュールと Core スクリプトには独自のブラウザー読み込み経路があります。
+
+すべてのプレーヤーには、[メインサイト](https://haneoka.org/)へリンクする半透明の Haneoka アイコンが、最初は左上に表示されます。`brandingCorner: "top-right"` で移動できます。オーバーレイはシーン全体の領域を保ちます。ストーリーとアセットの著作権とライセンスはそれぞれのものです。
+
+バンドルするアプリケーションでは、パッケージ名は `@haneoka/embed-vega` で、テーマと Haneoka ヘルパーにもパッケージのサブエントリがあります。npm での公開は未完了です。このチュートリアルではホストされたブラウザーモジュールを使ってください。[ソースリポジトリ](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega)からビルドするときは、ワークスペースの依存関係をインストールしてビルドしてからパックします。テーマのフォントとスプライトのアセットはビルド済みモジュールと一緒に置きます。連携できる全体は下のパラメーター一覧にあります。
+
+独自のファイル・ネイティブリソースポートを提供する Engine 連携については、[ホストリソース](../host-resources/)で完全な型、キャンセル、リースの所有を参照してください。
+
+## mountHaneokaStory の全オプション
+
+ブラウザーの入口は `https://haneoka.org/embed/vega-haneoka.js`、バンドル用のパッケージサブエントリは `@haneoka/embed-vega/hosted` です。ホストされた入口は既定で自身のリリースマニフェストを選びます。パッケージを直接インポートすると既定は `https://haneoka.org/embed/manifest.json` です。コンテナーはレイアウトサイズが 0 でないブラウザーの HTMLElement です。ブラウザーのコンテキストがないか、ID が空または文字列でなければ TypeError、破棄前に同じコンテナーへ 2 度目のホストマウントをすると Error です。ハンドルはすぐに返るので、`ready` を待つ間保持してください。
+
+| オプション | 型;必須/既定値 | 効果と制約 |
+| --- | --- | --- |
+| id | 必須の文字列 | 現在のカタログが返すストーリー ID そのまま。空・空白・非文字列は同期的に拒否し、利用できない ID はソースのエラーで ready を拒否する。 |
+| server | 任意の文字列;intl | アセットサーバー。テキスト言語とは独立。既存のカタログスラッグの検証と提供状況を使う。 |
+| locale | 任意の文字列;ja | 起動時のコンテンツと UI の言語。公開ストーリーの配列は ja/en/zh-TW/zh-CN/ko を使う。ストーリーの作成済み言語から選ぶ。 |
+| signal | 任意の AbortSignal | 起動をキャンセルする。ready 後の中止はプレーヤーを破棄する。すでに中止済みのシグナルは ready を拒否する。 |
+| manifestUrl | 任意の絶対 HTTP(S) URL;ホスト ESM は入口のリリースマニフェスト、パッケージインポートは安定ルート | 互換の SDK マニフェストを選ぶ。不正な URL・プロトコルは例外、不正・バージョン混在のメタデータは ready を拒否する。1 つの完全なリリースを使う。 |
+| apiBase | 任意の絶対 HTTP(S) ディレクトリ;https://haneoka.org/api/v1/ | 互換のストーリーカタログの代替。コアのディレクトリ検証を使う。モデルのパスはそのカタログから得る。 |
+| runtime | 任意の CubismEmbedOptions;リリースのランタイム記述子 | ランタイムの高度な上書き。必須のネストフィールドは moduleUrl と runtime.cubismCoreUrl、runtime.cubism2CoreUrl と runtime.motionSyncCoreUrl は任意。ライセンスを受けた互換のモジュール・Core URL を使う。ファクトリーの契約は下記。 |
+| playerOptions | 任意のオブジェクト;{} | 組み立てたプレーヤーに渡す mountStory オプションの一部。全フィールドと除外は下記。 |
+| fetcher | 任意の (Request)=&gt;Promise&lt;Response&gt;;ネイティブ fetch | マニフェスト、ランタイム記述子、ストーリー、リソースの転送。既定のファーストパーティ要求は no-referrer を使う。動的モジュール・Core スクリプトはネイティブのブラウザー読み込みのまま。 |
+| headers | 任意の HeadersInit;なし | コア転送ヘッダー。スクリプト・モジュールの要求はネイティブの経路を使う。 |
+| credentials | 任意の omit/same-origin/include;omit | リソース転送の資格情報。公開の読み取りは omit。資格情報付きのクロスオリジン応答にはサーバーの許可が必要。 |
+| maxBytes | 任意の正の安全な整数;67108864 | 起動と子転送の応答ごとのエンコード済みバイト上限。不正な値は RangeError、超過すると該当の読み取りを拒否する。GPU・デコード済みメモリの上限とは別。 |
+| onEvent | 任意の (HaneokaStoryEvent)=&gt;void | 生成時から stage、load、state、seek、error イベントを受け取る。 |
+| onListenerError | 任意の (unknown)=&gt;void | オブザーバーの例外は隔離されてここに転送される。リスナーの失敗は再生の失敗にならない。 |
+
+`playerOptions` は **theme、brandingCorner、shell、plugins、renderer、assetsBase、resolveResource、resourceTimeoutMs、resolveLocalizedText、onListenerError** を受け付けます。ネストしたフィールド、既定値、範囲、エラーは下の mountStory の表と同じです。このヘルパーは theme の既定を `haneoka` にし、テーマと Cubism プラグインをインストールして、渡されたプラグイン配列を追加します。子は shell が明示されない限り Haneoka のゲームシェルを使います。通常はカタログのリソースベースを保ち、assetsBase/resolveResource はリソースを意図的に置き換えるときだけ上書きします。子のオプション検証は起動中に行われ、ready を拒否します。最上位の onListenerError はホストのオブザーバーを扱い、playerOptions.onListenerError は子の契約に従います。
+
+`playerOptions` は **source、document、server、locale、signal、onEvent、fetcher、headers、credentials、maxBytes** を除外します。共有コンテキストのフィールドは最上位で渡します。このファーストパーティヘルパーはカタログ ID を受け取ります。作成済みドキュメント、HTTP の JSON URL、選んだ File には手順 3~6 の mountStory とソースファクトリーを使います。
+
+| ハンドルのメンバー | 型・シグネチャ | 動作 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | 選んだモジュール、ランタイム記述子、子のデータ・モデル・フォント・シーク準備を待つ。元の起動・読み込みエラーで拒否する。 |
+| snapshot | StoryEmbedSnapshot | phase は loading/ready/cancelled/error/disposed、playing/paused/finished/seeking、commandIndex/commandCount/progress。ラッパーの phase はこのハンドルを表す。 |
+| player | VegaPlayerHandle または undefined | 子への高度なアクセス。寿命はホストのハンドルが所有する。 |
+| stage | manifest/modules/runtime/data/resources/ready | 現在の準備段階。自分の読み込みラベルに使える。 |
+| release | 文字列または undefined | マニフェスト読み込み後に選ばれた不変の SDK リリース。 |
+| play/pause/next | ()=&gt;void | ready が必要で、なければ Error。委譲した再生のエラーは子の error イベントを使う。 |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | 有限の 0~1 のコマンド経路の進行。復元した境界を返す。子の範囲・ライフサイクルエラーは意味を保つ。 |
+| subscribe | (listener)=&gt;unsubscribe | 以後の HaneokaStoryEvent を受け取る。破棄後の購読は Error。 |
+| cancel | ()=&gt;void | 読み込み中の起動を終了する。ready 後は dispose を使う。 |
+| dispose | ()=&gt;Promise&lt;void&gt; | 冪等。キャンセルし、起動の後始末を待ち、子とローダーを破棄し、コンテナーの登録を解除する。後始末の失敗は AggregateError で拒否しうる。再利用前に待つ。 |
+
+stage イベントは `{type:"stage",stage,release?}` です。load/state/seek/error の形は下の mountStory と同じです。公開モジュールマニフェストとランタイム記述子は同じリリースに属します。不正なモジュールパス、ランタイム記述子のハッシュ・長さの不一致、配布オリジン外のランタイムパス、インポートの失敗、リソースエラーは ready を拒否します。起動に失敗すると子と登録が片付けられるので、ホストは新しいハンドルを作れます。自分のライフサイクルを閉じるため、失敗したハンドルも破棄してください。
+
+## mountStory の全オプション
+
+必須の位置引数 `container` は ownerDocument/defaultView を持ち、レイアウト寸法が 0 でないブラウザーの HTMLElement です。ブラウザー以外のコンテナーは TypeError、破棄前に同じコンテナーへ 2 つ目のストーリーをマウントすると Error です。ハンドルは同期的に返ります。TypeScript では `document` か `source` のどちらか一方だけを選びます。実装は渡された source を優先し、コマンドの欠落や不正は ready を拒否します。
+
+| オプション | 型;必須/既定値 | 効果、制約、失敗 |
+| --- | --- | --- |
+| document | AdvStory;source の代わりに必須 | メモリ上のエンジンドキュメント。commands は配列が必要で、不正なドキュメントは TypeError で ready を拒否する。作成された入力であり、5 言語カタログである必要はない。 |
+| source | DataSource&lt;AdvStory&gt;;document の代わりに必須 | `load(context)` がエンジンドキュメントを返す。memory/http/file/カスタムのファクトリーに対応。ソースの失敗は ready を拒否する。 |
+| server | 任意の文字列;undefined、公開アダプターは intl | source に渡すアセットレジストリ。locale とは独立。 |
+| locale | 任意の文字列;en | 作成・再生の言語。起動時にプレーヤーのロケールとシェル UI の言語も設定する。 |
+| assetsBase | 任意の絶対 HTTP(S) ディレクトリ;ソースのベース | クエリ・フラグメントなし。ソースのリソースオリジンを上書きする。不正なベースは TypeError。 |
+| resolveResource | 任意の (key,DataContext)→string/URL/Blob または Promise;キーそのまま | 宣言されたメディア・モデル・フォントのパスを対応付ける。解決済み URL は 1 度だけ通過する。リゾルバーのエラーは ready・リソース使用を拒否する。 |
+| fetcher | 任意の (Request)→Promise&lt;Response&gt;;fetch | データとリソースのバイトはコア転送を使う。モジュール・Core スクリプトのローダーは別の読み込み経路を持つ。 |
+| credentials | omit/same-origin/include;omit | ローダーの要求。必要に応じてサービスが資格情報・オリジンを許可する。 |
+| headers | 任意の HeadersInit;なし | コア転送ヘッダー。スクリプト・モジュール要求のヘッダーではない。 |
+| maxBytes | 正の安全な整数;67108864 | ドキュメント・リソースごとのデコード済みバイト数。不正な値は RangeError。GPU・キャッシュ合算の予算ではない。 |
+| onListenerError | 任意の (unknown)→void | オブザーバーエラーの受け口。再生結果から隔離される。 |
+| theme | portable/haneoka;portable | Haneoka にはテーマ・シェルプラグインが必要。寄与がなければ ready を拒否する。 |
+| brandingCorner | top-left/top-right;top-left | フルサイズのシーン上に常時表示される半透明の角のクレジット。非表示にするオプションはない。 |
+| shell | false または VegaPlayerShellOptions | portable の既定は false、Haneoka の既定は `{initialScreen:"game"}`。全フィールドは下記。 |
+| plugins | readonly VegaPlugin[];[] | richtext、portable UI、Three、リソースアダプターの後に追加されるプロバイダー・コマンド。実際のプラグインの setup/manifest/contributions が必要。setup・依存の失敗は ready を拒否する。 |
+| renderer | ThreeRendererPluginOptions;\{\} | レンダラーとポストテクスチャの全設定は下記。 |
+| resourceTimeoutMs | 正の安全な整数;30000 | アダプターのリソース読み取りごとの合計期限。不正な値は RangeError、超過すると TimeoutError で拒否する。ストーリー全体の期限ではない。 |
+| signal | 任意の AbortSignal | 起動をキャンセルする。ready 後の中止はこのプレーヤーを破棄する。リソースごとのタイムアウトは別。 |
+| onEvent | 任意の (StoryEmbedEvent)→void | 起動前に登録される。subscribe と同じイベント形式。 |
+| resolveLocalizedText | 任意の (value:unknown)→\{text:string,lang?:string\} | カスタムのテキスト解決。既定は Vega のローカライズ。リゾルバーの形を返す必要があり、独自の例外は実行中の操作を失敗させうる。 |
+
+共通の 9 つのローダーオプションは詳しい[コアの転送・リソース契約](../core/)に従います。マウントの自動再生や全体の loadTimeoutMs オプションはありません。読み込み全体には外部のシグナル・期限を使い、再生はユーザー操作から開始します。
+
+## シェルのネストオプションと設定
+
+| shell フィールド | 型/既定値 | 意味 |
+| --- | --- | --- |
+| storage | 任意の VegaSaveStorage;メモリ | `read(key)→Promise<string\|null>`、`write(key,value)→Promise<void>`、`remove(key)→Promise<void>`、`list(prefix)→Promise<readonly string[]>`。永続化は呼び出し側のバックエンドが担う。不正なセーブは該当のセーブ・ロード操作を失敗させる。 |
+| projectId | 任意の文字列 | トリムした明示 ID、次に story.vegaProject.id/story.id、次に vega-story。セーブの名前空間の識別。 |
+| settingsId | 任意の文字列;projectId | 別の設定用名前空間。永続化された設定は initialSettings より優先する。 |
+| initialSettings | 任意の Partial&lt;VegaNarrativeSettings&gt;;表の既定値 | シェル生成時に適用する。その後マウントが外側の locale をプレーヤー・UI に適用するので、起動言語には外側の locale を使う。 |
+| title | 任意の文字列 | トリムした明示タイトル、次にローカライズしたプロジェクト・ストーリーのタイトル・名前、次に projectId。 |
+| initialScreen | title/game | 汎用シェルの既定は title、Haneoka 埋め込みの暗黙シェルは game で開始する。 |
+| onExitRequest | 任意の ()=&gt;void/Promise&lt;void&gt; | シェルが一時停止・タイトルへ戻った後に Exit を受け取る。遷移・閉じる処理はホストが選ぶ。コールバックの失敗はそのシェル操作を拒否する。 |
+
+| initialSettings キー | 型/既定値 | 範囲と動作 |
+| --- | --- | --- |
+| textSpeed | 数値/1 | .1~5 に制限。 |
+| autoDelay | 数値/1.5 | 秒。0~30 に制限。 |
+| masterVolume | 数値/1 | 0~1 に制限。 |
+| bgmVolume | 数値/.8 | 0~1 に制限。 |
+| voiceVolume | 数値/1 | 0~1 に制限。 |
+| seVolume | 数値/.9 | 0~1 に制限。 |
+| language | 文字列/auto | ストーリーの言語または auto。保存する文字列は最大 64 文字。 |
+| uiLanguage | 文字列/auto | UI 言語。サーバーとは別。 |
+| reducedMotion | 真偽値/false | 対応する UI の動きを減らす。 |
+| highContrast | 真偽値/false | 対応する UI のコントラスト設定。 |
+| instantText | 真偽値/false | 読むテキストをすぐ完全に表示する。 |
+| webText | 真偽値/false | Haneoka 読書 UI のブラウザーテキストモード。バージョンの注記は下記。 |
+| textSize | 数値/1 | .5~2 に制限。 |
+| subtitlesEnabled | 真偽値/true | 利用できる字幕を表示する。 |
+| bgmEnabled | 真偽値/true | BGM の有効設定。 |
+
+有限でない数値設定は代替値を使い、真偽値設定は正規化されます。不明なシェル設定キーは設定時に RangeError です。`webText` は公開ソースリビジョン engine1916c57/theme1d5b20e/shell436ade8 にあります。対応するビルドか、それらのリビジョンを含む後の CDN 記録を使ってください。旧 r22 プレーヤーを明示的に固定するなら、そのリビジョンが対応する設定を使います。対応するシェルでは、生成時に `shell.initialSettings.webText` を設定するか、ready 後に `story.player.shell.setSetting("webText", true)` を呼びます。
+
+## レンダラーのネストオプション
+
+| フィールド | 型/既定値 | 意味と組み合わせ |
+| --- | --- | --- |
+| rendererId | vega-three-webgl2/haneoka-three-webgl2;vega-three-webgl2 | シーンプロバイダーの経路。通常は埋め込みのバックエンドをそのままにする。 |
+| profile | vega/unity-adv;vega | プロバイダーのシーンプロファイル。 |
+| staticPortraitFallback | 真偽値/true | モデルプロバイダーがないときに静止立ち絵への代替を許す。 |
+| colorGradingMode | ldr/hdr;ldr | ポストのカラーパイプライン。 |
+| contributionId | 文字列/haneoka.renderer-three | インストールするレンダラー寄与の識別。 |
+| contributionName | 文字列/Vega Three WebGL2 | 人が読む寄与名。 |
+| backend | vega-three-webgl2/haneoka-three-webgl2;vega-three-webgl2 | 寄与の経路。埋め込みは vega-three-webgl2 を選ぶ。非互換の登録はプレーヤー生成を拒否する。 |
+| postTextureResolver | 任意の ThreePostTextureResolver | postTextureAssets とは併用できない(TypeError)。リゾルバーが渡したテクスチャを所有し、任意の dispose はプラグインの寿命に結び付く。 |
+| postTextureAssets | 任意の Readonly&lt;Record&lt;string,string&gt;&gt; または ReadonlyMap&lt;string,string&gt; | 安定したレンダラーテクスチャキーをキーとする認可済み URL。単独で渡すとリゾルバーを作る。 |
+
+カスタムの `postTextureResolver` には必須の `resolve(reference:unknown,usage)→Three.Texture|null`、任意の `preload(requests,signal?)→Promise<void>`、任意の `dispose()` があります。各要求は `{reference,usage}` で、usage には film-grain、color-lookup、lens-dirt が含まれます。null を返すと既存のパイプラインの代替を許します。選んだ Three インスタンスと互換のテクスチャを返し、後始末はプロバイダーが担います。パラメーターの競合はプラグイン生成時に同期的に例外となり、読み込み・描画・プロバイダーのエラーは ready やイベントで届きます。
+
+## ソース、Cubism、テーマのファクトリー
+
+`haneokaStorySource({id,apiBase?})` には公開ストーリー ID が必要です。apiBase の既定値は `https://haneoka.org/api/v1/` で、コアのディレクトリ検証に従います。選んだストーリー、story-runtime、宣言された Live2D メタデータだけを、マウントの server/locale で読み込みます。ストーリー・モデルの欠落や不正なカタログレコードは読み込みを拒否します。リリースやアカウントの引数は不要です。
+
+`cubismStoryPlugin({moduleUrl,runtime})` には別途ライセンスを受けた絶対モジュール URL と `runtime.cubismCoreUrl` が必要です。`runtime.cubism2CoreUrl?` と `runtime.motionSyncCoreUrl?` は任意のバージョン別スクリプト URL です。モジュールは createCubismWebRuntimeAdapter をエクスポートする必要があり、エクスポートやプロバイダー機能がなければモデル準備を拒否します。このプラグインはモデルが必要なときにアダプターを遅延読み込みし、プロバイダーのライフサイクルを保ち、Core は同梱しません。互換のアダプターと Core のバージョンを揃えてください。
+
+`haneokaStoryPlugins` にオプションはなく、テーマと既定シェルのプラグイン一覧です。`createHaneokaThemeAssetsPlugin(provider)` は任意の `assets()`、`resolveChatImage(value,kind:icon|stamp)`、`resolveSourceAsset(path)` コールバックを受け取ります。assets は任意の URL フィールド arrow,auto,chatWindow,chatBackground,chatBackgroundFallback,chatLock,chatTextBox,chatComposerPlus,chatComposerPhoto,chatComposerPicture,chatComposerSmile,chatComposerMicrophone,chatIcons,fast,frame,fullscreen,subtitles,skip を返します。上書きがなければ既存のテーマアセットを使います。HANEOKA_POST_TEXTURE_ASSETS は固定の認可済みレンダラーアセットマップで、必要なら renderer.postTextureAssets に渡します。
+
+## ドキュメントの形、ハンドルとイベントの全容
+
+AdvStory には commands(このマウントで必須)、任意の runtime と localization、ソース定義のフィールドがあります。localization には任意の locales:string[]、defaultLocale:string、arrayOrder:string[] が含まれ、作成者が定義するもので 5 言語固定の要件ではありません。runtime は Vega の Partial&lt;AdvRuntimeConfig&gt; で、エンジンを通して保持されます。個々のコマンドのオペコードとリソース構造は選んだコマンド・プロバイダーのスキーマに従います。例では公開プロトコルの Stage25 と Talk2 を使います。
+
+| ハンドルのメンバー | シグネチャ | 動作・エラー |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | レンダラー・リソース・フォント・シーク索引の起動。onEvent が error を観測しても拒否は残る。 |
+| snapshot | 読み取り専用オブジェクト | phase,playing,paused,finished,seeking,commandIndex,commandCount,progress。phase は loading/ready/cancelled/error/disposed。 |
+| player | VegaPlayerHandle または undefined | ready 後の高度なエンジンハンドル:id,player,lifetime,root,slots,shell?,dispose()。破棄は埋め込みに任せる。 |
+| play / pause / next | ()=&gt;void | ready が必要(なければ Error)。Play は再開する。非同期のインタープリター失敗は error イベントになる。Next は読み進めを要求する。 |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | 有限の 0~1、それ以外は RangeError。実際のコマンド番号を返す。再生・一時停止の意図を保つ。 |
+| subscribe | (listener)=&gt;unsubscribe | 以後のイベント。破棄後の購読は Error。 |
+| cancel | ()=&gt;void | 読み込み中の起動のみ。ready 後は何もしない。再試行の前に破棄する。 |
+| dispose | ()=&gt;Promise&lt;void&gt; | 共有・冪等の Promise。ローダー・URL の前にエンジンを解放し、ホストの DOM・リスナーを除去し、起動の後始末を待つ。後始末の失敗は AggregateError。 |
+
+イベントは `{type:"load",event:EmbedEvent}`、`{type:"state",snapshot}`、`{type:"seek",commandIndex}`、`{type:"error",error}` です。load イベントのフィールドはコアに従います。state は変更されたスナップショットを 100ms ごとと操作時に公開します。リスナーの例外は隔離されます。破棄は phase disposed で完了し、その state/load イベントは生成時のリスナーが観測できます。リソース・ソース・プラグインの失敗は実際のエラーを保ち、キャンセルは signal.reason で拒否します。この埋め込みは第二のエラーコード体系を加えません。
+
+このページは安定エイリアスを使います。古い不変の r22 プレーヤーは専用行のクレジットレイアウトを保ちます。リビジョンを明示的に固定するときは、エンジン、テーマ、シェル、ランタイムのバージョンの互換を保ってください。

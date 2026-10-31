@@ -1,0 +1,113 @@
+---
+title: 운영 공지
+description: 현재 게임 내 공지 피드와 정식 미디어를 읽습니다.
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+공지 API는 선택한 서버에 현재 게시된 공지, 본문, 이미지를 반환합니다. 공지는 따로 갱신되므로 클라이언트는 리소스 버전을 고르지 않고 바로 읽을 수 있습니다.
+
+## 최신 공지 목록
+
+<ApiTry path="/api/v1/announcements" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }, { name: "limit", value: "2" }]} locale="ko" />
+
+```http
+GET /api/v1/announcements?server=intl&limit=2
+```
+
+`server`는 선택이며 기본값은 `intl`입니다. `limit`은 선택이며 1~100을 받고, 현재 목록에서 그 개수까지 반환합니다. 목록 레코드에는 상세 본문의 `html` 필드가 없습니다.
+
+응답 형태:
+
+```json
+{
+  "server": "intl",
+  "available": true,
+  "fetchedAt": "2026-09-30T04:14:16.536328Z",
+  "announcements": [
+    {
+      "id": 23,
+      "category": 6,
+      "title": "緊急維護公告",
+      "startAt": 1790730300,
+      "endAt": 1790751600,
+      "updatedAt": 1790695244,
+      "bodyImage": "https://haneoka.org/api/v1/announcements/media/intl/1aaf53f946ee62d677d1d8cb3b0e54ef6e7556ebe48af07bfeb76bd6f13851e3.jpg",
+      "bodyImageWidth": 420,
+      "bodyImageHeight": 180,
+      "sourceLanguage": "zh-Hant"
+    },
+    {
+      "id": 24,
+      "category": 3,
+      "title": "「由我主演的賽博之夜」轉蛋舉辦預告！",
+      "startAt": 1790730000,
+      "endAt": 1790751600,
+      "updatedAt": 1790695246,
+      "sourceLanguage": "zh-Hant"
+    }
+  ]
+}
+```
+
+`startAt`, `endAt`, `updatedAt`은 Unix 초입니다. `fetchedAt`은 현재 게시된 스냅숏의 UTC ISO-8601 시각입니다. 피드를 쓸 수 없으면 응답은 `available: false`, `fetchedAt: null`, 빈 `announcements` 배열이 됩니다. 스냅숏 값은 운영 피드 갱신에 따라 바뀝니다.
+
+## 공지 하나 읽기
+
+공지는 바뀝니다. 상세를 읽기 전에 현재 목록에서 실제 `id`를 얻으세요. 예전 예시의 ID 23은 더 이상 목록에 없을 수 있습니다. 다음 완전한 JavaScript가 그 읽기를 수행합니다.
+
+```js
+const origin = "https://haneoka.org";
+const response = await fetch(`${origin}/api/v1/announcements?server=intl&limit=1`);
+if (!response.ok) throw new Error(`Announcement list HTTP ${response.status}`);
+const feed = await response.json();
+const first = feed.announcements[0];
+if (first) {
+  const detailResponse = await fetch(`${origin}/api/v1/announcements/${encodeURIComponent(first.id)}?server=intl`);
+  if (!detailResponse.ok) throw new Error(`Announcement detail HTTP ${detailResponse.status}`);
+  const detail = await detailResponse.json();
+  console.log(detail.title, detail.bodyImage);
+} else {
+  console.log("No current announcements.");
+}
+```
+
+상세 응답은 전체 레코드 옆에 스냅숏 메타데이터를 유지합니다.
+
+```json
+{
+  "server": "intl",
+  "available": true,
+  "fetchedAt": "2026-09-30T04:14:16.536328Z",
+  "id": 23,
+  "category": 6,
+  "title": "緊急維護公告",
+  "startAt": 1790730300,
+  "endAt": 1790751600,
+  "updatedAt": 1790695244,
+  "sourceLanguage": "zh-Hant",
+  "html": "<p>…</p>"
+}
+```
+
+`html`은 공지 원본의 선택적 원시 HTML입니다. 신뢰할 수 없는 입력으로 다루세요. 렌더링 전에 DOMPurify 같은 검증된 정화기와 태그, 속성, URL 프로토콜, 이미지 경로의 명시적 허용 목록으로 정화하세요. 스크립트, 이벤트 핸들러 속성, 안전하지 않은 URL, 지원하지 않는 요소는 제거합니다. 원본 문자열을 `innerHTML`, `dangerouslySetInnerHTML` 같은 HTML 출력 지점에 바로 넘기지 마세요. 정화기를 쓸 수 없으면 값을 이스케이프해 텍스트로 표시하세요.
+
+### 언어와 렌더링
+
+`sourceLanguage`는 반환된 제목과 본문에서 추정한 선택적 BCP 47 언어 태그입니다(`ja`, `zh-Hant`, `zh-Hans`, `ko`, `en` 등). 렌더링하는 글의 `lang` 값에 쓰세요. 서버 원문은 그대로 유지되며, 애플리케이션은 자체 UI 언어를 고릅니다. `sourceLanguage`가 없거나 잘못되었으면 콘텐츠 언어로 `und`를 쓰고 앱 UI 로캘은 따로 유지하세요.
+
+### 이미지와 크기
+
+`bodyImage`와 `banner`는 선택적 절대 HTTPS URL입니다. 짝이 되는 `bodyImageWidth`, `bodyImageHeight`, `bannerWidth`, `bannerHeight`는 선택적 원래 픽셀 크기입니다. 레이아웃 공간을 확보하고 원본 비율을 지키는 데 쓰세요. CSS로 화면에 맞게 이미지를 늘리거나 줄여도 됩니다.
+
+`html` 안의 `<img src>` 값은 같은 공개 미디어 라우트로 정규화되어 있습니다. 반환된 URL과 주어진 크기를 쓰고, 원본 데이터로 원래 출처 URL을 다시 만들지 마세요.
+
+## 공지 미디어 내려받기
+
+```http
+GET /api/v1/announcements/media/{server}/{fullhash}.{ext}
+HEAD /api/v1/announcements/media/{server}/{fullhash}.{ext}
+```
+
+`fullhash`는 내려받은 바이트의 소문자 64자 SHA-256 다이제스트입니다. 지원 확장자는 `avif`, `gif`, `jpg`, `jpeg`, `png`, `webp`이며, 응답은 실제 미디어 타입을 씁니다. 미디어 응답은 불변이며 장기 캐시 헤더가 붙습니다. ID나 미디어 객체가 없으면 `404`를 반환합니다.
+
+곡, 캐릭터, 관련 게임 레코드는 `/api/v1/songs` 같은 직접 엔드포인트를 포함한 [카탈로그 API](../catalog/)에서 계속 얻을 수 있습니다.

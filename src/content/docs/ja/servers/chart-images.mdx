@@ -1,0 +1,120 @@
+---
+title: 譜面画像
+description: 現在の譜面の全体図を SVG か PNG で要求し、実際の寸法を読みます。
+---
+
+import DemoChartImage from "../../../../components/DemoChartImage.astro";
+
+
+譜面画像の処理は、公開されている譜面を Cassiopeia の静的な全体図レンダラーで描画します。SVG と、登録済みのラスタライザーによる PNG に対応します。PNG を使うデプロイには、対応する Fontsource のマニフェストとファイルが含まれます。下のアプリケーションは公開 Worker の実際のレスポンスを表示します。
+
+## 画像を要求する
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs/100070/charts/expert/image.svg?server=intl&locale=en&height=720&download=1' \
+  -o chart.svg
+```
+
+PNG には `.png` を使います。明示的な形は `/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}` です。どちらも現在のデータを選び、`release` は受け付けません。楽曲 DTO が実際に示している難易度を選んでください。
+
+| パラメーター | 値 | 意味 |
+| --- | --- | --- |
+| `server` | 有効なリソースサーバーのスラッグ。エイリアスでの既定は `intl` | 元のカタログ |
+| `difficulty` | easy、normal、hard、expert、special、master | パスのセグメント。その楽曲に存在する必要がある |
+| `locale` | ja、en、zh-TW、zh-CN、ko | 見出しの言語。省略時は Accept-Language から決める |
+| `height` | 整数 360〜1440、既定は 720 | ヘッダーを除いた譜面パネル 1 枚の高さ |
+| `download` | 1 または 0、既定は 1 | Content-Disposition を attachment にするか inline にするか |
+| `format` | svg または png | ファイルの拡張子とレスポンスの MIME |
+
+クエリの値が重複または空の場合は 400 で拒否されます。譜面データと出力にはレンダラーの予算があり、大きすぎる入力や出力は無制限の画像を作らずに 413 で拒否されます。
+
+## 寸法と条件付きリクエスト
+
+出力されるキャンバスにはヘッダーと、譜面に必要なだけのパネルが含まれます。パネルの高さを上げるとパネルの数と最終的な幅が変わります。`X-Haneoka-Image-Width` と `X-Haneoka-Image-Height` を読み、その寸法で画像の場所を安定して確保してください。これらは要求したパネルの高さではなく、SVG の width/height や PNG の IHDR と一致します。
+
+レスポンスには `Content-Type`、`Content-Length`、`Content-Disposition`、`Content-Language`、`ETag`、`X-Haneoka-Server`、`X-Haneoka-Release-Id`、`X-Haneoka-Chart-Renderer` が含まれます。GET は画像を、HEAD は本文なしでヘッダーを返し、`If-None-Match` では Content-Length なしの 304 が返ることがあります。公開エンドポイントは匿名の CORS を許可します。OPTIONS は 204 を、未対応のメソッドは Allow 付きの 405 を返します。
+
+```js
+const url = "https://haneoka.org/api/v1/songs/100070/charts/expert/image.png?locale=en&download=0";
+const response = await fetch(url, { credentials: "omit" });
+if (!response.ok) {
+  const failure = await response.json();
+  throw new Error(`${response.status}: ${failure.error.code}`);
+}
+const width = Number(response.headers.get("X-Haneoka-Image-Width"));
+const height = Number(response.headers.get("X-Haneoka-Image-Height"));
+const imageUrl = URL.createObjectURL(await response.blob());
+// Set your image element's dimensions and src; revoke imageUrl on teardown.
+console.log(width, height, imageUrl);
+```
+
+## 失敗の扱い
+
+エラーは `{error:{code,message,requestId}}`、`X-Request-Id`、`Cache-Control: no-store` を使います。主なコードは invalid_height/invalid_locale/invalid_download/release_not_supported（400）、song_not_found/difficulty_not_found/chart_not_found（404）、format_not_supported（406）、chart_too_large/chart_render_budget（413）、chart_image_failed（502）、release_unavailable（503）です。デプロイ済みの PNG 用フォントがない、または不正な場合は chart_image_failed、フォントの予算超過は chart_render_budget になります。ラスタライザーを登録していないデプロイは 501 png_renderer_unavailable を返すことがあります。リクエスト ID を控え、パラメーターかデプロイの原因を直してから再試行してください。
+
+## 実際にリクエストして確かめる
+
+サーバー、楽曲、難易度、形式、言語、パネルの高さ、ダウンロードを変え、GET、HEAD、OPTIONS を選びます。アプリケーションはクリックしたときだけ実際のエンドポイントを取得します。GET が成功すると、返された寸法の実画像をスクロールできるプレビューに表示し、同じバイト列をダウンロードできます。エラーのレスポンスでは HTTP ステータスと実際の本文を表示し、利用できないエンドポイントの代わりにローカルの画像を出すことはありません。
+
+<DemoChartImage locale="ja" />
+
+`scoped` は明示的なサーバーのパスを選びます。`apiBase` は互換性のある別の API を選び、`acceptLanguage` と `ifNoneMatch` はリクエストヘッダーを設定します。ifNoneMatch の `$last` は直前のレスポンスの ETag を使います。これらはアプリケーション側の通信の設定で、API のパラメーター自体は下にあります。HEAD、OPTIONS、304 には新しい画像の本文がありません。キャッシュする側は 304 では保存済みの表現を再利用してください。この確認ツールはヘッダーを表示します。消去、差し替え、ページ離脱で、自分が作った Blob URL を破棄します。画面の表示に SDK や GPU のインポートは不要で、画像を先読みしません。
+
+## ルートとクエリの完全な契約
+
+GET/HEAD で、任意の server クエリ付きの `/api/v1/songs/{songId}/charts/{difficulty}/image.{format}` か、`/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}` を使います。公開の読み取りにアカウントは不要です。元データを読む前に OPTIONS には 204 を返し、未対応のメソッドには Allow 付きの 405 を返します。
+
+| パラメーター | 型・必須・既定 | 正確な検証と効果 |
+| --- | --- | --- |
+| songId | 必須の文字列のパスセグメント | 1〜256 文字。先頭は英数字、残りは英数字と `. _ : ~ -`。1 つのセグメントとしてエンコードする。構文が不正、または楽曲がなければ 404 song_not_found。 |
+| difficulty | 必須の小文字のパスセグメント | easy/normal/hard/expert/special/master。DTO に存在する必要があり、なければ 404 difficulty_not_found。 |
+| format | 必須の拡張子 | 小文字の svg/png。形式は合うが未対応の小文字の拡張子は 406 format_not_supported、不正なルートは 404 になることがある。SVG の MIME は image/svg+xml、PNG は image/png。 |
+| server | 明示的な形では必須のセグメント、エイリアスのクエリでの既定は intl | 両端が英数字の、小文字の英数字とハイフンからなる 1〜40 文字の有効なスラッグ。エイリアスで server が重複すると 400 invalid_server、不正・未知のスラッグは 404 server_not_found。明示的な形で server クエリを付ける場合はパスと一致する必要がある。 |
+| locale | 任意のクエリ、省略時は交渉 | ja/en/zh-TW/zh-CN/ko。空・未対応・重複は 400 invalid_locale。見出しの言語で、server とは独立。 |
+| height | 任意のクエリ、既定は 720 | 1〜4 桁の 10 進整数で、値は 360〜1440。空・小数・範囲外・重複は 400 invalid_height。ヘッダーを除いた各譜面パネルの高さ。 |
+| download | 任意のクエリ、既定は 1 | 文字列の 0 か 1 を 1 回だけ。0 は inline、1 は attachment。空・ほかの値・重複は 400 invalid_download。 |
+| release | 非対応 | release クエリを付けると 400 release_not_supported。現在のデータのみ。カタログのリリース固定は別のインターフェース。 |
+
+この HTTP エンドポイントには、幅、楽曲名、バンド、ノーツ速度、ジャケットを上書きするパラメーターはありません。タイトル、バンド、譜面のデータは現在の楽曲 DTO と実際の譜面から得ます。クエリ名は大文字と小文字を区別します。空でないリクエスト本文は 400 body_not_allowed です。
+
+## すべてのヘッダーとバイナリの意味
+
+| ヘッダー | 方向・既定 | 意味 |
+| --- | --- | --- |
+| Accept-Language | 任意のリクエスト | locale クエリがないときに使う。通常の BCP 47 の交渉に対応。 |
+| If-None-Match | 任意のリクエスト | 以前の ETag。強い・弱いタグや `*` が一致すれば、Content-Length なしの 304。 |
+| Content-Type | レスポンス | SVG（UTF-8）か PNG。エラーでは JSON。 |
+| Content-Length | 200・HEAD のレスポンス | エンコードされた画像の実際のバイト数。304 にはない。 |
+| Content-Disposition | レスポンス | 既定は attachment、または inline。ファイル名に Haneoka、サーバー、楽曲、難易度、言語、拡張子を含む。 |
+| Content-Language | レスポンス | 選ばれた見出しの言語。 |
+| ETag | レスポンス | 表現と、選ばれたサーバー、リリース、楽曲、言語、レンダラーの識別子から作るハッシュ。 |
+| X-Haneoka-Server | レスポンス | 選ばれたレジストリ。 |
+| X-Haneoka-Release-Id | レスポンス | 実際の現在のリリース。 |
+| X-Haneoka-Chart-Renderer | レスポンス | 静的な全体図レンダラーのバージョン。 |
+| X-Haneoka-Image-Width/Height | レスポンス | ヘッダーとパネル配置を含む最終的なキャンバスの寸法。 |
+| Cache-Control | 成功時は public, max-age=300, must-revalidate | エラーでは no-store。 |
+| Vary | 成功時は Accept-Language | 交渉した見出し言語でキャッシュを分ける。 |
+| X-Request-Id | ディスパッチャーのレスポンス | 相関 ID。JSON API のエラーには requestId も含まれる。 |
+| Allow | 405 のレスポンス | GET, HEAD, OPTIONS。 |
+
+匿名の CORS では、オリジン `*`、GET/HEAD/OPTIONS、リクエストヘッダー Content-Type/Accept/Accept-Language/If-None-Match を許可します。公開する画像のメタデータには Content-Disposition、Content-Length、レンダラー、リリース、サーバー、寸法、ETag が含まれます。ブラウザーで読めるヘッダーはこの公開設定によります。ヘッダーが公開されていない場合は JSON エラーの requestId を控えてください。HEAD は同じ表現のヘッダーを返し、本文はありません。Range は画像 API のオプションではありません。描画済みの表現全体を取得するか、ETag で再検証してください。
+
+## 正確な予算とエラーからの回復
+
+処理が読み込むのは最大で、生の譜面 2 MiB と任意のジャケット 1 MiB です。ジャケットがない、または未対応でも省いて譜面は描画されます。レンダラーの上限はパネル 256 枚、出力 1200 万ピクセル、SVG 8 MiB です。PNG はシグネチャーと IHDR、正確な寸法、8 MiB のバイト数上限を検証します。これらはサービスの制限で、追加のリクエスト項目ではありません。PNG を使うデプロイには、登録済みのラスタライザーと Fontsource のマニフェストとファイルが含まれます。
+
+| ステータス・コード | 原因 | 対処 |
+| --- | --- | --- |
+| 400 invalid_height/locale/download/server | 許可されたパラメーターが不正、重複、空 | リクエストを直す。 |
+| 400 release_not_supported/body_not_allowed | 非対応の release または本文 | 本文なしで現在のデータを読む。 |
+| 404 server_not_found/song_not_found/difficulty_not_found/chart_not_found | レジストリ、エンティティ、譜面が利用できない | カタログを読み、利用できる項目を選ぶ。 |
+| 405 method_not_allowed | 読み取り以外のメソッド | GET/HEAD/OPTIONS を使う。 |
+| 406 format_not_supported | 形式は合うが未対応の拡張子 | svg/png を使う。 |
+| 413 chart_too_large/chart_render_budget | 入力、フォント、出力の予算超過 | より小さい利用可能な譜面を選ぶか、提供側の予算を報告する。大きすぎるリクエストを変更なしで繰り返さない。 |
+| 501 png_renderer_unavailable | デプロイに PNG のラスタライザーがない | SVG を使うか、レンダラーをデプロイする。 |
+| 502 chart_path_invalid/chart_invalid/release_invalid | 元データの識別子、パス、譜面が不正 | requestId を控え、現在のデータを報告する。 |
+| 502 png_invalid/chart_image_failed | PNG のシグネチャーやサイズの誤り、画像やフォントの失敗 | 該当するデプロイやフォントのアセットを直す。 |
+| 503 release_unavailable | 有効なリリースがない | 回数を区切ったバックオフで、あとで再試行する。 |
+
+エラーは公開ディスパッチャーでの `{error:{code,message,requestId}}`、X-Request-Id、no-store です。ネイティブの fetch、CORS、中断のエラーはこのエンベロープより前の通信の失敗なので、別に表示してください。公開の利用可否は実際にデプロイされた Worker のレスポンスで決まります。インラインのアプリケーションはそれを記録し、ドキュメントのデプロイを API のデプロイとして扱うことはしません。

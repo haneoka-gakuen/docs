@@ -1,7 +1,7 @@
+import { demoText } from "./demo-text.js";
 export function install(root) {
   const field = name => root.querySelector(`[data-image-${name}]`);
-  const zh = root.dataset.uiLocale === "zh-CN";
-  const text = (en, cn) => zh ? cn : en;
+  const text = demoText(root.dataset.uiLocale);
   const editor = field("config"), preview = field("preview"), status = field("status"), output = field("output");
   let controller, generation = 0, blobUrl, etag;
   const read = () => { const value = JSON.parse(editor.value); if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Expected request options"); return value; };

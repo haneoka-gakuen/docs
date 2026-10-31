@@ -1,3 +1,4 @@
+import { demoText } from "./demo-text.js";
 import { activate, release } from "./demo-lifecycle.js";
 const epoch = "https://haneoka.org/embed/";
 const exampleBase = new URL("./", import.meta.url).href;
@@ -36,7 +37,7 @@ export function install(root) {
   const field = name => root.querySelector(`[data-player-${name}]`);
   const stage = field("stage"), status = field("status"), output = field("output");
   let handle, controller, generation = 0, records = [], renderFrame = 0, lastLogAt = 0, nativeControls = false;
-  const text = (en, cn) => zh ? cn : en;
+  const text = demoText(root.dataset.uiLocale);
   const read = () => { const value = JSON.parse(field("config").value); if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Expected a configuration object"); return value; };
   const write = value => { field("config").value = JSON.stringify(value, null, 2); field("locale").value = value.options?.locale ?? "en"; for (const radio of root.querySelectorAll("[data-player-language]")) radio.checked = radio.value === field("locale").value; };
   const controls = ready => { for (const name of ["play", "pause", "next", "seek", "progress", "set-options", "set-skin"]) if (field(name)) field(name).disabled = !ready; };

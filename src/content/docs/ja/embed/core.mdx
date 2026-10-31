@@ -1,0 +1,213 @@
+---
+title: データソースとリソースの読み込み
+description: 選んだプレーヤー向けに、オブジェクト、HTTP の JSON、選んだファイル、リソースを読みます。
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+import DocsDisclosure from "../../../../components/DocsDisclosure.astro";
+
+Core はデータを読み、リソースのパスを解決し、読み込みと後始末を管理します。データの形式はそのまま保ち、表示は Vega、Cassiopeia、Home Spot がそれぞれ受け持ちます。ここでは実際の JSON ファイルと画像から始め、再生には [Vega のガイド](../vega/)を使ってください。ホスト済みの `https://haneoka.org/embed/core.js` は npm のインストールなしでブラウザーから直接動きます。
+
+## 1. 既存の JSON ファイルを読む
+
+[完全な promenade.json を開きます](/examples/promenade.json)。タイトル、背景のパス、文 1 行が入っています。[garden.svg](/examples/garden.svg) がその元画像です。下のアプリケーションで **HTTP JSON** を選んで読み込むとデータが表示されます。**Resolve resource URL** は画像のアドレスを、**Read resource bytes** は実際の内容を取得します。この lines 形式のドキュメントは読み込み用のデータで、再生できる Vega のドキュメントではありません。手順 3 でこの形式を変換します。
+
+<DemoData kind="core" locale="ja" />
+
+```js
+import { createEmbedLoader, httpDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: httpDataSource({ url: "https://docs.haneoka.org/examples/promenade.json" }),
+  locale: "fr",
+});
+const data = await loader.load();
+const imageUrl = await loader.resourceUrl(data.background);
+// After the consumer finishes with this address: await loader.dispose().
+```
+
+HTTP のリソースは設定した JSON のディレクトリに対して解決され、リダイレクトしてもそれは変わりません。明示的な assetsBase はこれを上書きします。resourceUrl はアドレスを、resourceBytes は内容を取得します。パネルのフィールドでファクトリーとリソースを選びます。resourceKey と resourceField はこの例でリソースを選ぶためのフィールドで、SDK の完全なオプションは下に一覧があります。
+
+<span id="local-files"></span>
+
+## 2. 実際のローカルの JSON と画像を選ぶ
+
+[promenade.json](/examples/promenade.json) と [garden.svg](/examples/garden.svg) を保存します。[完全なファイルリーダーを開き](/examples/core-file.html)、JSON と画像を選んで **Load files** をクリックします。Une promenade、元の庭の画像、画像の実際のバイト数が表示されるはずです。**Close reader** はローダーと Blob URL を破棄する前に画像を取り除きます。新しいファイルを選べばもう一度読み込めます。
+
+このプロジェクトを残すには、下のコードをすべて UTF-8 の `index.html` として保存してください。ローカルの HTTP での開き方は[クイックスタート](/ja/quickstart/)で説明しています。フォルダーには index.html、promenade.json、garden.svg を置きます。JSON の background はリソースキーで、マップがその文字どおりのキーを選んだ File に結び付けます。正しい Unicode のパスも使えます。
+
+<DocsDisclosure title="完全な index.html：実際のファイル選択と画像の利用側">
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Read local JSON and its image</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input{font:inherit}button,label{min-height:48px}label{display:block;margin:.5rem 0}img{width:320px;aspect-ratio:16/9;object-fit:contain}[hidden]{display:none!important}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p>
+<h1>Read local JSON and its image</h1><p>Select promenade.json and garden.svg, then load them together.</p>
+<label>JSON file <input id="json-file" type="file" accept=".json,application/json"></label>
+<label>Image file <input id="image-file" type="file" accept="image/*,.svg"></label>
+<button id="load">Load files</button><button id="cancel" disabled>Cancel</button><button id="close">Close reader</button>
+<p id="status" role="status" aria-live="polite">Choose the two files.</p><h2 id="title"></h2><img id="preview" hidden alt="Image from the selected file"><pre id="output"></pre>
+<script type="module">
+const by=id=>document.getElementById(id); let loader,controller,generation=0;
+async function close(){generation++;controller?.abort();by("preview").hidden=true;by("preview").removeAttribute("src");by("title").textContent="";by("output").textContent="";const old=loader;loader=undefined;await old?.dispose();by("cancel").disabled=true;}
+by("load").onclick=async()=>{
+  by("load").disabled=true;let current;
+  try{
+    await close();current=++generation;controller=new AbortController();const signal=controller.signal;by("cancel").disabled=false;by("status").textContent="Reading…";
+    const jsonFile=by("json-file").files[0],imageFile=by("image-file").files[0];
+    if(!jsonFile||!imageFile)throw new Error("Choose the JSON and image first.");
+    const {createEmbedLoader,fileDataSource,fileResourceResolver}=await import("https://haneoka.org/embed/core.js");
+    signal.throwIfAborted();if(current!==generation)return;
+    const files=new Map();
+    loader=createEmbedLoader({source:fileDataSource(jsonFile),locale:"fr",maxBytes:1048576,resolveResource:fileResourceResolver(files)});
+    const data=await loader.load({signal});
+    if(typeof data.background!=="string"||!data.background)throw new Error("The JSON needs a background resource key.");
+    files.set(data.background,imageFile);
+    const bytes=await loader.resourceBytes(data.background,{signal});
+    const url=await loader.resourceUrl(data.background,{signal});
+    if(current!==generation)return;
+    by("title").textContent=String(data.title??"");by("output").textContent=JSON.stringify({data,imageBytes:bytes.length},null,2);
+    by("preview").src=url;by("preview").hidden=false;await by("preview").decode();
+    if(current===generation)by("status").textContent="JSON and selected image loaded.";
+  }catch(error){if(current===generation){by("status").textContent=`Read failed: ${error.message}`;const failed=loader;loader=undefined;by("preview").removeAttribute("src");by("preview").hidden=true;await failed?.dispose().catch(()=>{});}}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{controller?.abort();};
+by("close").onclick=async()=>{await close();by("load").disabled=false;by("status").textContent="Reader closed. You can load again.";};
+window.addEventListener("pagehide",()=>{void close();},{once:true});
+</script></html>
+```
+
+</DocsDisclosure>
+
+JSON と必要なリソースは別々に選びます。この例は画像を 1 つ対応付けますが、大きなプロジェクトではモデルの付属ファイルを含め、宣言したすべてのリソースキーを選んだ File に対応付けます。
+
+## 3. この読み込み用データをストーリーに変換する
+
+promenade.json はこのページ用のデータ形式です。Vega には AdvStory の commands 配列が必要です。この lines の構造では、データを読んだあとに次のオブジェクトを作ります。
+
+```js
+const storyDocument = {
+  localization: { locales: [data.language], defaultLocale: data.language },
+  commands: [
+    { command: 25, background: { url: data.background } },
+    ...data.lines.map(line => ({ command: 2, targetName: line.speaker, text: line.text })),
+  ],
+};
+```
+
+storyDocument を mountStory の document として渡し、同じリソースのディレクトリを assetsBase に使います。ブラウザーの完全なページと読み込みの手順は [Vega](../vega/) にあります。選んだ JSON がすでに完全な AdvStory なら、この lines の変換はせずにそのまま読んでください。デコーダーは実際のデータを検証・変換するもので、TypeScript の型は期待を記述するだけです。
+
+## 4. Haneoka の現在のデータを読む
+
+例で **Haneoka** を選び、jacketUrl を解決する前に公開楽曲を読み込みます。リーダーとカタログアダプターはどちらもホスト済みのエントリーから使えます。
+
+```js
+import { createEmbedLoader, haneokaDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: haneokaDataSource({ resource: "songs", id: "100070" }),
+  server: "intl", locale: "en",
+});
+const song = await loader.load();
+const imageUrl = await loader.resourceUrl(song.jacketUrl);
+// End the consumer before awaiting loader.dispose().
+```
+
+公開の読み取りにアカウントやリリースは不要です。server はレジストリを、locale は言語の文脈を選び、カタログは提供された言語別のフィールドをそのまま保ちます。ソースのリソースのベースは既定で API のオリジンで、loader.assetsBase で上書きできます。load を繰り返すと現在のデータを読み直します。既存のオブジェクトには memoryDataSource、選んだ File には fileDataSource を使います。完全なシグネチャーと通信の制約は以下のとおりです。
+
+---
+
+## createEmbedLoader の全オプション
+
+| フィールド | 型・必須・既定 | 効果、組み合わせ、エラー |
+| --- | --- | --- |
+| `source` | 必須の `DataSource<T>` | `load(context)` を持つ必要がある。ローダーは読み込みのたびに呼ぶ。任意の source の assetsBase がリソースのディレクトリを、任意の dispose が 1 回だけの後始末を担う。利用するホストの形式に合うソースを選ぶ。 |
+| `server` | 任意の文字列、既定は undefined | 独自のソースやリゾルバーにそのまま渡す。Haneoka アダプターは既定を intl にし、公開クライアントでレジストリのスラッグを検証する。言語がサーバーを選ぶことはない。 |
+| `locale` | 任意の文字列、既定は en | そのまま渡す。fr や pt-BR など作者側のロケールも有効。Haneoka は対応言語の交渉のために Accept-Language として送る。 |
+| `assetsBase` | 任意の文字列、既定は source.assetsBase、なければなし | ソースのベースを上書きする。クエリやフラグメントのない絶対 HTTP(S) のディレクトリで、末尾にスラッシュを補う。不正なベースは構築時に TypeError。ベースのない相対キーは URL の構築に失敗する。 |
+| `resolveResource` | 任意の `(key:string,context:DataContext)=>string\|URL\|Blob\|Promise<…>`、既定はキーそのまま | リソースキーの対応付けを完全に決める。相対の結果 URL には assetsBase を使う。リゾルバーが拒否するとそのリソース操作も拒否され、ローカルの Map にないエントリーが HTTP に流れることはない。 |
+| `fetcher` | 任意の `(Request)=>Promise<Response>`、既定は fetch | cors の Request、呼び出し側のヘッダー、設定した資格情報、シグナルを受け取る。ドキュメントとリソースの読み取りの両方で使う。下流のメディア要素は独自の通信を使う。例外を投げると操作は拒否される。 |
+| `credentials` | 任意の omit/same-origin/include、既定は omit | ローダーの通信に適用する。資格情報付きのクロスオリジンのサービスは、埋め込み元のオリジンと資格情報を許可する必要がある。不正な値はネイティブの Request が拒否する。 |
+| `headers` | 任意の HeadersInit、既定はなし | 共通の通信ヘッダー。ソースのリクエストごとのヘッダーは同じ名前を上書きする。Haneoka アダプターは locale から Accept-Language を設定する。ヘッダーの検証は Fetch に従う。 |
+| `maxBytes` | 任意の正の安全な整数、既定は 67108864 | デコード後の JSON・リソースのバイト列のレスポンスごとの予算で、シーン全体、キャッシュ、URL 解決の合計予算ではない。0 以下や安全でない値は構築時に RangeError、大きすぎる読み取りは RangeError（Haneoka は response_too_large で包む）。 |
+| `onListenerError` | 任意の `(error:unknown)=>void`、既定は無視 | オブザーバーの例外を受け取る。自身の例外は隔離され、操作の結果を変えることはない。 |
+
+ローダーには、構築時のシグナル、タイムアウト、デコーダー、自動の再試行・キャッシュのオプションはありません。操作ごとのシグナル、ソースのデコーダー、通信やソースの方針で対応してください。URL を解決するだけではバイト列をダウンロードせず、最終的なメディア要素に maxBytes も適用されません。
+
+## ソースのファクトリー一覧
+
+| ファクトリー | 必須の引数 | 任意の引数・既定 | リソースのオリジンと検証 |
+| --- | --- | --- | --- |
+| `memoryDataSource(data)` | 任意の T。自作のドキュメントも可 | なし | 元の値・参照をそのまま返す。既定のアセットのディレクトリも、複製や検証もない。 |
+| `httpDataSource({url,decode?})` | 絶対 HTTP(S) の文字列か URL | decode(unknown)→T、既定は解析した JSON | ファクトリーがプロトコルと URL を検証する。ベースはリダイレクト先ではなく、設定した URL のディレクトリ。ローダーの maxBytes とシグナルが適用され、JSON の解析やデコードの失敗は load を拒否する。 |
+| `fileDataSource(file,decode?)` | ブラウザーの File か Blob。ホストが作った Blob も可 | 同じデコーダー、既定は解析した JSON | ネットワークのベースはない。ローダーの予算と進捗を通して実際の Blob のバイト列を読む。不正な JSON やデコーダーの失敗は load を拒否する。 |
+| `fileResourceResolver(files)` | ReadonlyMap&lt;string,Blob&gt; | なし | 正規化なしの、Unicode のキーの完全一致で検索する。キーがなければ Error。URL の呼び出しは自分が所有する Blob URL を作り、バイト列の呼び出しは Blob を直接読む。 |
+| `haneokaDataSource({resource,id?,view?,apiBase?,decode?})` | resource の文字列 | 下記を参照 | 現在の公開カタログのアダプター。アカウントや release のパラメーターはない。 |
+
+Haneoka のファクトリーのフィールド: `resource` は公開クライアントのリソース構文に従うマニフェストの名前です。`id?:string` はエンティティを選び（省略すると索引）、`view?:string` はマニフェストのプロジェクションを選びます。`apiBase?:string` の既定は `https://haneoka.org/api/v1/` で、クエリやフラグメントのない絶対 HTTP(S) のディレクトリである必要があります。`decode?` は索引やエンティティを検証・変換します（既定は JSON の値）。構文の誤りやデータがない場合のエラーは、load のときに[クライアント](../../servers/client/)の規則に従います。ソースのアセットのベースは API のオリジンのルートで、ローダーの assetsBase で明示的に上書きできます。server と locale はこのファクトリーではなくローダーの文脈に属します。
+
+## 独自のソースとリゾルバーの文脈
+
+`DataSource<T>` は `load(context): T|Promise<T>`、任意の `assetsBase?:string`、任意の `dispose():void|Promise<void>` を宣言します。ローダーは破棄のときに後始末を 1 回呼び、完了を待ちます。後始末が拒否されると共有の破棄の Promise も拒否されます。後始末がほかのローダーの使うリソースを解放する場合は、新しく専有するソースを使ってください。
+
+`DataContext` には次の 6 つの公開フィールドがあります。
+
+| フィールド | 型 | 意味 |
+| --- | --- | --- |
+| server | 任意の文字列 | 設定したソースのレジストリ。そのまま。 |
+| locale | 文字列 | 設定した、または既定の作者側の言語。 |
+| signal | AbortSignal | その操作の取り消しシグナル。自分の処理で使う。 |
+| fetcher | (Request)→Promise&lt;Response&gt; | ローダーに設定した通信。 |
+| maxBytes | number | 有効なデコード後のバイト数の予算。独自の解析もこれに従う。 |
+| progress | (\{loaded:number,total?:number\})→void | 操作で実際に読んだバイト数を報告する。不明なら total を省く。 |
+
+`progress` の引数は独自の `loaded` と任意の `total` を持ちます。リゾルバーは文字列、URL、Blob を同期的にも非同期的にも返せます。絶対の HTTP/HTTPS/Blob/data の URL はオリジンを保ち、相対の文字列は有効な assetsBase を使い、`/` はそのオリジンのルートから始まります。ほかのプロトコルは TypeError を投げます。ローダーがブラウザーや SSR のページのベースを勝手に作ることはありません。
+
+```ts
+const source = {
+  assetsBase: "https://author.example/project/",
+  async load(context) {
+    context.signal.throwIfAborted();
+    const response = await context.fetcher(new Request("https://author.example/project/story.json", { signal: context.signal }));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json(); // use your format-specific bounded decoder here
+  },
+  dispose() { /* release resources owned by this source */ },
+};
+const loader = createEmbedLoader({ source, locale: "pt-BR", resolveResource: key => key });
+```
+
+## ハンドルのメソッドとプロパティ
+
+| メンバー | 引数・既定と結果 | 寿命に関する挙動 |
+| --- | --- | --- |
+| `locale` | 読み取り専用の文字列 | 有効なロケール。 |
+| `server` | 読み取り専用の文字列か undefined | アダプターがフォールバックを適用する前の、明示したサーバー。 |
+| `disposed` | 読み取り専用の真偽値 | 破棄が始まった時点ですぐ true になる。 |
+| `load(options={})` | 任意の `{signal?:AbortSignal}`、Promise&lt;T&gt; | 新しい独立したソースの操作。キーは $data。繰り返すとソースを再び呼ぶ。 |
+| `resourceUrl(key,options={})` | 必須の文字列と任意のシグナル、Promise&lt;string&gt; | キーを解決するが、バイト列は取得しない。所有する Blob ごとに URL を 1 つ、破棄までキャッシュする。 |
+| `resourceBytes(key,options={})` | 必須の文字列と任意のシグナル、Promise&lt;Uint8Array&gt; | キーを解決し、ステータス・予算・進捗を伴ってバイト列を読む。 |
+| `subscribe(listener)` | 必須の `(event:EmbedEvent)=>void`、購読解除の関数を返す | 以降のイベントを受け取る。状態は再送しない。破棄済みなら例外を投げる。 |
+| `cancel()` | 引数なし、void | 現在のすべての操作を中断する。ローダーは再利用できる。 |
+| `dispose()` | 引数なし、共有の Promise&lt;void&gt; | 直ちに処理を禁止し、進行中の呼び出しを中断し、所有する URL を破棄し、disposed を通知し、オブザーバーを消去し、ソースの後始末を 1 回呼ぶ。冪等。破棄したローダーは再利用できない。 |
+
+呼び出しごとのシグナルで取り消すと、独自のソースがシグナルを無視していてもすぐに拒否されます。ローダーは遅れて届いた ready や progress を抑えます。それでも、元の処理を止めるためにソースの処理は context.signal に従うべきです。`cancel()` はその後の呼び出しを妨げず、`dispose()` はローダーを終わらせます。URL を破棄する前に利用側を解放してください。自分のコードで作った URL の管理は自分の責任です。
+
+## イベントと失敗のすべて
+
+| イベントの種類 | フィールド | タイミング |
+| --- | --- | --- |
+| start / ready | operation:number、key:string | 操作の開始・正常終了。 |
+| progress | operation、key、loaded:number、total?:number | 実際に読んだバイト数。メモリのデータや URL だけの解決では自動の進捗はない。圧縮や Content-Length が不明な場合は total を省く。 |
+| error / cancelled | operation、key、error:unknown | 失敗・取り消し。 |
+| disposed | type のみ | ローダーの破棄。破棄後の取り消しの失敗は抑えられる。 |
+
+ID はローダーごとに独立して増えます。key は $data か、リソースキーそのものです。リスナーのエラーで操作が拒否されることはありません。並行する操作は互いに独立し、データ単位の重複排除や再試行はありません。小さなデモは表示する記録を最大 32 件に留めますが、SDK のイベントの流れは変わりません。
+
+`EmbedHttpError(status,url)` は Error を拡張したもので、成功しなかった HTTP やリソースの読み取りに name、message、status、url を持ちます。不正な URL、ベース、解決後のプロトコルは TypeError、バイト数の予算超過は RangeError、不正な JSON は SyntaxError を投げ、自作のデコーダー、ソース、リゾルバーのエラーはそのまま返ります。Haneoka API の失敗は ApiClientError のままで、レスポンスの予算超過はコード response_too_large、HTTP ステータス、既定で再試行不可として報告されます。中断はシグナルの理由（通常は AbortError か TimeoutError）で拒否されます。破棄後の呼び出しは Error で拒否され、ソースの後始末の失敗は dispose を拒否します。
+
+## 任意のブランディングのヘルパー
+
+`createHaneokaBranding(document,options={})` は、ホスト済みの core の窓口と、パッケージの `/branding` エントリーからエクスポートされます。必須の `document` はホストの DOM の Document で、`corner?:"top-left"|"top-right"|"bottom-left"|"bottom-right"` の既定は top-left です。HTMLAnchorElement を返し、画像のリクエストはせず、自分で追加もしません。位置指定された全面のホストに半透明のオーバーレイとして追加し、48px のタッチ領域を保ち、後始末のときに取り除いてください。href は https://haneoka.org/ 固定で、target は _blank、noopener 付きです。元のインライン SVG、48px のタッチ領域、フォーカスは用意されています。表示を担う埋め込みのホストはこのヘルパーを自動で管理します。データ専用の core をインポートしても DOM は作られません。

@@ -1,0 +1,323 @@
+---
+title: Home Spot シーンの埋め込み
+description: Three/Spine のシーンをマウントし、自前のリソースを使い、キャラクターを選び、PNG を書き出します。
+---
+
+import DemoHomeSpot from "../../../../components/DemoHomeSpot.astro";
+
+
+`@haneoka/embed-home-spot` は、Web サイトのコンテナーの中に Three/Spine のシーンをマウントします。自作のシーンか、ID で選んだ現在の公開 Home Spot を受け付けます。公開シーンのプロバイダーが、カメラ、作者の作ったアニメーション、レイヤーの合成、当たり判定、デコード済みのアセット、WebGL のライフサイクルを受け持ちます。埋め込みは、持ち運べるデータソースとエンコード済みのリソースのバイト列をそのプロバイダーにつなぎます。
+
+
+## 最初の読み込み: このページの例を使う
+
+1. 下の **完全なシーンを動かして編集する** までスクロールします。
+2. **作成済みシーン** を選んだまま **読み込む** をクリックします。シーンの中で小さな青いアタッチメントが回ります。
+3. 表示されたキャラクターのボタンをクリックして選び、**選択を解除** でシーン全体に戻します。
+4. **再生し直す**、続いて **PNG を書き出す** をクリックします。**PNG をダウンロード** で 512×288 の画像を保存します。
+5. ほかの例を始める前に **終了して破棄** でシーンを閉じます。
+
+ランタイムはクリックしてから読み込まれます。この方法は公開のブラウザー用モジュールを使い、パッケージのインストールは不要です。
+
+## 実際の Haneoka のシーンを読み込む
+
+1. 同じ例で **Haneoka ID** をクリックします。JSON が `spotId: "40002"` と `server: "intl"` に変わります。
+2. **読み込む** をクリックし、**準備完了** になるまで待ちます。キャラクターのボタンはこのシーンの実際のレイヤーから作られます。
+3. それらのボタンで選択し、**再生し直す**、**PNG を書き出す**、**終了して破棄** を試します。
+
+自分のアプリケーションに組み込むには、コンテナーを用意し、ホスト済みの ESM をインポートします。
+
+```html
+<div id="spot"></div>
+```
+
+```js
+import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
+
+const spot = mountHaneokaHomeSpot(document.querySelector("#spot"), {
+  spotId: "40002",
+  server: "intl",
+  locale: "en",
+  ariaLabel: "Garage scene",
+  onEvent(event) {
+    if (event.type === "error") console.error(event.error);
+  },
+});
+
+await spot.ready;
+const character = spot.document.layers.find(layer => layer.characterId > 0);
+if (character) spot.update({ selectedCharacterId: character.characterId });
+spot.replay();
+const png = await spot.exportPng({ width: 512, height: 288 });
+// Keep the handle while your scene is visible.
+// Call await spot.dispose() when the page/component closes.
+```
+
+これはモジュールスクリプトやアプリケーション向けの組み込みの断片です。操作をそのまま試すには上の動くページの例を使ってください。公開アダプターは現在の `stories` ドキュメントを読み、`homeSpots[spotId].spine` を選びます。アカウントやリリースの選択は不要です。公開アセットは `referrerPolicy: "no-referrer"` で要求します。独自の `fetcher` は、資格情報とシグナルを保ったままの Request を受け取ります。`haneokaHomeSpotSource` と `mountHomeSpot` を自分で組み合わせる場合は、公開アセットに同じリファラーポリシーを使ってください。`locale` は `server` とは独立にリクエストの言語を決めます。
+
+## ローカルのシーンファイルをすべてダウンロードして読み込む
+
+1. [完全なオリジナルのサンプルをダウンロード](/examples/home-spot.zip)して ZIP を展開します。`home-spot` フォルダーとサブフォルダーの名前はそのままにします。
+2. 下の例で **ローカルファイル** をクリックします。
+3. **ローカルのシーン JSON** で `home-spot/scene.json` を選びます。
+4. **ローカルのリソースフォルダー** で展開した `home-spot` フォルダー全体を選び、ブラウザーのフォルダー選択の確認を許可します。
+5. **読み込む** をクリックします。最初の例と同じ青いアタッチメントが表示されるはずです。
+6. 選択、再生し直し、PNG の書き出しを試し、**終了して破棄** でシーンを閉じます。
+
+```text
+home-spot/
+  scene.json
+  pièce.glb
+  人物/
+    acteur.atlas
+    acteur.json
+    acteur.png
+```
+
+ZIP は 5 つのサンプルファイルをダウンロード用にまとめたものです。フォルダーを選ぶ前に展開してください。埋め込みが受け取るのは JSON と個々のファイルです。`scene.json` は `pièce.glb` と `人物/acteur.atlas` を参照し、その atlas は同じディレクトリの `acteur.png` を参照します。リソースの対応表が一致するよう、アクセント記号や中国語のフォルダー名も含めて名前を変えないでください。上のファイル入力で JSON とフォルダーを明示的に選べます。ブラウザーにフォルダー選択がない場合は、**HTTP JSON** で同じサンプルを試し、組み込むときはアプリケーションのリソースの対応表でローカルファイルを渡してください。
+
+## バンドルするアプリケーション向けのパッケージのインポート
+
+このあとの例は、バンドラーと組み合わせる場合の参考として、パッケージのインポートとアプリケーションが持つ File の変数を示します。ブラウザーのアプリケーションは[ホスト済みの Home Spot の ESM](https://haneoka.org/embed/home-spot.js) と [core の ESM](https://haneoka.org/embed/core.js) を使えます。npm のパッケージは別に準備中で、公開はまだです。ソースからビルドするには、対応する埋め込みとプロバイダーのリビジョン、Three 0.184.x、Spine 4.2.119 が必要です。Spine のランタイムには独自の[ランタイムライセンス](https://esotericsoftware.com/spine-runtimes-license)があり、シーンのデータとアートワークは作者のライセンスのままです。
+
+## シーンを 1 つ作る
+
+公開 Home Spot のシーンプロバイダーが使う記述子を用意します。シーン 1 つには、GLB の背景、背景の変換、atlas、Spine のレイヤーが必要です。atlas の各ページとスケルトンはリソースのリゾルバーから渡します。自己完結した GLB は背景の画像とバッファーを内包します。
+
+```js
+import { mountHomeSpot } from "@haneoka/embed-home-spot";
+import { fileResourceResolver } from "@haneoka/embed-core";
+
+const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+const scene = {
+  supported: true,
+  backgroundScene: "room.glb",
+  backgroundTransform: identity,
+  atlas: "actors/actor.atlas",
+  scale: 0.01,
+  camera: {
+    position: [0, 0, -5],
+    startPosition: [0, 0, -5],
+    target: [0, 0, 0],
+    fieldOfView: 20,
+    introDuration: 0,
+  },
+  layers: [
+    {
+      key: "actor",
+      runtime: { json: "actors/actor.json" },
+      animation: "idle",
+      sortingOrder: 0,
+      transform: identity,
+    },
+  ],
+};
+const resources = new Map([
+  ["room.glb", roomGlbFile],
+  ["actors/actor.atlas", atlasFile],
+  ["actors/actor.json", skeletonFile],
+  // The name written in actor.atlas is resolved in its own directory.
+  ["actors/actor.png", textureFile],
+]);
+const spot = mountHomeSpot(document.querySelector("#spot"), {
+  document: scene,
+  resolveResource: fileResourceResolver(resources),
+  locale: "fr",
+  ariaLabel: "Une scène originale",
+});
+await spot.ready;
+```
+
+上のファイルの変数は、アプリケーションが取得した `File` か `Blob` のオブジェクトです。そのリソースキーの文字列には Unicode を使えます。シーンは 1 つの言語で作れば十分で、Haneoka のページの枠組み、カタログ、リリースマニフェスト、翻訳一式は不要です。JSON のスケルトンは `runtime.json`、バイナリのスケルトンは `runtime.skel` を使います。インストールした Spine 4.2 のランタイムに対応したデータと、そのスケルトンに存在するアニメーションを使ってください。
+
+カメラのベクトルとレイヤーの変換はプロバイダーのシーンの規約に従います。ベクトルと行優先のレイヤーの行列は Unity の座標系、`backgroundTransform` は変換後の GLB 用の列優先の行列です。原点を中心に作ったシーンなら単位行列で動きます。ポインターでの選択のために、レイヤーに `characterId` とローカルの `hitPolygon` を追加できます。別々のレイヤーは作者が決めた並び順を保ちます。これらのフィールドがあれば、プロバイダーがカメラの登場、マウスへの追従、選択時の透明度を適用します。
+
+## 別のオリジンからシーンを読み込む
+
+HTTP のソースは、シーンドキュメントのディレクトリをアセットのベースに使います。たとえば `https://gallery.example/` のページから `https://media.example/projects/cafe/scene.json` のシーンを読めます。
+
+```js
+import { mountHomeSpot } from "@haneoka/embed-home-spot";
+import { httpDataSource } from "@haneoka/embed-core";
+
+const spot = mountHomeSpot(document.querySelector("#spot"), {
+  source: httpDataSource({
+    url: "https://media.example/projects/cafe/scene.json",
+  }),
+  ariaLabel: "Cafe",
+});
+await spot.ready;
+```
+
+このドキュメントでは、`room.glb` は `https://media.example/projects/cafe/room.glb` に解決されます。`actors/actor.atlas` の atlas は、ページの `actor.png` を `projects/cafe/actors/` で解決します。ルート相対の `/art/room.glb` はメディアのオリジンを使い、絶対 URL はそのオリジンを保ちます。リソースが別の場所にある場合は、`assetsBase` を絶対 HTTP(S) のディレクトリに設定してください。独自の `resolveResource` でキーを URL や Blob に対応付けられ、`fetcher(request)` でアプリケーションの通信を組み込めます。すべてのリクエストは CORS モードで、既定では資格情報を送りません。
+
+データとアセットのオリジンは、ページのオリジンからのブラウザーのリクエストを許可する必要があります。公開の匿名アセットは `Access-Control-Allow-Origin: *` を送れます。資格情報付きのリソースには、明示的なページのオリジンと資格情報の許可が必要です。そのサービスが必要とする場合だけ `credentials` を設定してください。独自のリクエストヘッダーには OPTIONS のプリフライトの成功が必要なことがあります。HTTP の失敗、利用できないシーン、互換性のないスケルトン、ブロックされた CORS のリクエストは `ready` を拒否し、エラーを通知します。埋め込みのバイト数の予算は、既定でドキュメントやリソース 1 つあたり 64 MiB で、`maxBytes` で設定できます。
+
+ローカルの JSON には、`fileDataSource(sceneFile)` と `fileResourceResolver(resources)` を組み合わせます。そうすると相対的な作者のキーがローカルの対応表とそのまま一致します。リソースのバイト列はドキュメントのローダーと同じリゾルバーと通信を使います。元のシーンのプロバイダーがテクスチャーとモデルのインスタンスを作り、シーンとともに解放します。
+
+## インスタンスの寿命とイベント
+
+`mountHomeSpot` は同期的に返ります。`ready` に拒否時のハンドラーを付け、ネットワークの読み込み中でもコンポーネントの後始末からハンドルを使えるようにしておいてください。
+
+```js
+const spot = mountHomeSpot(host, { source, signal: componentSignal });
+spot.ready.catch(showLoadError);
+// Component cleanup can run before ready settles.
+await spot.dispose();
+```
+
+`cancel()` は現在の読み込みの世代を取り消します。取り消したあとに別のシーンを始めるには、`load({ document })` か `load({ source })` を呼びます。読み込みが完了したシーンは `cancel()` を呼んでも残ります。`load` は前のシーンとソースを破棄し、保留中の読み込みを拒否してから新しい世代をマウントします。`ready` は常に最新の読み込みを指し、`load` が返す Promise はその世代を指します。`dispose` メソッドを持つソースは 1 回の読み込みが所有するものとして扱い、再び読み込むときは新しいソースを作ってください。`dispose()` は冪等で、埋め込みの要素とリスナーを取り除き、読み込みを取り消し、ソースを破棄します。破棄したハンドルは再利用できません。後始末の失敗は集約したエラーで `dispose()` を拒否します。取り消された `ready` は、後始末が終わるのを待たずにすぐ拒否されます。
+
+`update({ selectedCharacterId })` はリソースを作り直さずに選択中のキャラクターを変えます。`update({ replay: true })` は作者の作った登場とアニメーションを最初からやり直し、`ready` のあとなら `replay()` でも同じです。`resize()` はプロバイダーにビューポートの更新を求めます。シーンはコンテナーの変化も監視しています。シーンのジオメトリ、アセット、カメラのデータを差し替えるときは `load` を使ってください。
+
+イベントには `loading`、`ready`、`cancelled`、`error`、`selection`、`contextlost`、`contextrestored`、`disposed` があります。ネットワークのイベントは `{ type: 'resource', event }` として届き、embed-core の操作 ID、キー、バイトの進捗を保ちます。進捗はリソースごとで、レスポンスが信頼できるデコード後の長さを示す場合だけ total を含みます。`subscribe(listener)` は購読解除の関数を返します。イベントのオブザーバーは読み込みの結果を変えられず、その例外は `onListenerError` で受け取れます。
+
+`exportPng({ width, height })` は現在のシーンのフレームの PNG の Blob を返します。キャプチャーはシーンのプロバイダーが GPU の上限の範囲で要求された寸法で描画し、そのあと操作用のビューポートを元に戻します。構図を保つには、要求する縦横比を表示中のシーンと同じにしてください。キャプチャーに失敗すると Promise は拒否されます。書き出しは恒久的なダウンロード URL を作りません。アプリケーションは、プレビューやダウンロードが終わったら自分で作った URL を破棄してください。
+
+## レイアウトと操作
+
+埋め込みはマウントした時点から 16:9 の領域を確保するため、シーンの読み込みでページのレイアウトは変わりません。別の比率を確保するには `aspectRatio` を上書きします。キャンバスはレンダラーが対応するピクセル比でその領域を埋めます。埋め込みが所有するのは子要素 1 つだけで、コンテナーのほかの子要素はホストに任せます。角のリンクは元の Haneoka のアイコンを表示して `https://haneoka.org/` を開きます。ゲームのキャンバスと PNG の書き出しの外にあります。
+
+再生し直し、選択、書き出しには既存の Material のコントロールを使ってください。埋め込みが提供するのはシーンのキャンバスとライフサイクルのイベントで、ラベル、進捗の表示、ツールバーはアプリケーションが受け持ちます。MD3 のホストは `--md-sys-color-surface` を提供でき、`clearColor` を指定しなければシーンの背景色はそのトークンに従います。ボタンの文字と `ariaLabel` は作者の言語で用意してください。キャンバスのポインターでの当たり判定に加えて、`update` を呼ぶキーボード操作できるホストのボタンからも選択できます。
+
+シーンは元の PNG のリソースを使います。ネイティブの圧縮 Spine テクスチャーと PMA には、シーンのプロバイダーとそのアセットデータで明示的な対応が必要です。埋め込みは既存の記述子をそのまま渡し、モデル固有の描画規則は作りません。
+
+## 完全なシーンを動かして編集する
+
+下の小さなオリジナルのシーンを読み込みます。最初のドキュメントは編集できる JSON で、回転する Spine のアタッチメント 1 つ、自己完結した GLB、小さな atlas の画像があります。HTTP は[実際のシーン JSON](/examples/home-spot/scene.json) を読み、ファイルモードは選んだ JSON とアセットのフォルダー、またはオリジナルのサンプルをローカルの Blob として読みます。Haneoka ID は実際の公開用の簡易マウントを呼びます。キャラクターの選択、再生し直し、世代の差し替え、サイズ変更、512×288 の PNG の書き出しを試してください。
+
+<DemoHomeSpot locale="ja" />
+
+モジュールとレンダラーはクリックしたあとにだけ読み込まれます。別のシーンをマウントする前に既存のインスタンスは破棄されます。`input`/`url` はアプリケーションのソース選択のフィールドで、`options` には実際のマウントの引数が入ります。ダウンロードのリンクは書き出した Blob URL を所有し、差し替えや終了のときに破棄します。コールバックやモジュールのオブジェクトは下で説明する実行可能な組み込みで、JSON の値ではありません。UI の言語の選択肢は ja/en/zh-TW/zh-CN/ko の順で、作者のロケールは編集できる文字列のままです。
+
+```js
+import { mountHaneokaHomeSpot } from "https://haneoka.org/embed/home-spot.js";
+const scene = mountHaneokaHomeSpot(element, { spotId: "40002", server: "intl", locale: "en" });
+await scene.ready;
+const character = scene.document.layers.find(layer => layer.characterId > 0);
+if (character) scene.update({ selectedCharacterId: character.characterId });
+scene.replay();
+const png = await scene.exportPng({ width: 512, height: 288 });
+await scene.dispose();
+```
+
+安定したエイリアスは実際にデプロイされた SDK を採用します。検証済みのリリースは manifest.modules で固定してください。不変の r22 は独自のソースとレイアウトの挙動のまま利用できます。現在の共通のブランディングは、ビューポート全体の上で、シーンの角に透明な背景と不透明度 55% のアイコンを使います。キャプチャーで書き出すのはシーンのキャンバスだけです。SDK の成果物はデプロイ時にソースから作られ、npm は別の公開手順です。
+
+## mountHomeSpot と公開マウントの全オプション
+
+位置引数の host は ownerDocument を持つ HTMLElement が必須です（そうでなければ TypeError）。mountHomeSpot と各 load の呼び出しでは document か source のどちらか 1 つだけを選んでください。両方、またはどちらもない場合は TypeError を投げます。ホストはシーンの子要素と安定した縦横比の領域を所有し、関係のないホストの子要素はそのまま残します。
+
+| フィールド | 型・既定 | 意味、制約、失敗 |
+| --- | --- | --- |
+| document | HomeSpotDocument、必須の選択肢の一方 | 下記の作者の記述子。未対応・不完全な形は ready を拒否する。 |
+| source | DataSource&lt;HomeSpotDocument&gt;、必須の選択肢の一方 | memory/http/file/独自のソース。core の同じ契約。ソースの失敗は ready を拒否する。 |
+| server | 任意の文字列、既定は undefined、公開マウントでは intl | locale とは独立したリソースのレジストリ。 |
+| locale | 任意の文字列、既定は en | 作者・リクエストの言語。UI の 5 つの候補に限らない。 |
+| assetsBase | 任意の絶対 HTTP(S) のディレクトリ、既定はソースのベース | クエリやフラグメントのないディレクトリで上書きする。不正なら TypeError。 |
+| resolveResource | 任意の (key,DataContext)→URL/string/Blob/Promise、既定はキーそのまま | Unicode のキー文字列をそのまま対応付ける。atlas の画像名はその atlas に対して解決する。ローカルのキーがなければ Error。 |
+| fetcher | 任意の (Request)→Promise&lt;Response&gt;、既定は fetch | エンコード済みのバイト列の通信。公開の簡易マウントは、シグナル、ヘッダー、資格情報を保ったまま no-referrer を適用する。 |
+| credentials | omit/same-origin/include、既定は omit | core のリクエスト。サーバー側でオリジンと資格情報の許可が必要。 |
+| headers | HeadersInit、既定はなし | core の共通ヘッダー。ソースのリクエストのヘッダーが同じ名前で優先する。 |
+| maxBytes | 正の安全な整数、既定は 67108864 | JSON・バイト列のレスポンス 1 つあたりの予算で、デコード後や GPU のメモリの合計ではない。不正な値は RangeError。 |
+| onListenerError | 任意の (unknown)→void | オブザーバーや切り離された後始末のエラーの受け口。 |
+| signal | 任意の AbortSignal | 中断すると ready 後でもマウントしたハンドルを破棄する。シーン全体の組み込みのタイムアウトはないので、ホスト側で期限を設ける。 |
+| ariaLabel | 文字列、既定は Home Spot | 作者の言語でのキャンバスのアクセシブルな名前。 |
+| clearColor | 任意の CSS の色 | 既定はホストの MD3 の surface の計算値、なければ Canvas のシステム色。プロバイダーでの色の解析エラーは ready を拒否することがあり、使える計算値がなければ Error。 |
+| aspectRatio | 有限の正の数、既定は 16/9 | 読み込み中・準備完了時のホストの比率。0 以下や有限でない値は RangeError。記述子の camera.aspect を変えてもホストのリサイズは上書きされない。 |
+| selectedCharacterId | 任意の数値、既定は選択なし（プロバイダーでは 0） | 選んだレイヤーを強調する。0 で解除。一致しないキャラクターは透明度 0.3、一致するものと未指定のものは 1。 |
+| modules | 任意の HaneokaHomeSpotRuntimeModules | 既定は Three、GLTFLoader、Spine の遅延インポート。互換性のあるモジュールのコンストラクターが必要で、機能が欠けていれば TypeError。完全な形は下記。 |
+| onEvent | 任意の (HomeSpotEvent)→void | 最初の世代の前に登録される。 |
+| spotId | mountHaneokaHomeSpot では必須の文字列か数値 | 文字列にした空でない ID。シーンがなければ Error、空の ID は TypeError。作者のマウントのオプションには含まれない。 |
+| apiBase | 公開マウント・ソースでは任意の文字列 | 既定は `https://haneoka.org/api/v1/`。core の絶対ディレクトリの検証を受ける。 |
+
+`mountHaneokaHomeSpot(host,options)` はソースを自動で用意するので、document や source は加えないでください。現在の stories ドキュメントを読み、homeSpots[id].spine を選びます。ソースの ID はリリースの ID ではありません。アカウントやリリースの選択はありません。`haneokaHomeSpotSource({spotId,apiBase?})` は手動でマウントを組み立てるために同じ DataSource を提供します。手動で組み立てるときは、公開アセットの通信に no-referrer を指定してください。手動のソース自体はレンダラーを作りません。
+
+## シーン記述子の全体
+
+| フィールド | 型・既定 | 要件と効果 |
+| --- | --- | --- |
+| supported | 型では任意の真偽値、実行時は true が必須 | false や省略だと、この Three/Spine のプロバイダーは拒否する。 |
+| atlas | 文字列、実行時は必須 | レイヤーの既定の atlas のキー。空・なしは ready を拒否する。 |
+| backgroundScene | 文字列、実行時は必須 | GLB のリソース。自己完結した GLB は自分のバッファーと画像を持つ。ない、または不正な GLB は読み込みを拒否する。 |
+| backgroundTransform | number[]、16 要素が必須 | 変換後の GLB の列優先の変換行列。長さが違うとプロバイダーの作成を拒否する。有限の値を使う。 |
+| animation | 任意の文字列、既定は空 | レイヤーのフォールバックのアニメーション。意図した動きには、作者が用意した利用可能なアニメーションが必要。 |
+| scale | 任意の数値、プロバイダーのフォールバックは 0.01 | Spine の単位の既定の拡大率。runtime.scale が上書きする。0 は非表示ではなくフォールバックになる。 |
+| fadeInDuration | 任意の数値、既定は 0 | キャラクターの登場時の不透明度の秒数。負の値は 0 にする。 |
+| camera | 任意のカメラのオブジェクト、既定は下記 | Unity の座標系でのカメラの登場とポインター追従の設定。 |
+| layers | 読み取り専用の layer[]、空でないことが必須 | 順序付きのスケルトン・atlas のエントリー。空ならプロバイダーが拒否する。 |
+
+公開の形は、ソースの拡張フィールドも許します。プロバイダーは既知のフィールドだけを使い、任意のフィールドをすべてマウントの設定として扱うことはしません。
+
+### camera と mouseFollow の全フィールド
+
+| フィールド | 既定 | 意味 |
+| --- | --- | --- |
+| position | [0,0,-1] | Unity の座標系でのカメラの基本ベクトル。 |
+| startPosition | [0,0,-2] | Unity での登場の開始位置。 |
+| target | [0,0,0] | カメラの注視点。 |
+| fieldOfView | 20 | 度。180 未満の有限の正の値を使う。0 はフォールバックを使う。 |
+| aspect | 16/9 | カメラの初期の縦横比。リサイズで実際のビューポートの比率に置き換わる。 |
+| orbitRatio | 0 | シーンの単位でのカメラの前方軸のオフセット。 |
+| introDuration | 0 | 登場の秒数。負の値は 0 にする。 |
+| introEase | 0 | 9 は cubic-out、ほかの値は線形の進行。 |
+| mouseFollow | undefined | 下記の任意のポインター角度の設定。 |
+| mouseFollow.sensitivity | undefined | 保持される元のメタデータ。現在のポインターの計算はこのフィールドではなく最大値と閾値を直接使う。 |
+| mouseFollow.threshold | 0 | 角度の不感帯。0 以上に制限される。 |
+| mouseFollow.maxLeft | 0 | 左方向のポインターのヨーの範囲（度）。 |
+| mouseFollow.maxRight | 0 | 右方向のポインターのヨーの範囲。 |
+| mouseFollow.maxUp | 0 | 上方向のピッチの範囲。 |
+| mouseFollow.maxDown | 0 | 下方向のピッチの範囲。 |
+| mouseFollow.smoothTime | 0.1 | 秒。最小は 0.001。 |
+
+カメラのベクトルは 3 つの数値です。レイヤーの行列は Unity の行優先、backgroundTransform は GLB の列優先です。ない、または不正なベクトルの成分は、プロバイダーの数値のフォールバックに従います。原点を中心に作ったシーンには単位行列を、実際のゲームデータには作者の元の変換を使ってください。
+
+### layer と runtime の全フィールド
+
+| フィールド | 型・既定 | 意味と選択 |
+| --- | --- | --- |
+| key | layer の型では必須の文字列 | 作者のレイヤーの識別子。文字列そのままで、Unicode も使える。 |
+| characterId | 任意の数値、既定は 0 | 選択用の ID。 |
+| sortingOrder | 任意の数値、既定は 0 | 昇順の描画順。同じ値は入力順を保つ。 |
+| animation | 任意の文字列、既定は descriptor.animation | runtime のアニメーションが優先する。 |
+| skeleton | 任意の文字列 | プロバイダーの正規化の入力。新しいシーンでは runtime.json/skel を明示する。 |
+| transform | 任意の number[] | Unity の行優先のレイヤーの変換。通常は 16 個の有限の値。 |
+| hitPolygon | 任意の読み取り専用 [x,y,z][] | ポインターでの選択用のローカルの多角形。 |
+| format | 任意の不明なメタデータ | Spine のエントリーのアダプターが正規化する。 |
+| runtime | 任意の Readonly&lt;Record&lt;string,unknown&gt;&gt; | 対応するリソースキーは下記のとおり。 |
+| runtime.json | 任意の文字列 | スケルトンのソースの第 1 候補。JSON のスケルトンデータ。 |
+| runtime.skel | 任意の文字列 | バイナリのスケルトンのソース。バイナリの解析も選ぶ。 |
+| runtime.model | 任意の文字列 | フォールバックのスケルトンのソース。 |
+| runtime.atlas | 任意の文字列、既定は記述子の atlas | レイヤーの atlas を上書きする。 |
+| runtime.format | 任意の文字列 | spine-binary でバイナリを選ぶ。URL の拡張子 .skel でもバイナリになる。 |
+| runtime.scale | 任意の数値、既定は descriptor.scale、次に 0.01 | Spine のパーサーの拡大率。 |
+| runtime.animation | 任意の文字列、既定は layer、次に記述子 | アニメーション名。 |
+
+正規化後のスケルトンがない場合は TypeError を投げます。スケルトンのバージョンはインストールした Spine 4.2 と一致し、atlas は参照する領域とページを含み、アニメーションの再生には指定した名前のアニメーションが存在する必要があります。HTTP、解析、テクスチャー、モジュールのエラーは ready を拒否します。ネイティブの圧縮や PMA の扱いはプロバイダーのデータに従い、この埋め込みが新しいレンダラーや形式を選ぶことはありません。
+
+## modules の注入オブジェクトの全体
+
+modules は three: オブジェクト、GLTFLoader: コンストラクター、spine: オブジェクトを持ちます。spine は TextureAtlas、ThreeJsTexture、AtlasAttachmentLoader、SkeletonBinary、SkeletonJson、SkeletonMesh のコンストラクターを提供する必要があります。Three の名前空間は、プロバイダーが使う WebGLRenderer、Color、Scene、PerspectiveCamera、Vector2、Vector3、Euler、Matrix4、MeshBasicMaterial を提供する必要があります。公開パッケージの型はこれらをあえて不透明にし、実行時に使うコンストラクターを確認します。互換性のある Three のインスタンス 1 つと Spine 4.2.119 を使ってください。埋め込みをインポートしただけでは WebGL は初期化されません。ライセンスが必要なランタイムの配布はアプリケーションの責任です。
+
+## ハンドル、update、書き出しの全フィールド
+
+| メンバー | 引数・結果 | 挙動・エラー |
+| --- | --- | --- |
+| ready | 最新の Promise&lt;void&gt; | load とともに変わる。load が返す各 Promise はその世代に結び付く。 |
+| state | loading/ready/cancelled/error/disposed | 現在の段階。 |
+| element | HTMLElement | 所有するシーンとブランディングのラッパー。 |
+| canvas | HTMLElement/undefined | プロバイダーの準備ができると使える。 |
+| document | HomeSpotDocument/undefined | 最後に読み込みに成功した記述子。カタログのコピーではない。 |
+| update | \{selectedCharacterId?:number,replay?:boolean\}→void | 作り直さずに選択や再生し直しを適用する。選択に undefined を渡すと解除する。破棄後は Error。 |
+| load | \{document\} か \{source\}→Promise&lt;void&gt; | 入力は厳密に 1 つで、そうでなければ TypeError。前のシーンとソースを破棄し、その世代を取り消す。新しいソースが自分の後始末を所有する。 |
+| replay | ()=&gt;void | ready が必要。準備ができていない・破棄後は Error。 |
+| resize | ()=&gt;void | ready が必要。ResizeObserver でも自動で行われる。 |
+| exportPng | \{width?:number,height?:number\}→Promise&lt;Blob&gt; | ready と失われていないコンテキストが必要。既定は描画バッファーの大きさ。片方の寸法を省くと現在の比率を保つ。 |
+| subscribe | listener→購読解除 | 以降のイベント。破棄後は Error。 |
+| cancel | ()=&gt;void | 現在の読み込みの世代だけを取り消す。準備のできたシーンは残る。取り消したあとは新しいソースで読み込み直す。 |
+| dispose | 共有の Promise&lt;void&gt; | 冪等。すぐに切り離して中断し、ソースの後始末を待つ。失敗は AggregateError。 |
+
+PNG の幅と高さは正の安全な整数で、min(maxTextureSize, MAX_RENDERBUFFER_SIZE) 以内、総ピクセル数は 16777216 以下である必要があります（そうでなければ RangeError）。時間を進めずに現在のフレームを描画し、一時的に描画先の大きさを変えてから、操作用の大きさ、ピクセル比、縦横比を元に戻します。2D のコピー用コンテキストやエンコードが使えない場合や、WebGL のコンテキストが失われた場合は Error で拒否します。Blob は恒久的な URL を作らないので、プレビューやダウンロードの URL は呼び出し側が所有します。PNG に含まれるのはシーンのピクセルで、ホストのオーバーレイは含まれません。
+
+イベントは resource\{event:EmbedEvent\}、loading/ready/cancelled\{generation:number\}、error\{generation,error\}、selection\{characterId:number\}、contextlost、contextrestored、disposed です。resource のイベントは読み込み中の世代に属し、core の operation/key/progress のフィールドは同じ意味を保ちます。リスナーのエラーは隔離されます。取り消しは AbortError、外部のシグナルは破棄を行い、デコード、HTTP、プロバイダーのエラーは実際の原因を保ちます。リソースを解放した破棄済みのハンドルやソースは再利用しないでください。
+
+アプリケーション専用の `sdkBase` フィールドは、互換性のある自前ホストの core.js/home-spot.js の配布物がある絶対 HTTP(S) のディレクトリを選びます。既定は公式の /embed/ ディレクトリで、mountHomeSpot のオプションではありません。構築時の設定やリソースの対応付けの変更を適用するには 読み込む を、既存のハンドルに document か source だけを渡すには 差し替え を使ってください。

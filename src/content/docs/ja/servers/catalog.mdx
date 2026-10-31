@@ -1,0 +1,172 @@
+---
+title: カタログデータ
+description: 現在のリソース、エンティティ、ビュー、リレーション、バッチを参照します。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+## 直接ルートから始める
+
+通常のアプリケーションの読み取りには、現在データの短い URL を使います。
+
+```http
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}?server=jp
+GET /api/v1/{resource}/{id}?server=jp
+```
+
+既定のサーバーは `intl` です。`server` クエリでほかの有効なサーバーを選べます。これらのルートは `/api/v1/servers/{server}/{resource}` と同じカタログ処理を使います。明示的な形は、release パラメーターも必要なビルドやアーカイブのツール向けです。
+
+よく使うリソース名には `songs`、`bands`、`characters`、`cards`、`stories`、`events`、`audio`、`videos`、`voices` があります。選んだカタログが正です。固定の一覧を持たず、カタログのリソース名、ID、ビュー、リレーションを使ってください。
+
+## リソースの索引とエンティティ
+
+試してみましょう。楽曲とサーバーを選びます。ID は索引にある任意の `musicId` に変えられます。
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100001" }]} query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="ja" />
+
+索引のリクエストはプロバイダーの形のドキュメントを返します。コレクションのリソースは、エンティティ ID をキーにしたオブジェクトを返すのが一般的です。
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
+```
+
+```json
+{
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "difficulty": [
+      { "difficulty": 0, "difficultyName": "easy", "displayLevel": 9, "noteCount": 342 }
+    ],
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3"
+  }
+}
+```
+
+キーを指定して完全なエンティティを読みます:
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
+```
+
+エンティティには、言語別のクレジット、公開日、コンボ報酬、譜面のパス、動画 ID など、索引のエントリーより多くのフィールドが含まれることがあります。未知のフィールドは保持し、`null` は元データにその値がないことを明示したものとして扱ってください。ほかのリソースは独自の形を持ちます。たとえばイベントのドキュメントは楽曲のフィールドではなく `entries` と `hasGameEvents` を使います。
+
+## 任意のページ分割
+
+コレクションや宣言済みのビューでは、`limit` を付けると索引全体ではなくエンベロープを返します。
+
+```http
+GET /api/v1/songs?server=intl&limit=20
+GET /api/v1/{resource}/views/{view}?server=intl&limit=20
+```
+
+```json
+{
+  "items": [{ "id": "100070", "value": { "musicId": 100070 } }],
+  "total": 84,
+  "limit": 20,
+  "nextCursor": "opaque-cursor-from-the-response",
+  "release": {
+    "schema": "haneoka-resource-release-identity-v1",
+    "server": "intl",
+    "releaseId": "r-0123456789abcdef0123",
+    "sourceId": "source-snapshot-id"
+  }
+}
+```
+
+この省略した例はエンベロープを示すもので、エンティティのフィールドと件数は選んだカタログで決まります。`limit` は 1〜100 で、limit なしでカーソルによりページ分割が有効になった場合の既定は 50 です。1 回のリクエストで走査するエンティティのシャードは最大 8 つなので、1 ページの件数が `limit` より少ないことがあり、続きのカーソル付きの空ページもあり得ます。`nextCursor === null` になったときだけ終了してください。順序はシャードの順と ID の辞書順で、ゲーム内の順や ID の数値順ではありません。
+
+カーソルは `URLSearchParams` でそのまま渡してください。カーソルは現在のポインターが更新されても最初のページのリリースを保ち、サーバー、リソース、ビューに結び付いています。続くページも同じ範囲で要求してください。不正な、または一致しないカーソルは `400 invalid_cursor` を、保持したリリースが利用できない場合は `404 release_not_found` を返します。そのスナップショットが使えなくなったら、新しい最初のページからやり直してください。ページ分割はエンティティのストレージを持つコレクション・ビューだけが対応します。`limit` と `cursor` の両方を省けば、従来どおり索引全体のレスポンスになります。バッチの `id` とページ分割は併用できません。
+
+```js
+const scope = { server: "intl", limit: "20" };
+let cursor;
+do {
+  const query = new URLSearchParams(scope);
+  if (cursor) query.set("cursor", cursor);
+  const response = await fetch(`https://haneoka.org/api/v1/songs?${query}`);
+  if (!response.ok) throw new Error(`Catalog HTTP ${response.status}`);
+  const page = await response.json();
+  for (const { id, value } of page.items) console.log(id, value);
+  cursor = page.nextCursor;
+} while (cursor !== null);
+```
+
+[型付きクライアント](../client/)はエンベロープを検証し、エンティティ DTO のデコーダーにも対応します。
+
+## バッチ読み取り
+
+少数のエンティティを取得するには `id` を繰り返します:
+
+<ApiTry path="/api/v1/songs?id=100001&id=100002" locale="ja" />
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs?id=100001&id=100002&server=jp'
+```
+
+レスポンス:
+
+```json
+{
+  "items": {
+    "100001": { "musicId": 100001, "musicTitle": ["迷星叫", "Mayoiuta"] }
+  },
+  "missing": ["100002"]
+}
+```
+
+`items` は要求した ID をキーにします。`missing` はエンティティのない ID の一覧です。`id` パラメーターは 1〜100 個送れます。上限は重複を除く前の送信数で数えます。API はキャッシュを安定させるために ID を並べ替えて重複を除きます。
+
+## ビューとリレーション
+
+カタログマニフェストは、リソースごとに任意のビューとリレーションを宣言します。ビューは名前の付いたプロジェクションで、独自の索引とエンティティの形を持ちます。
+
+```http
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/views/{view}?id={id}&id={id}
+```
+
+リレーションは、リソース、リレーション名、キーで指定します:
+
+```http
+GET /api/v1/{resource}/relations/{relation}/{key}
+```
+
+マニフェストの `valueMode` が結果の種類を示します。`ids` のリレーションは ID をキーにした正規のエンティティに展開されます。`records` のリレーションは、リレーションのドキュメントにあるプロバイダーのレコードを返します。リレーションはあるが値がない場合、空のリレーションキーは `{}` を返します。
+
+これらの名前が必要なときは、選んだサーバーのマニフェストを使います。
+
+<ApiTry path="/api/v1/servers/{server}/catalog" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="ja" />
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/servers/intl/catalog
+```
+
+マニフェストには、リソースの `kind`、件数、索引のパス、エンティティのストア、ビューのパスと形、リレーション名、依存関係が記載されます。ストレージのフィールドはクローラーに役立ちます。アプリケーションのコードは直接ルートのままで構いません。
+
+## クライアントで重要なフィールドの意味
+
+| フィールドのパターン | 使い方 |
+| --- | --- |
+| `musicTitle` や `bandName` などの言語別配列 | 文書化された言語の位置を選び、値が空ならフォールバックする。あとで言語を切り替えられるよう配列は保持する。 |
+| `*Url` と `file` のパス | `https://haneoka.org` に対して解決する。バイナリが必要な場合は、そのパスを対応するメディアやゲームクライアントのルートに渡す。 |
+| 難易度のレコード | `difficultyName`、`displayLevel`、`playLevel`、`sortLevel`、`noteCount` を別々の値として読む。譜面の `file` パスは保持する。 |
+| `musicId`、`bandId`、`videoIds` などの ID | 元の数値型・文字列型を保つ。ID はリソースごとに異なる。 |
+| `null` の値 | 元データに現在その値がない。`null` を空文字列に変換しない。 |
+
+## 上級者向けの明示的な形
+
+サーバー単位のリクエストには次を使います:
+
+```http
+GET /api/v1/servers/{server}/{resource}
+GET /api/v1/servers/{server}/{resource}/{id}
+```
+
+`release=r-<小文字の 16 進 20 文字>` は、再現可能なビルドやアーカイブで不変のカタログが 1 つ必要な場合だけ付けてください。リリース、ソース、メディア、ストレージについては[サーバー単位の上級者向け契約](../releases/)で説明しています。

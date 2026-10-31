@@ -1,0 +1,214 @@
+---
+title: 타입 JavaScript API 클라이언트
+description: Haneoka 전용 ESM 클라이언트로 최신 엔티티, 페이지, 배치, 관계를 읽습니다.
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+
+
+먼저 [완전한 곡 리더 HTML](/examples/api-start.html)로 시작하세요. 목록을 읽고 곡을 고르면 제목과 재킷이 페이지에 표시됩니다. index.html로 저장해 로컬 HTTP로 여는 방법은 [빠른 시작](/ko/quickstart/)에 있습니다. 이 시작 파일은 npm 설치 없이 `https://haneoka.org/embed/api-client.js`를 씁니다. 아래 패키지 가져오기와 TypeScript 조각은 그 모듈을 이미 빌드하는 애플리케이션용입니다.
+
+`@haneoka/api-client/haneoka`는 리소스 API용 `createHaneokaClient`를 제공합니다. 루트의 `createApiClient`는 직접 만든 서비스를 위한 범용 HTTP 클라이언트로 남아 있습니다. `./haneoka` 진입점이 있는 맞는 빌드를 쓰세요. 브라우저·Node Fetch나 제공한 `transport(Request)`로 동작합니다.
+
+## 읽기와 취소
+
+```ts
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+import { ApiClientError } from "@haneoka/api-client";
+
+const api = createHaneokaClient({ baseUrl: "https://haneoka.org/api/v1/" });
+const controller = new AbortController();
+try {
+  const servers = await api.servers({ signal: controller.signal });
+  const song = await api.entity("songs", "100070", {
+    server: "intl", locale: "en", signal: controller.signal,
+  });
+  console.log(servers, song);
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    console.error(error.code, error.status, error.requestId, error.retryable);
+  } else throw error;
+}
+// Cancel a pending call: controller.abort().
+```
+
+`baseUrl`은 `/api/v1/` 루트입니다. `server`의 기본값은 `intl`이며 값은 `servers()`에서 얻습니다. `locale`은 `ja`, `en`, `zh-TW`, `zh-CN`, `ko`를 받습니다. 카탈로그 값에는 제공된 모든 언어가 남습니다. 직접 만든 임베드 문서는 [embed-core](../../embed/core/)로 다른 로캘도 쓸 수 있습니다.
+
+## 페이지와 배치
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await api.page("songs", { server: "intl", limit: 20, ...(cursor ? { cursor } : {}) });
+  for (const entry of page.items) console.log(entry.id, entry.value);
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+
+const batch = await api.batch("songs", ["100001", "100070"], { server: "intl" });
+console.log(batch.items, batch.missing);
+```
+
+`page`의 기본값은 limit 50이며 항목 ID, limit, 커서, 스냅숏 식별자를 검증합니다. 짧거나 빈 페이지에도 이어지는 내용이 있을 수 있습니다. 배치는 보낸 ID를 1~100개 받고 엔벌로프를 검증합니다. 둘 다 매니페스트에 선언된 이름으로 `view`를 고를 수 있습니다.
+
+`index(resource, scope)`는 프로바이더 색인 전체를, `entity(resource,id,scope)`는 항목 하나를, `relation(resource,relation,key,scope)`는 매니페스트에 정의된 관계를 읽습니다. 관계는 뷰를 받지 않습니다. 모두 `signal`과 `decode(value: unknown)` 콜백을 지원합니다. 기본 결과는 JSON 값이며, 디코더가 런타임 검증을 하고 업무용 DTO 타입을 줍니다.
+
+```ts
+const song = await api.entity("songs", "100070", {
+  decode(value) {
+    if (!value || typeof value !== "object" || !("musicId" in value)) {
+      throw new TypeError("Expected a song");
+    }
+    return value;
+  },
+});
+```
+
+`release`는 기록해 둔 불변 카탈로그 ID일 때만 넘기세요. 클라이언트가 자동으로 `/servers/{server}/...`로 바꿉니다. 일반 직접 별칭은 release 쿼리를 거부합니다. `chartImageUrl()`은 현재 데이터 이미지 주소를 만들 뿐, 바이너리를 가져오거나 디코딩하지 않습니다.
+
+```ts
+const url = api.chartImageUrl("100070", "expert", {
+  server: "intl", locale: "en", format: "svg", height: 720, download: false,
+});
+```
+
+## 오류와 전송
+
+`ApiClientError`는 메서드, URL, 상태, 코드, 선택 requestId, 세부 정보, 재시도 가능 여부를 보존합니다. 중단된 요청은 `request_aborted`이며 재시도할 수 없습니다. HTTP 게이트웨이 실패는 오류 본문이 HTML이거나 형식이 잘못되어도 상태를 유지합니다. 성공했지만 JSON이나 스키마가 잘못된 응답은 `invalid_content_type`, `invalid_json`, `invalid_payload`를 보고합니다. 클라이언트는 자동으로 재시도하지 않습니다.
+
+호스트에 맞게 생성 시 `headers`를 주거나 사용자 정의 `transport(request)`를 주세요. 인증 헤더는 의도한 출처에만 가도록 하세요. 공개 카탈로그 읽기에는 세션이 필요 없습니다. 이미지 바이트나 [게임 기록](../records/) 같은 엔드포인트별 오류 형태가 필요하면 범용 클라이언트의 원시 `response()`를 쓰세요.
+
+## 여기서 클라이언트 시험하기
+
+작업을 고르고 JSON을 편집한 뒤 **Load and run**을 누르세요. 각 프리셋은 실제 클라이언트 메서드를 호출합니다. 페이지 요청은 다음 클릭을 위해 `nextCursor`를 편집기에 남깁니다. `client`는 생성 옵션, `scope`는 카탈로그 호출 옵션, `request`는 범용 HTTP 옵션입니다. `validateMusicId: true`면 표시된 예제 디코더가 켜집니다. 읽기 데모는 범용 요청을 GET/HEAD로 제한하고 요청 URL과 상태를 기록하지만 헤더 값은 기록하지 않습니다.
+
+<DemoData kind="api" locale="ko" />
+
+예제는 실행할 때만 공개된 `https://haneoka.org/embed/api-client.js`를 동적으로 가져옵니다. [매니페스트](https://haneoka.org/embed/manifest.json)가 현재 불변 릴리스와 모듈 경로를 알려 줍니다. SDK 파일은 커밋된 소스에서 만들어지는 배포 산출물입니다. npm 공개는 별도 배포 단계입니다.
+
+## 생성 옵션
+
+`createHaneokaClient(options = {})`는 Haneoka 리소스 메서드를, `createApiClient(options)`는 범용 HTTP 메서드를 제공합니다. 둘 다 다음 공개 필드를 받습니다.
+
+| 필드 | 타입과 필수 여부 | 기본값 | 의미, 제약, 오류 |
+| --- | --- | --- | --- |
+| `baseUrl` | `string`. 범용 클라이언트는 필수, Haneoka 클라이언트는 선택 | Haneoka: `https://haneoka.org/api/v1/` | API 디렉터리. 범용 클라이언트는 공백을 다듬고 끝에 슬래시를 붙인다. 빈 문자열은 TypeError. 잘못된 기준·URL은 URL 생성이나 Request 생성 때 거부된다. 브라우저·SSR 예제에서는 절대 HTTP(S) URL을 쓴다. |
+| `headers` | 선택 `HeadersInit`(Headers, 레코드, 쌍) | 추가 없음 | 공유 요청 헤더. 범용 호출별 헤더는 대소문자를 구분하지 않고 같은 이름의 생성 헤더를 덮어쓴다. 네이티브 Headers가 잘못된 값을 거부한다. 범위 메서드에는 호출별 헤더 필드가 없다. |
+| `transport` | 선택 `(request: Request) => Promise<Response>` | 네이티브 `fetch` | 신호를 포함한 전체 요청을 받는다. 실제 Response를 반환한다. 전송이 거부되면 network_error나 request_aborted가 되고, ApiClientError를 던지면 그대로 유지된다. 출처, 자격 증명, 기한은 여기서 조정한다. |
+
+Haneoka 생성 함수는 전송 요청을 `credentials: "omit"`, `mode: "cors"`, `referrerPolicy: "no-referrer"`로 감쌉니다. 이는 레지스트리와 리소스 읽기에 적용됩니다. 범용 클라이언트는 네이티브 Request 기본값을 유지하며, 콜백에서 바꾼 Request를 만들 수 있습니다. 어느 생성 함수에도 시간 제한, 재시도, 바이트 예산, 캐시, 해제 옵션이 없습니다. 이런 정책은 호출자의 신호와 전송으로 제어합니다.
+
+```ts
+import { createApiClient } from "@haneoka/api-client";
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+const api = createHaneokaClient({
+  baseUrl: "https://haneoka.org/api/v1/",
+  headers: { Accept: "application/json" },
+  transport(request) {
+    console.log(request.method, request.url);
+    return fetch(request);
+  },
+});
+const general = createApiClient({ baseUrl: "https://haneoka.org/api/v1/" });
+```
+
+## 리소스 인수와 공유 범위
+
+다음은 `HaneokaScope`/`HaneokaReadOptions`의 전체 필드입니다. 호출에 필요한 필드를 넘기세요. `servers()`는 `signal`만 받고, `chartImageUrl()`에는 아래의 별도 옵션이 있습니다.
+
+| 필드·인수 | 타입, 기본값 | 제약, 효과, 실패 |
+| --- | --- | --- |
+| `resource` | 필수 문자열 위치 인수 | 매니페스트 리소스 이름. 소문자, 숫자, 하이픈으로 1~64자, 처음과 끝은 영숫자. 예약 그룹 `game`, `search`, `account`, `admin`, `announcements`, `auth`, `catalog`, `community`, `garupa`, `me`, `release`, `releases`, `servers`, `sources`, `ui-marks`는 거부된다. 구문·그룹 오류는 TypeError, 구문은 맞지만 없는 리소스는 HTTP 404. |
+| `id`, 관계 `key`, 이미지 `songId` | 메서드가 나열하는 곳에서 필수 문자열 | 1~256자, 첫 글자는 영숫자. 나머지에는 `.`, `_`, `:`, `~`, `-`도 쓸 수 있다. 클라이언트가 세그먼트 하나로 인코딩하며 `/`는 쓸 수 없다. 구문 오류는 TypeError, 없으면 엔드포인트별 404. |
+| `server` | 선택 문자열, 기본 `intl` | 활성 레지스트리 슬러그. 소문자 영숫자와 하이픈으로 1~40자, 처음과 끝은 영숫자. 구문 오류는 TypeError, 비활성 서버는 404. locale과 독립적으로 데이터를 고른다. |
+| `locale` | 선택 `"ja" \| "en" \| "zh-TW" \| "zh-CN" \| "ko"`, 기본 생략 | locale 쿼리를 더하고 카탈로그 언어별 필드는 유지한다. 잘못된 로캘은 TypeError. 생략하면 엔드포인트가 지원 언어를 협상한다. 직접 만든 임베드 문서는 다른 언어도 쓸 수 있다. |
+| `release` | 선택 문자열, 기본은 현재 데이터 | 반환된 `r-`와 소문자 16진수 20자리. 리소스 URL을 `/servers/{server}/…`로 바꾼다. 구문 오류는 TypeError, 쓸 수 없는 스냅숏은 404. 직접 HTTP 별칭은 release 쿼리를 거부한다. |
+| `signal` | 선택 AbortSignal, 기본 없음 | 요청을 취소한다. 중단된 전송은 ApiClientError(request_aborted, 상태 0, retryable false)가 된다. 취소한 뒤에는 작업마다 새 컨트롤러를 쓴다. |
+| `view` | 선택 문자열, 기본은 정식 리소스 | resource와 같은 구문의 매니페스트 뷰 이름. index/entity/batch/page에 `/views/{view}`를 더한다. 잘못된 이름은 TypeError, 없는 뷰는 404. 관계는 뷰를 주면 거부한다. |
+| `decode` | 선택 `(value: unknown) => T`, 기본은 JSON 값 디코더 | 동기 런타임 검증·변환. 색인·엔티티·관계 전체, 배치의 각 엔티티, 페이지의 각 항목에 적용된다. 예외를 던지면 invalid_payload가 되고, 던진 ApiClientError는 유지된다. 제네릭 타입만으로는 검증하지 않는다. |
+
+## Haneoka 메서드 전체
+
+| 메서드 | 인수·옵션 | 결과와 동작 |
+| --- | --- | --- |
+| `servers(scope = {})` | `{ signal? }`만 | 레지스트리 `releases` 배열에서 검증한 `{id,displayName,region}[]`의 Promise. `id`는 슬러그이며 릴리스 식별자가 아니다. |
+| `index(resource, options = {})` | 공유 읽기 옵션 | 리소스·뷰 색인 전체나 디코딩한 값의 Promise. 자동 페이지 나누기는 없다. |
+| `entity(resource, id, options = {})` | 필수 ID와 공유 읽기 옵션 | 정식·뷰 엔티티 하나의 Promise. |
+| `batch(resource, ids, options = {})` | 필수 읽기 전용 문자열 배열과 공유 읽기 옵션 | 보낸 ID는 서버 중복 제거 전 중복까지 세어 1~100개. 비었거나 100개 초과거나 잘못된 ID는 TypeError. `{items: Record<id,T>, missing: string[]}`를 반환한다. 없는 항목도 배치로서는 정상 결과다. |
+| `page(resource, options = {})` | 공유 읽기 옵션과 `limit?`, `cursor?` | 아래 엔벌로프를 반환한다. 엔드포인트에 컬렉션·뷰 엔티티 저장소가 필요하다. |
+| `relation(resource, relation, key, options = {})` | 관계 이름은 리소스 이름 구문, 키는 ID 구문 | 매니페스트에 정의된 값을 디코딩해 반환한다. 뷰와 관계를 함께 쓰면 TypeError. 키는 있지만 빈 결과는 `{}`일 수 있고, 없는 관계는 404. |
+| `chartImageUrl(songId, difficulty, options = {})` | 아래의 별도 이미지 옵션 | URL을 동기적으로 반환한다. 요청을 하지 않으며 취소·디코더가 없다. |
+
+### 페이지 필드와 스냅숏 규칙
+
+`limit?: number`의 기본값은 50이며 1~100의 정수여야 합니다. 잘못된 값은 가져오기 전에 TypeError를 던집니다. `cursor?: string`의 기본값은 커서 없음입니다. 비어 있지 않은 커서는 그대로 돌려보내세요. 잘못되었거나 맞지 않는 값은 서버가 거부합니다. 커서는 서버, 리소스, 뷰와 첫 릴리스에 묶여 있습니다. 범위를 일정하게 유지하고, 유지한 릴리스를 쓸 수 없게 되면 첫 페이지부터 다시 시작하세요.
+
+| 응답 필드 | 타입 | 쓰는 법 |
+| --- | --- | --- |
+| `items` | 읽기 전용 `{id:string,value:T}[]` | 요청한 limit까지. 8개 샤드 탐색 예산 때문에 뒤에 데이터가 더 있어도 짧거나 빈 페이지가 될 수 있다. |
+| `total` | 0 이상의 안전한 정수 | 매니페스트 개수이며 이 페이지 길이가 아니다. |
+| `limit` | 정수 1~100 | 요청한 유효 limit. 클라이언트가 요청과 일치하는지 확인한다. |
+| `nextCursor` | 비어 있지 않은 문자열 또는 null | null만 완료를 뜻한다. |
+| `release.schema` | 리터럴 `haneoka-resource-release-identity-v1` | 스냅숏 엔벌로프 버전. |
+| `release.server` | 문자열 | 요청했거나 기본인 서버와 같아야 한다. |
+| `release.releaseId` | 문자열 | 명시적 release를 주었다면 그것과 같아야 한다. |
+| `release.sourceId` | 문자열 | 소스 스냅숏 ID. 만들어 내지 말고 그대로 보존한다. |
+
+클라이언트는 ID, 엔벌로프, 스냅숏 형태를 검증합니다. 결과를 다시 정렬하거나, 페이지를 자동으로 따라가거나, 배치와 페이지 나누기를 합치지 않습니다. 메서드 인터페이스는 이 두 형태를 분리합니다.
+
+### 이미지 URL 인수
+
+| 필드 | 타입·기본값 | 범위와 의미 |
+| --- | --- | --- |
+| `difficulty` | 필수 경로 인수 | `easy`, `normal`, `hard`, `expert`, `special`, `master`. 잘못된 선택은 TypeError. 엔드포인트도 그 곡에 그 난이도가 있어야 한다. |
+| `server` | 선택 문자열, 기본 intl | 범위와 같은 서버 검증. |
+| `locale` | 선택, Haneoka가 지원하는 로캘 | 캡션 언어 쿼리. |
+| `format` | 선택 `svg`/`png`, 기본 svg | 잘못된 값은 TypeError. |
+| `height` | 선택 정수. URL에서 생략되며 엔드포인트 기본값은 720 | 패널 360~1440픽셀. 잘못된 값은 TypeError. 최종 캔버스 크기는 응답 헤더에서 얻는다. |
+| `download` | 선택 불리언, 기본 생략 | true면 1, false면 0을 보낸다. 생략하면 엔드포인트 기본값(attachment)을 따른다. |
+
+이미지 옵션에는 release, view, decode, signal이 없습니다. 바이트는 URL을 따로 가져오세요. 렌더링 오류와 배포·글꼴 요건은 [채보 이미지](../chart-images/)를 참고하세요.
+
+## 범용 HTTP 요청 옵션과 메서드
+
+| 필드 | 타입·기본값 | 의미와 제약 |
+| --- | --- | --- |
+| `path` | 필수 문자열 인수 | 앞쪽 슬래시를 떼고 baseUrl 아래에서 해석하는 상대 경로. 절대 HTTP(S) URL은 그 출처를 유지한다. 잘못된 URL·Request는 네이티브 오류를 던진다. |
+| `method` | 선택 DELETE/GET/HEAD/PATCH/POST/PUT, 기본 GET | `request`/`response` 옵션. `get`은 JavaScript가 method를 넘겨도 GET으로 고정한다. 잘못된 본문·메서드 조합은 네이티브 Request가 거부한다. |
+| `query` | 선택 읽기 전용 레코드 | 값은 string/number/boolean/null/undefined나 그것들의 읽기 전용 배열. 키는 정렬된 순서로 붙이고, 배열은 키를 반복한다. null/undefined는 뺀다. URL의 기존 쿼리는 남고 새 값이 덧붙는다. |
+| `headers` | 선택 HeadersInit, 기본은 생성 헤더 | 호출별 값이 같은 이름의 공유 헤더를 덮어쓴다. |
+| `body` | 선택 BodyInit 또는 null, 기본 생략 | 요청 본문. JSON은 직접 인코딩하고 콘텐츠 타입을 정한다. 스트림·폼 데이터는 네이티브 Fetch 규칙을 따른다. |
+| `signal` | 선택 AbortSignal, 기본 없음 | 호출자 취소. AbortSignal.timeout 같은 기한 신호도 포함한다. |
+| `decode` | 선택 `(unknown)=>T`, 기본 변환 없음 | `get`/`request`에서 쓸 수 있다. 파싱된 JSON이나 HEAD/204/205에서는 undefined를 받는다. 디코더 오류는 invalid_payload가 된다. `response`에는 이 옵션이 없다. |
+
+`get(path, options)`은 성공한 JSON 응답을 파싱·검증합니다. `request(path, options)`는 메서드를 고를 수 있게 한 것입니다. 둘 다 2xx가 아니면 ApiClientError로 거부하고, 본문이 있는 응답에 application/json이나 `+json` MIME을 요구하며, 잘못된 JSON은 따로 보고합니다. `response(path, options)`는 성공하지 않은 상태를 포함해 실제 Response를 반환합니다. ok/status를 확인하고 본문은 직접 읽으세요. `url(path, query)`는 요청 없이 문자열을 만듭니다.
+
+```ts
+const request = new AbortController();
+const dto = await general.request("songs/100070", {
+  method: "GET", query: { server: "intl", locale: "en" },
+  headers: { Accept: "application/json" }, signal: request.signal,
+});
+const raw = await general.response("songs/100070", { method: "HEAD" });
+console.log(raw.status, raw.headers.get("X-Haneoka-Release-Id"));
+console.log(general.url("songs", { id: ["100001", "100070"] }));
+```
+
+## 오류 객체 전체
+
+`ApiClientError`는 Error를 확장합니다. 공개 필드는 `name`, `message`, 상속된 `cause`, `code`, `details`, `method`, `url`, `status`, 선택 `requestId`, `retryable`입니다. HTTP 오류는 반환된 중첩 error.code/message/details가 있으면 그것을 쓰고, HTML이나 잘못된 오류 JSON이면 상태를 유지한 채 http_STATUS로 대체합니다. 요청 ID는 X-Request-Id에서 얻습니다. 네트워크 실패는 상태 0, network_error, retryable true이고, 취소는 request_aborted, retryable false입니다. HTTP 408/429/5xx는 재시도 가능으로 표시됩니다. 성공한 응답의 형식·디코딩 실패는 invalid_content_type/invalid_json/invalid_payload이며 자동으로 재시도되지 않습니다.
+
+사용자 정의 전송에서 구조화된 실패를 만들 수 있도록, 필수 `{code,message,method,url}`과 선택 `cause?`, `details?`, `requestId?`, `retryable?`(기본 false), `status?`(기본 0)로 클래스를 생성할 수 있습니다. 메서드에는 subscribe, 이벤트, dispose 인터페이스가 없습니다. 결과는 Promise나 Response로 오며, AbortController와 응답 스트림은 호출자가 소유합니다.
+
+패키지 `./browser` 소스 진입점은 createApiClient, ApiClientError, createHaneokaClient를 묶은 것이며, 별도 옵션이나 브라우저 전용 부작용을 더하지 않습니다. 호스팅된 창구의 내보내기는 릴리스 매니페스트가 고릅니다.
+
+## 현재 공식 브라우저 모듈
+
+안정 모듈은 `https://haneoka.org/embed/{name}.js`를 쓰며, 이름에는 api-client, core, vega, cassiopeia, home-spot, vega-theme이 있습니다. 버전을 고정하려면 [릴리스 매니페스트](https://haneoka.org/embed/manifest.json)를 읽고 그 모듈 경로를 `https://haneoka.org/embed/` 기준으로 해석하세요. 맞는 릴리스에는 같은 응답의 경로를 쓰세요. 이전 불변 URL은 각자의 동작을 유지합니다.
+
+```js
+import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
+const api = createHaneokaClient();
+console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
+```
+
+매니페스트는 선택된 운영 릴리스를 가리킵니다. 안정 별칭이 이후 릴리스로 옮겨 가도 불변 경로는 그대로입니다.

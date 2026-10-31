@@ -1,0 +1,28 @@
+---
+title: 소스 메타데이터
+description: 아카이브와 빌드 도구를 위해 공개된 소스 메타데이터를 살펴봅니다.
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+소스 레코드는 공개된 게임 데이터를 릴리스 단위로 보는 고급 뷰입니다. 일반 애플리케이션은 현재 리소스 별칭과 각 DTO가 반환하는 미디어 경로를 그대로 쓰면 됩니다.
+
+## 소스 트리
+
+<ApiTry path="/api/v1/servers/{server}/sources/tree" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="ko" />
+
+```http
+GET /api/v1/servers/{server}/sources/tree
+```
+
+릴리스의 소스 색인 트리를 JSON으로 반환합니다. 반환된 경로는 소스 레코드 라우트에 사용합니다.
+
+## 소스 레코드
+
+```http
+GET /api/v1/servers/{server}/sources/Assets/{path}
+GET /api/v1/servers/{server}/sources/Packages/{path}
+```
+
+소스 경로는 `Assets/` 또는 `Packages/`로 시작하며 릴리스 색인을 통해 해석됩니다. 소스 레코드는 현재 릴리스가 공개하는 JSON DTO로, 임포터 메타데이터, 에셋 관계, 소스별 필드를 포함할 수 있습니다.
+
+릴리스 식별자와 응답 헤더의 `sourceId`가 소스 스냅샷을 나타냅니다. 소스 트리와 소스 DTO는 읽기 전용이며 공개되어 있고, 인증이 필요한 계정 데이터는 포함하지 않습니다.

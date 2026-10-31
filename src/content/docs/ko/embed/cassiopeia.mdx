@@ -1,0 +1,418 @@
+---
+title: Cassiopeia 채보 임베드
+description: 현재 데이터나 직접 만든 데이터로 채보 플레이어를 마운트하고, 재생, 스킨, 수명 주기를 조작합니다.
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+import DocsDisclosure from "../../../../components/DocsDisclosure.astro";
+
+[완전한 예제 chart.json](/examples/chart.json)은 함께 제공되는 [original-tone.wav](/examples/original-tone.wav)를 참조합니다. 내려받을 때는 두 파일을 같은 곳에 두세요. 이 페이지의 원본 그림은 예제 rendererAdapter를 쓰며, 공개 게임 테마를 쓰는 방법은 아래에 있습니다.
+
+
+일반 웹사이트 안에 Cassiopeia 채보 플레이어를 마운트합니다. 기본 플레이어는 기존 Vue 플레이어, Three 렌더러, Our Notes 플러그인, 웹 오디오·입력 호스트를 씁니다. 사용자 정의 렌더러라면 커널과 웹 호스트로 직접 만든 아트워크를 쓸 수 있습니다. 각 마운트는 자신의 DOM, 미디어, 입력, 렌더러, 리소스 로더를 소유합니다.
+
+
+## 1. 동작하는 완전한 플레이어 저장하기
+
+[완전한 감상용 HTML](/examples/chart-watch.html)을 `index.html`로 저장합니다. 같은 곳에 [chart.json](/examples/chart.json)과 [original-tone.wav](/examples/original-tone.wav)를 저장합니다. 채보는 8초짜리 완전한 원본 `ChartEmbedDocument`이고, WAV는 작은 소리의 원본 테스트 톤입니다.
+
+```text
+my-chart/
+  index.html
+  chart.json
+  original-tone.wav
+```
+
+`my-chart`에서 터미널을 열고 `python3 -m http.server 8000`(Windows에서는 `py -m http.server 8000`)을 실행합니다. [http://localhost:8000/](http://localhost:8000/)을 엽니다. Python 설치와 에디터 HTTP 미리보기 방법은 [빠른 시작](/ko/quickstart/)을 참고하세요. 다 쓰면 Ctrl+C로 서버를 멈춥니다.
+
+**Load my chart.json**을 누르고 **Ready**가 될 때까지 기다린 뒤 **Play**를 누릅니다. 기본 게임 표시로 예제 노트가 움직이고, 원본 톤이 미디어 시계가 됩니다. **Pause**로 멈추고, 위치 슬라이더로 초 단위 탐색을 합니다. **Close player**는 미디어를 멈추고 플레이어를 없애며, 그 뒤 어느 불러오기 버튼으로든 새 인스턴스를 시작할 수 있습니다. 오류는 무대 위에 표시되므로 파일이나 연결을 고친 뒤 다시 시도할 수 있습니다.
+
+호스팅된 모듈이 기본 플레이어와 레이아웃 스타일을 제공합니다. 예제는 그 모듈과 공개 표시용 에셋 때문에 인터넷이 필요하지만, 채보와 WAV는 자신의 폴더에서 제공됩니다. 이 첫 예제에서는 노트 효과음이 꺼져 있고, 제공된 음악은 켜져 있습니다.
+
+<DocsDisclosure title="완전한 index.html: 전부 한 파일에 복사하기">
+
+```html
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Watch a Cassiopeia chart</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input,select{font:inherit}button{min-height:48px;margin:.25rem;padding:.5rem 1rem}label{display:block;margin:.5rem 0}#stage{height:min(70vh,640px);min-height:320px;position:relative}#progress{width:100%}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p><h1>Watch a Cassiopeia chart</h1>
+<p>Keep chart.json and original-tone.wav beside this HTML for the original eight-second sample.</p>
+<button id="load-example">Load my chart.json</button>
+<label>Haneoka song ID <input id="song-id" value="100070"></label>
+<label>Difficulty <select id="difficulty"><option>easy</option><option>normal</option><option>hard</option><option selected>expert</option><option>special</option><option>master</option></select></label>
+<button id="load-game">Load Haneoka song</button><button id="cancel" disabled>Cancel loading</button><button id="close">Close player</button>
+<p id="status" role="status" aria-live="polite">Choose a source and load it.</p>
+<button id="play" disabled>Play</button><button id="pause" disabled>Pause</button>
+<label>Playback position <input id="progress" type="range" min="0" max="0" step="0.1" value="0" disabled><output id="time">0.0 / 0.0 s</output></label>
+<div id="stage"></div>
+<link rel="stylesheet" href="https://docs.haneoka.org/examples/disclosure.css">
+<section class="docs-disclosure" data-docs-disclosure>
+<button id="state-trigger" class="docs-disclosure__trigger" type="button" aria-expanded="false" aria-controls="state-panel" data-docs-disclosure-trigger disabled><span>Current player state</span><svg class="docs-disclosure__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg></button>
+<div id="state-panel" class="docs-disclosure__panel" role="region" aria-labelledby="state-trigger" data-docs-disclosure-panel hidden><pre id="output"></pre></div>
+</section>
+<script defer src="https://docs.haneoka.org/examples/disclosure.js"></script>
+<script type="module">
+const by = id => document.getElementById(id);
+let player, controller, generation = 0;
+function controls(ready) { for (const id of ["play", "pause", "progress"]) by(id).disabled = !ready; }
+function loading(value) { for (const id of ["load-example", "load-game"]) by(id).disabled = value; by("cancel").disabled = !value; }
+function refresh() {
+  if (!player) return;
+  const state = player.snapshot;
+  by("progress").max = String(state.duration || 0);
+  if (document.activeElement !== by("progress")) by("progress").value = String(state.time || 0);
+  by("time").textContent = `${(state.time || 0).toFixed(1)} / ${(state.duration || 0).toFixed(1)} s`;
+  by("output").textContent = JSON.stringify(state, null, 2);
+}
+async function dispose() {
+  ++generation; controller?.abort(); controls(false);
+  const old = player; player = undefined; await old?.dispose();
+}
+async function load(game) {
+  loading(true); const current = ++generation;
+  const old = player; player = undefined; controller?.abort(); controls(false);
+  try {
+    await old?.dispose(); if (current !== generation) return;
+    controller = new AbortController(); const signal = controller.signal;
+    by("status").textContent = "Loading chart and presentation…"; by("output").textContent = "";
+    const [sdk, core] = await Promise.all([
+      import("https://haneoka.org/embed/cassiopeia.js"),
+      import("https://haneoka.org/embed/core.js"),
+    ]);
+    signal.throwIfAborted(); if (current !== generation) return;
+    const songId = by("song-id").value.trim();
+    if (game && !songId) throw new Error("Enter a song ID.");
+    const source = game
+      ? sdk.haneokaChartSource({ songId, difficulty: by("difficulty").value })
+      : core.httpDataSource({ url: new URL("./chart.json", location.href).href });
+    player = sdk.mountChart(by("stage"), {
+      source, theme: sdk.haneokaChartTheme(), server: "intl", locale: document.documentElement.lang,
+      mode: "watch", volume: 0.3, rate: 1, noteSoundEnabled: false,
+      skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+      signal, loadTimeoutMs: 45000,
+      onEvent(event) {
+        if (current !== generation) return;
+        if (event.type === "state" || event.type === "player") refresh();
+        if (event.type === "error") by("status").textContent = String(event.error?.message ?? event.error);
+      },
+    });
+    await player.ready; signal.throwIfAborted(); if (current !== generation) return;
+    controls(true); refresh(); by("status").textContent = "Ready. Press Play.";
+  } catch (error) {
+    if (current === generation) {
+      const failed = player; player = undefined; controls(false);
+      await failed?.dispose().catch(() => {});
+      if (current === generation) by("status").textContent = `Failed: ${error.message}`;
+    }
+  } finally { if (current === generation) loading(false); }
+}
+async function action(operation, label) {
+  const active = player, current = generation;
+  try {
+    if (!active) throw new Error("Load a chart first.");
+    await operation(active);
+    if (current === generation && player === active) { refresh(); by("status").textContent = label; }
+  } catch (error) { if (current === generation) by("status").textContent = `Failed: ${error.message}`; }
+}
+by("load-example").onclick = () => { void load(false); };
+by("load-game").onclick = () => { void load(true); };
+by("play").onclick = () => { void action(active => active.play(), "Playing"); };
+by("pause").onclick = () => { void action(active => active.pause(), "Paused"); };
+by("progress").onchange = () => { void action(active => active.seek(Number(by("progress").value)), "Playback position changed."); };
+by("cancel").onclick = () => { controller?.abort(); player?.cancel(); };
+by("close").onclick = async () => {
+  by("close").disabled = true; const current = generation + 1;
+  try { await dispose(); if (current !== generation) return; by("status").textContent = "Player closed. You can load again."; }
+  catch (error) { by("status").textContent = `Failed: ${error.message}`; }
+  finally { if (current === generation) { loading(false); by("close").disabled = false; by("output").textContent = ""; by("progress").value = "0"; by("time").textContent = "0.0 / 0.0 s"; } }
+};
+window.addEventListener("pagehide", () => { void dispose().catch(() => {}); }, { once: true });
+</script></html>
+```
+
+</DocsDisclosure>
+
+## 2. 실제 Haneoka 곡 불러오기
+
+같은 HTML에서 곡 ID `100070`과 난이도 `expert`를 그대로 두고 **Load Haneoka song**을 누릅니다. **Ready** 뒤에 **Play**를 누릅니다. 이 소스는 현재 곡을 읽고, 반환된 채보 파일을 파싱하며, 반환된 음악 URL을 씁니다. ID는 [API 시작 예제](/examples/api-start.html)에 있는 곡으로 바꿀 수 있지만, 고른 난이도가 그 곡에 있어야 합니다. 소스를 바꾸기 전에 플레이어를 닫으세요.
+
+소스와 테마는 독립된 팩토리입니다. 완전한 HTML은 그 공개 브라우저 진입점을 씁니다.
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/cassiopeia.js";
+const chart = mountChart(container, {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(), server: "intl", locale: "en", mode: "watch",
+});
+await chart.ready;
+// In your Play button: await chart.play().
+// When your component closes: await chart.dispose().
+```
+
+이 조각은 연동 지점을 보여 줍니다. 위의 완전한 HTML이 `container`, 버튼, 불러오기 상태, 취소, 오류, 정리를 제공합니다. 가벼운 에셋 품질 2를 씁니다. 서버와 텍스트 언어는 따로 유지되며, 계정이나 릴리스 선택이 필요 없습니다.
+
+## 3. 옵션을 하나씩 바꾸기
+
+완전한 HTML의 `mountChart` 옵션에서 `volume: 0.3`을 0~1 사이 값으로, 또는 `rate: 1`을 `0.8`로 바꾼 뒤 페이지를 새로 고치고 다시 불러오세요. `mode: "watch"`는 Play를 누른 뒤 자동 재생하고, `mode: "play"`는 직접 채보 입력을 켭니다. 스크롤 속도에는 `settings: { noteSpeed: 9 }`를 더합니다. 아래의 옵션, 스킨, 설정, 소스, 핸들 전체 표에 공개 기본값, 범위, 제한이 있습니다. `chart.json`은 표준 형식으로 두세요. 다른 게임의 원시 채보에는 그 파서·변환기가 필요합니다.
+
+아래의 패키지 가져오기는 기존 번들링 애플리케이션을 위한 참고입니다. npm 공개는 별개입니다. 처음의 단순 HTML에서는 위의 호스팅된 ESM을 쓰세요. 번들러는 `@haneoka/embed-cassiopeia/style.css`를 따로 가져옵니다. 공식 창구는 맞는 스타일을 붙이고, 마지막 인스턴스가 해제되면 없앱니다.
+
+## 채보와 음원 가져오기
+
+표준 `ChartDocument`는 `@haneoka/cassiopeia`가 내보내는 대로 `version`, `bpmChanges`, `signatureChanges`, `timeScaleChanges`, `notes`, `lines`, `timeline`, `durationMs`를 가집니다. `document`나 `source` 중 정확히 하나만 주세요. 작성자 문서는 한 언어와 임의의 유니코드 리소스 이름을 쓸 수 있습니다.
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "musique/été.wav", bgmOffsetMs: 250 },
+  assetsBase: "https://my.example/project/",
+  theme: haneokaChartTheme(), // optional original presentation
+  locale: "fr-CA",
+  labels: { player: "Partition", pause: "Pause", loading: "Chargement" },
+});
+await handle.ready;
+```
+
+오디오 요소가 타이밍 기준입니다. `seek(seconds)`는 미디어·표시 초를 쓰며, 채보 시각은 미디어 시각에서 `bgmOffsetMs`를 뺀 값입니다. 양수 오프셋은 앞부분 대기 시간을 만듭니다. 음원이 없으면 일시 정지된 표시 미리보기가 되므로, 내부 재생을 진행하려면 재생 가능한 음원을 주세요.
+
+호환되는 직접 만든 테마 리소스를 주려면 기존 `OurNotesAssetManifest`를 `document.assets`로 쓰거나 `theme({loader, signal, skin})` 팩토리를 쓰세요. 원래 플러그인의 `createOurNotesAssetManifest`는 그 공개 미디어·해석기 계약으로 이 매니페스트를 만듭니다. URL 필드, HUD 이미지 대응표, 사운드 문자열·레이어, 애니메이션 클립 대응표는 마운트가 해석하며, 이름과 인라인 atlas 메타데이터는 그대로 유지됩니다.
+
+HTTP JSON과 로컬 파일에는 `@haneoka/embed-core`의 기존 소스를 쓰세요.
+
+```js
+import { httpDataSource, fileDataSource, fileResourceResolver } from "@haneoka/embed-core";
+const source = httpDataSource({
+  url: "https://my.example/project/chart.json",
+  decode: (value) => value, // validate/convert your envelope here
+});
+const fromHttp = mountChart(element, { source, theme: haneokaChartTheme() });
+// source.assetsBase defaults to the JSON URL's directory.
+
+const local = mountChart(otherElement, {
+  source: fileDataSource(jsonFile),
+  resolveResource: fileResourceResolver(new Map([["musique/été.wav", audioFile]])),
+  theme: myLocalTheme,
+});
+```
+
+`fileResourceResolver`는 키 문자열 그대로 해석합니다. 기본 원본 테마는 공개 API와 에셋도 요청하므로 그 절대 URL을 그대로 통과시키는 해석기가 필요합니다. 로더가 만든 Blob URL은 플레이어 해제 뒤 폐기됩니다. 직접 만든 URL은 직접 관리하세요.
+
+## 직접 만든 렌더러 쓰기
+
+이것은 직접 만드는 그래픽을 위한 확장 지점입니다. `drawMyChart`는 직접 준비합니다. 위의 완전한 감상용 HTML은 기본 렌더러를 쓰므로 이 함수가 필요 없습니다.
+
+`rendererAdapter`를 주면 기본 Vue/Three/Our Notes 표시 구성을 불러오지 않고 커널과 웹 호스트를 불러옵니다. 어댑터는 `render`, `resize`, `dispose`, 선택 `laneAtClientPoint`를 반환합니다. 아트워크는 주어진 `signal`로 `loader.resourceUrl`이나 `resourceBytes`를 써서 해석하세요. 소유한 그래픽은 `dispose`에서 해제합니다.
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "audio.ogg" },
+  assetsBase: "https://my.example/project/",
+  rendererAdapter: {
+    async create({ element, chart, loader, signal }) {
+      const canvas = document.createElement("canvas");
+      element.append(canvas);
+      const context = canvas.getContext("2d");
+      const artwork = await loader.resourceUrl("notes.svg", { signal });
+      // Load your artwork with the same signal and render your own chart geometry.
+      return {
+        render(snapshot, options) {
+          drawMyChart(context, chart, snapshot, options, artwork);
+        },
+        resize(width, height, ratio) {
+          canvas.width = width * ratio;
+          canvas.height = height * ratio;
+        },
+        dispose() {
+          canvas.remove();
+        },
+      };
+    },
+  },
+});
+```
+
+임베드는 기존 `MediaClock`, `MusicTimeAnchor`, 세션 update/reset 메서드를 씁니다. `laneAtClientPoint(x,y)`가 있는 렌더러는 기존 호스트로 플레이 모드 입력을 받을 수 있습니다. 0~23의 연속 네이티브 레인을 반환하고, 바깥이면 -1을 반환하세요. 홀드 판정은 세션이 진행하며, 실제 포인터 이동은 한 번만 전달됩니다. `createSession(chart, options)`로 직접 만든 렌더러가 다른 커널 규칙을 쓸 수 있습니다. 규칙이 다른 원본 게임에는 이 포트를 고르세요. 없으면 현재 Cassiopeia 세션 규칙이 적용됩니다. 사용자 정의 렌더러는 표시와 효과음을 직접 맡습니다. `noteSoundEnabled`, `noteSoundVolume`, 원래 스킨 선택은 기본 플레이어의 것입니다.
+
+## 재생, 변경, 종료
+
+`mountChart()`는 바로 반환합니다. 처음 표시 준비는 `handle.ready`를 기다리세요. 처음 오디오 준비 실패는 이벤트로 보고되며, 기존 플레이어는 재생이 허용될 때 실패한 소리를 다시 시도합니다. 준비되었다고 미디어 내려받기가 끝난 것은 아닙니다. 오디오를 허용받으려면 준비된 뒤 사용자 동작에서 `play()`를 호출하세요. `pause()`와 `seek()`는 동기이고, `play()`, `setOptions()`, `setSkin()`, `dispose()`는 Promise를 반환합니다.
+
+```js
+await handle.setOptions({ rate: 0.8, volume: 0.6, noteSoundVolume: 0.4, settings: { noteSpeed: 9 } });
+await handle.setSkin({ noteSkin: "skin003", noteEffectSkin: "effect001Simple", noteSeGroup: 4 });
+// Changing the default theme rebuilds the player paused at its current media time.
+handle.seek(12);
+await handle.play();
+await handle.dispose();
+```
+
+`setSkin`에는 기본 플레이어 테마 팩토리가 필요합니다. 원래 스킨 ID는 `skin001`(Our Notes), `skin002`(가루파), `skin003`(Honeycomb)이고, 이펙트 ID는 `effect001`과 `effect001Simple`입니다. 노트 효과음 그룹 ID는 1~4(Our Notes, Solid, Wood, Typing)입니다. 언어별 이름과 오디오 반복 메타데이터는 실제 플러그인의 것이 기준입니다.
+
+`setOptions`는 모드, 일부 렌더 설정, 음악 볼륨·속도·반복, 노트 효과음 켜기·볼륨을 기존 플레이어에 넘깁니다. 모드 변경은 기존 초기화 동작을 따릅니다. `cancel()`은 마운트를 중단하고 재생을 멈추며, 이 핸들은 종료 상태가 됩니다. `dispose()`는 DOM을 없애고 로더를 해제합니다. 해제는 멱등하며, 불러오는 중이나 팩토리가 늦게 반환하는 경우에도 동작합니다. 외부 `signal`은 마운트를 취소합니다. `loadTimeoutMs` 기본값은 30000이며 재생 가능한 기간이 아니라 생성 과정에 적용됩니다. 같은 컨테이너에 다시 마운트하기 전에 해제하세요.
+
+`handle.snapshot`은 phase, playing, time, duration을 공개합니다. 불러오기 진행률, 오류, 현재 상태를 보려면 생성 시 구독하세요.
+
+```js
+const handle = mountChart(element, {
+  document: myDocument,
+  rendererAdapter: myRenderer,
+  onEvent(event) {
+    if (event.type === "load") showResourceProgress(event.event);
+    if (event.type === "state") updateTransport(event.snapshot);
+    if (event.type === "error") showError(event.error);
+    if (event.type === "player" && event.name === "judgement") showJudgement(event.args[0]);
+  },
+});
+// const unsubscribe = handle.subscribe(listener);
+```
+
+## 출처, 자격 증명, 브라우저 ESM
+
+`assetsBase`는 절대 디렉터리 URL입니다. 상대 키는 그 아래에서, 루트 상대 경로는 그 출처에서 해석되며, 절대 URL은 자기 출처를 유지합니다. `resolveResource(key, context)`는 URL, 문자열, Blob을 비동기로 반환할 수 있습니다. 테마의 `apiBase`는 API 루트를, `publicBase`는 공개 에셋 출처를 고르며, 이는 작성자 문서 리소스와 별개입니다. 반환되는 경로는 최신 공개 리소스를 쓰며 서버 갱신에 따라 바뀔 수 있습니다.
+
+`fetcher(request)`, `headers`, `credentials`(기본 `omit`), `maxBytes`는 embed-core에서 옵니다. 로더를 통한 문서·리소스 읽기에 적용됩니다. 기본 플레이어는 미디어, 텍스처, 효과음을 기존 자체 로더와 익명 CORS로 내려받으므로, 그 요청은 주입한 fetcher나 비공개 헤더를 쓰지 않습니다. 비공개 미디어에는 공개 CORS URL이나 Blob 리소스를 주세요. `include` 자격 증명 정책은 로더 요청에만 영향을 주며, 그 서버는 자격 증명과 임베드 출처를 명시적으로 허용해야 합니다. CSP는 스크립트·모듈, 에셋, 미디어 출처와, 쓴다면 소유한 `blob:` URL을 허용해야 합니다.
+
+번들러는 기본 플레이어와 의존성의 지연 청크를 내보냅니다. 단순 `<script type="module">`이라면 출력된 ESM 파일과 청크를 함께 호스팅하거나, 모든 bare 의존성과 내보낸 하위 경로를 담은 import map을 주세요. 그 맵에서 호환되는 Vue/Three와 모든 Cassiopeia 패키지 버전을 고정합니다. `style.css`는 따로 연결하세요. 패키지를 가져오기만 해서는 DOM을 만들거나, 데이터를 가져오거나, Three를 초기화하지 않습니다.
+
+작은 화면 페이지는 높이를 확보하고, 무대 밖에 터치하기 좋은 크기의 재생 조작을 두며, 불러오기·오류 상태를 페이지의 기존 Material 컴포넌트로 보여 주세요. 렌더러 성능과 미디어 형식은 브라우저·기기에 따라 다르니, 대상 기기에서 최종 사용 측을 확인하세요.
+
+## Haneoka 표기
+
+호스트는 투명 배경과 불투명도 55%의 SVG로 원래 Haneoka 아이콘을 전체 크기 플레이어의 왼쪽 위에 띄워 표시합니다. 전체 화면·테마 변경에도 플레이어를 따라가며, 해제하면 제거됩니다. 직접 만든 콘텐츠는 자기 라이선스를 유지합니다.
+
+## 이 페이지의 실제 채보 애플리케이션
+
+먼저 8초짜리 원본 채보를 불러옵니다. 그 렌더러는 Cassiopeia의 실제 세션과 MediaClock으로 움직이는 직접 만든 Canvas 어댑터이며, 생성된 조용한 WAV Blob을 씁니다. 연동 방법을 보여 줄 뿐 게임의 시각 스킨이 아닙니다. HTTP는 [이 채보 JSON](/examples/chart.json)을, 로컬 JSON은 고른 File을 불러옵니다. Haneoka 데이터를 고르면 실제 곡 소스와 네이티브 테마를 씁니다. 불러오기 전에 `options`를 편집하고 Play/Pause/Seek/setOptions를 쓰세요. setSkin은 기본 테마에서 쓸 수 있습니다.
+
+<DemoPlayer kind="chart" locale="ko" />
+
+SDK 가져오기와 플레이어 생성은 클릭했을 때만 합니다. 다른 예제가 실행 중이면 먼저 해제합니다. `input`, `publicSource`, `nativeTheme`, `url`은 실제 소스·테마·렌더러 콜백을 만드는 애플리케이션 필드입니다. JSON으로는 함수를 나타낼 수 없으므로, 실행 가능한 어댑터는 링크한 예제 소스에 있습니다. 다섯 가지 언어 조작 외에 작성자 로캘 필드도 있습니다.
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js";
+const chart = mountChart(element, {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(), server: "intl", locale: "en", mode: "watch",
+});
+await chart.ready;
+await chart.play(); // call from a user's button
+await chart.dispose();
+```
+
+실행 예제는 안정 공식 별칭을 씁니다. 호스팅된 창구는 마운트할 때 패키지 스타일시트를 제공하고, 마지막 인스턴스가 해제되면 풀어 줍니다. 패키지·번들러 사용자는 style.css를 따로 가져옵니다. r22에는 nonce 옵션이 없습니다. 이후 nonce API는 그 릴리스의 실제 수령 기록·인터페이스에서 확인하세요. 생성된 CDN 파일은 배포 빌드 산출물이며 소스는 패키지 저장소에서 관리합니다.
+
+로컬 음악으로 편집 가능한 노트를 만들려면 [채보 제작 가이드](../../creation/chart-editor/)를 쓰세요. 그 Project JSON과 이식 가능한 음원 백업은 아래의 재생용 ChartDocument와 별개입니다.
+
+## mountChart 옵션 전체
+
+위치 인수 `container`는 필수이며, ownerDocument/defaultView가 있고 크기가 안정적이며 0이 아닌 브라우저 HTMLElement입니다. 브라우저가 아니면 TypeError, 해제 전 다시 마운트하면 Error입니다. 런타임에는 source나 document 중 정확히 하나가 필요합니다(둘 다 있거나 없으면 TypeError). 기본 구성에는 theme나 document.assets도 필요하며, authoredRenderer는 자기 아트워크를 제공합니다.
+
+| 필드 | 타입·기본값 | 역할, 조합, 오류 |
+| --- | --- | --- |
+| document | ChartEmbedDocument, 필수 선택지 중 하나 | 아래의 메모리 엔벌로프. notes/lines는 배열, durationMs는 유한해야 하며, 아니면 ready가 TypeError. |
+| source | DataSource&lt;ChartEmbedDocument&gt;, 필수 선택지 중 하나 | memory/http/file/사용자 정의 소스. 불러오기·디코딩 오류는 ready를 거부한다. |
+| server | 선택 문자열, 기본 undefined, Haneoka는 intl | locale과 독립된 레지스트리. |
+| locale | 선택 문자열, 기본 en | 작성자·UI 언어. 어떤 작성자 로캘이든 가능. |
+| assetsBase | 선택 절대 HTTP(S) 디렉터리, 기본은 소스 기준 | 리소스 디렉터리를 덮어쓴다. 쿼리·프래그먼트 없음, 잘못된 기준은 TypeError. |
+| resolveResource | 선택 (key,DataContext)→string/URL/Blob/Promise | 작성자 키 문자열 그대로, URL·Blob 대응. 기본은 키 그대로. 없는 경로는 거부한다. |
+| fetcher | 선택 (Request)→Promise&lt;Response&gt;, 기본 fetch | core 데이터·네이티브 리소스 바이트. Haneoka 공개 에셋·runtime·embed 요청은 no-referrer를 쓰고, 원래 작성자·API 요청은 정책을 유지한다. 음악은 네이티브 익명 CORS를 쓴다. |
+| credentials | omit/same-origin/include, 기본 omit | 로더 전송. 서비스의 출처·자격 증명 허가가 필요하다. |
+| headers | HeadersInit, 기본 없음 | core 헤더. 음악 요청은 비공개 헤더를 물려받지 않는다. |
+| maxBytes | 양의 안전한 정수, 기본 67108864 | 디코딩된 응답 하나당 예산. 잘못되면 RangeError. URL만 해석하거나 오디오 요소가 내려받는 것은 로더 읽기가 아니다. |
+| onListenerError | 선택 (unknown)→void | 격리된 관찰자 오류를 받는 곳. |
+| theme | 선택 (ChartThemeContext)→OurNotesAssetManifest/Promise | 기본 표시·오디오 팩토리. document.assets보다 우선한다. 오류는 생성을 거부한다. setSkin에 필요하다. |
+| skin | 선택 ChartSkin, 기본 \{\} | 아래의 선택 필드 4개. 직접 만든 렌더러는 네이티브 스킨을 쓰지 않는다. |
+| rendererAdapter | 선택 ChartRendererAdapter | Vue/Three 네이티브 표시 구성 대신 직접 만든 표시로 커널·웹 호스트를 고른다. 아트워크와 효과음은 이것이 맡는다. |
+| createSession | 선택 (chart,playbackOptions)→CassiopeiaSessionPort | 직접 만든 렌더러용 사용자 정의 규칙. 없으면 ChartSession. 이 필드는 기본 Vue 드라이버에 전달되지 않는다. |
+| signal | 선택 AbortSignal | ready 뒤를 포함해 핸들을 중단·종료한다. |
+| loadTimeoutMs | 양의 안전한 정수, 기본 30000 | 문서 불러오기와 생성 단계마다 적용하며, 플레이어 사용 기간에는 적용하지 않는다. 잘못된 값은 RangeError, 기한 초과는 TimeoutError. |
+| labels | 선택 \{player?,pause?,loading?\} | 문자열 라벨, 기본 Chart player/Pause/Loading. 기본 Vue 구성에서만 쓴다. |
+| onEvent | 선택 (ChartEmbedEvent)→void | 불러오기 전에 등록된다. |
+| mode | chart/watch/play, 기본 watch | 세션 모드. 채보 미리보기·자동 감상·플레이 입력. 모드 변경은 드라이버의 초기화·일시 정지 동작을 따른다. |
+| settings | 선택 Partial&lt;RenderSettings&gt;와 judgementOffsetMs, 기본 \{\} | 전체 설정은 아래. setOptions는 지정하지 않은 필드를 바꾸지 않고 설정을 병합한다. |
+| volume | 숫자, 기본 0.8 | 음악 볼륨 0~1. 처음 네이티브 미디어는 범위 밖 값을 거부하고, 갱신 시에는 범위 안으로 맞춘다. 유한한 값을 쓴다. |
+| rate | 숫자, 기본 1 | 양의 재생 속도, 0.25~4로 정규화한다. 잘못되었거나 0 이하이면 대체값을 쓴다. |
+| loop | 불리언, 기본 false | 음악 반복. |
+| noteSoundEnabled | 불리언, 기본 true | 기본 플레이어의 노트 효과음. 직접 만든 렌더러는 자기 소리 동작을 맡는다. |
+| noteSoundVolume | 숫자, 기본 0.7 | 기본 노트 효과음 볼륨. 유한한 0~1을 쓴다. |
+
+리소스·콜백 공통 사항은 [core](../core/)에 있습니다. 자동 재생 필드는 없습니다. 준비를 기다린 뒤 사용자 동작에서 play를 호출하세요. 생성 시간 제한은 그 단계들을 대상으로 하며, ready 시점에 곡을 다 내려받았다고 약속하지 않습니다.
+
+### 스킨, 라벨, 팩토리 옵션 전체
+
+| skin 키 | Haneoka 테마에서 허용·기본값 | 의미 |
+| --- | --- | --- |
+| noteSkin | skin001/skin002/skin003, 기본 skin001 | Our Notes/가루파/Honeycomb. |
+| noteEffectSkin | effect001/effect001Simple, 기본 effect001 | 네이티브 이펙트 선택. |
+| noteSeGroup | 1/2/3/4, 기본 1 | Our Notes/Solid/Wood/Typing. |
+| currentQuality | 0/1/2, 기본 2 | 높음/중간/낮음 에셋 프로필. graphicsQuality 설정과 독립. |
+
+스킨 필드는 타입이 정해진 유니언이며, 고른 테마가 해석합니다. 바탕 에셋이 잘못되었거나 없으면 멋대로 만든 대체 스킨을 쓰지 않고 생성을 거부합니다. labels.player/labels.pause/labels.loading은 모두 선택 문자열이며 데이터 로캘을 바꾸지 않습니다.
+
+`haneokaChartSource({songId,difficulty,apiBase?})`: songId와 difficulty는 필수입니다. difficulty는 easy/normal/hard/expert/special/master 중 하나이며 곡 DTO에 있어야 합니다. apiBase 기본값은 `https://haneoka.org/api/v1/`입니다. 소스는 곡 구조를 검증하고, 반환된 채보 파일을 읽어 파싱해 표준 채보를 만들며, 반환된 musicUrl을 씁니다. 난이도가 없으면 Error로 거부하고, 데이터·예산·파서 오류는 원인을 유지합니다. `server`는 마운트 맥락에 속합니다.
+
+`haneokaChartTheme({apiBase?,publicBase?,server?}={})`: API 디렉터리 기본값은 `https://haneoka.org/api/v1/`, publicBase 기본값은 그 출처 루트, server 덮어쓰기 기본값은 loader.server, 다음은 intl입니다. URL 필드는 작성자 assetsBase와 따로 해석됩니다. 실제 소스·출력 기술자를 찾으며, 필요한 출력이 없거나 모호하면 Error로 거부합니다.
+
+`ChartThemeContext`는 정확히 loader:EmbedLoader&lt;ChartEmbedDocument&gt;, signal:AbortSignal, skin:ChartSkin을 가집니다. 사용자 정의 테마는 그 신호로 loader.resourceBytes를 호출하고 공개 매니페스트를 반환할 수 있습니다. 추가 맥락 캐시나 렌더러는 주입되지 않습니다.
+
+## playback.settings 필드 전체
+
+아래 기본값은 공개 Our Notes 플러그인의 RenderSettings 기본값이며, 마운트 자체는 빈 부분 객체를 넘깁니다. 고정한 이전 SDK는 자기 플러그인 리비전을 유지합니다. 마운트가 명시적으로 검증하지 않는 필드는 그대로 전달됩니다. 유한한 값과 문서화된 렌더 범위를 쓰세요. SDK가 필드마다 검증한다는 약속이 아닙니다.
+
+| 키 | 타입·기본값 | 렌더링·정규화 |
+| --- | --- | --- |
+| noteSpeed | 숫자/5 | 스크롤 속도. 직접 만든·네이티브 표시가 해석한다. |
+| noteSpeedCurve | 숫자/1.30999994 | 노트 표시 오프셋 곡선 상수. |
+| mirror | 불리언/false | 원래 24레인 좌표를 좌우 반전한다. |
+| effects | 불리언/true | 노트 이펙트. |
+| noteSize | 숫자/1 | 프레임 생성에서 0.1~2로 제한. |
+| longAlpha | 숫자/0.6 | 롱 노트 선 불투명도, 0.1~1로 제한. |
+| guideAlpha | 숫자/0.6 | 가이드 불투명도, 0.1~1로 제한. |
+| graphicsQuality | 숫자/1 | 품질 선호. 네이티브에서 0/1/2는 높음/중간/낮음. |
+| guidelineCount | 숫자/6 | 레인 구분 표시. |
+| guidelineOpacity | 숫자/0.25 | 구분선 투명도, 0~1을 쓴다. |
+| laneOpacity | 숫자/0.8 | 레인 투명도, 0~1을 쓴다. |
+| showJudgementLine | 불리언/false | 판정선. |
+| showSimultaneousLine | 불리언/true | 동시 노트 연결선. |
+| showEaseNote | 불리언/false | 이징·크리티컬 표시 강조. |
+| backgroundBrightness | 숫자/0.7 | 배경 밝기, 0~1을 쓴다. |
+| judgeResultPosition | center/lane/none, 기본 center | 판정 표시 위치. |
+| noteOverlapLaneBuffer | 숫자/0 | 판정 레인 겹침 버퍼. |
+| showFastSlow | 불리언/true | 타이밍 라벨. |
+| showPerfectFastSlow | 불리언/true | PERFECT 타이밍 라벨도 포함. |
+| showJudgeOffsetMs | 불리언/false | 밀리초 오차 텍스트. |
+| alwaysShowFastSlow | 불리언/false | 타이밍 라벨을 항상 표시하는 설정. |
+| scoreRankScores | 선택 읽기 전용 number[], 기본 없음 | 원본 C/B/A/S/SS 점수 기준. |
+| judgementOffsetMs | 숫자/0 | 세션 타이밍 오프셋(밀리초). 직접 만든 어댑터는 setOffset으로 갱신한다. |
+
+## 문서 엔벌로프와 렌더러 어댑터 전체
+
+`ChartEmbedDocument.chart`는 필수입니다. `audio?:string`/`background?:string`은 리소스 키나 URL이며 기본은 없음입니다. `bgmOffsetMs?:number` 기본값은 0이며, 채보 시각은 미디어 밀리초에서 오프셋을 뺀 값입니다. `assets?:OurNotesAssetManifest`는 theme가 없을 때 기본 아트워크를 제공하며, rendererAdapter를 쓰면 생략할 수 있습니다. 음원이 없으면 일시 정지된 표시 미리보기가 됩니다.
+
+표준 채보 루트 필드는 모두 필수입니다: version:number, bpmChanges:BpmChange[], signatureChanges:ChartSignatureChange[], timeScaleChanges:\{timeMs,scale\}[], notes:ChartNote[], lines:ChartLine[], timeline:\{skills,fever,callChanges\}, durationMs:number. BPM 행은 tick/beat/timeMs/bpm, 박자는 tick/beat/timeMs/numerator/denominator를 가집니다. 스킬 행은 index/tick/timeMs, 피버 행은 index/startTick/endTick/startTimeMs/endTimeMs, callChanges는 index/tick/timeMs/rhythms:number[]를 가집니다. lines는 id, kind:long|guide, critical:boolean, noteIds:number[]를 가집니다.
+
+각 노트는 id, tick, timeMs, beat, pos, size, laneX, width, operateType, judgementType, judgementAreaOffsetType, direction, critical·judged·visible:boolean, lineIds:number[], slideAlong:boolean, indexInLine:number|null, easeL/easeR:ease 열거|null을 가집니다. 원본 게임의 노트 플래그를 추측하지 말고 공개 변환기·열거를 쓰세요. 원본 직접 만든 예제에 필수 필드가 모두 들어 있습니다.
+
+네이티브 에셋 매니페스트는 id, source\{game,noteSkin,laneSkin,noteEffectSkin,authoredProfile\}, liveQuality\{quality,effectRenderingScale,backgroundCameraFps,live2dFps\}, noteAtlas, 선택 arrowGradient, lane, particles, slideLineStyle, hud, 선택 tmpSdfFont, noteSeGroup, noteSounds, palette, tiltThresholds[\{distance,value\}]를 가집니다. 이는 제공자 DTO이며 마운트 옵션의 두 번째 목록이 아닙니다. 스프라이트·파티클·오디오 기술자는 [공개 매니페스트 스키마](https://github.com/haneoka-gakuen/cassiopeia-plugin-our-notes/blob/main/src/assets/manifest.ts)를 쓰고, 선언된 리소스는 로더로 제공하세요.
+
+`rendererAdapter.create({element,chart,loader,signal})`는 `{render,resize,dispose,laneAtClientPoint?}`를 동기로 또는 Promise로 반환합니다. render(snapshot,options)는 그 호출 동안만 재사용되는 SessionSnapshot을 읽으니, 불변의 미래 상태로 보관하지 마세요. resize(width,height,pixelRatio)로 그래픽을 갱신하고, dispose()로 해제합니다. laneAtClientPoint(clientX,clientY)는 0~23 연속 레인에 대응시키고, 바깥이면 -1을 반환합니다. 직접 만든 어댑터는 멋대로 만든 타이머가 아니라 MediaClock, 입력, ChartSession을 씁니다. createSession(chart,options)는 다른 공개 세션 포트를 반환할 수 있으니 그 reset/update/input/finish 계약을 지키세요.
+
+## 핸들 메서드, 상태, 이벤트 전체
+
+| 멤버 | 시그니처·결과 | 제약과 수명 주기 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | 처음 표시 준비. 필요한 효과음 실패로 거부될 수 있고, 미디어는 아직 버퍼링 중일 수 있다. |
+| snapshot | 읽기 전용 \{phase,playing,time,duration\} | phase는 loading/ready/cancelled/error/disposed. 미디어 초. |
+| play | ()=&gt;Promise&lt;void&gt; | ready가 필요하다. 브라우저 오디오 거부가 반환된다. |
+| pause | ()=&gt;void | ready가 필요하다. 일시 정지 상태를 알린다. |
+| seek | (seconds:number)=&gt;void | 유한한 0 이상 값, 아니면 RangeError. 알려진 길이로 제한하며 ready가 필요하다. |
+| setOptions | (ChartPlaybackOptions)=&gt;Promise&lt;void&gt; | ready가 필요하다. 일부 설정을 병합한다. 볼륨·속도·반복·모드·효과음은 고른 드라이버로 넘긴다. |
+| setSkin | (ChartSkin)=&gt;Promise&lt;void&gt; | ready와 기본 테마 팩토리가 필요하다. 직접 만든 렌더러나 팩토리가 없으면 Error. 미디어 위치에서 일시 정지한 채 다시 만든다. |
+| subscribe | listener=&gt;구독 해제 | 이후 이벤트. 해제 후에는 Error. |
+| cancel | ()=&gt;void | 불러오는 중·준비된 핸들을 종료한다. 플레이어·입력·리소스 호출을 멈춘다. |
+| dispose | 공유 Promise&lt;void&gt; | 불러오는 중을 포함해 멱등. DOM·전체 화면 훅을 없애고, 미디어·렌더러를 멈추고, 소유 URL을 폐기한다. 정리 실패는 AggregateError. |
+
+이벤트: load\{event:EmbedEvent\}, state\{snapshot\}, player\{name,args:readonly unknown[]\}, error\{error\}. 전달되는 기본 이름은 playing, media-playing, timeupdate, duration, judgement, skill, fever, callchange이며, 타입이 있는 페이로드는 바탕 플레이어가 정합니다. timeupdate/duration은 초를 쓰고, judgement에는 note/judgement/timing/diffMs/judgedAtMs/combo/maxCombo/score/scoreDelta/life가 들어 있습니다. 관찰자 실패는 onListenerError로 갑니다. 소스·전송·테마·디코더 실패는 원래 Error 객체를 유지하며, 임베드가 새 오류 코드 엔벌로프를 더하지 않습니다. 같은 컨테이너에 다시 마운트하기 전에 해제하세요.
+
+현재 소스는 뷰포트 전체 위에 투명 표기 배경, 불투명도 55% 아이콘, 48px 모서리 터치 영역을 씁니다. 맞는 빌드가 배포되면 안정 별칭이 이 동작을 따릅니다. 불변 r22 플레이어는 이전의 전용 줄 레이아웃을 유지합니다. 명시적으로 고정할 때는 문서화된 그 버전의 동작을 따르세요.

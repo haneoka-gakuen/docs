@@ -1,0 +1,28 @@
+---
+title: ソースメタデータ
+description: アーカイブやビルドツール向けに、公開されているソースメタデータを調べます。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+ソースレコードは、公開済みゲームデータをリリース単位で見る上級者向けのビューです。通常のアプリケーションは、現在のリソースエイリアスと、各 DTO が返すメディアパスを使い続けて構いません。
+
+## ソースツリー
+
+<ApiTry path="/api/v1/servers/{server}/sources/tree" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="ja" />
+
+```http
+GET /api/v1/servers/{server}/sources/tree
+```
+
+リリースのソース索引ツリーを JSON で返します。返されたパスはソースレコードのルートで使います。
+
+## ソースレコード
+
+```http
+GET /api/v1/servers/{server}/sources/Assets/{path}
+GET /api/v1/servers/{server}/sources/Packages/{path}
+```
+
+ソースパスは `Assets/` または `Packages/` で始まり、リリース索引を通じて解決されます。ソースレコードは現在のリリースが公開する JSON DTO で、インポーターのメタデータ、アセット間の関係、ソース固有のフィールドを含むことがあります。
+
+リリース識別子とレスポンスヘッダーの `sourceId` がソースのスナップショットを示します。ソースツリーとソース DTO は読み取り専用かつ公開で、認証が必要なアカウントデータは含みません。
