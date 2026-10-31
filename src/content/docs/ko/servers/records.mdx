@@ -45,6 +45,14 @@ import ApiTry from "../../../../components/ApiTry.astro";
 
 <ApiTry path="/api/v1/game/records/{region}/events/{eventId}/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ko" />
 
+### 100위 이후
+
+100위씩 읽습니다. `start`는 해당 창의 시작으로 맞춰지고, `maxRank`는 마지막 순위가 확인될 때까지 null입니다. `search`는 플레이어 ID로 상위 2000위를 찾습니다. 창은 이벤트에 포인트 랭킹이 있는 동안만 수집합니다.
+
+<ApiTry locale="ko" path="/api/v1/game/records/{region}/events/{eventId}/points/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "start", value: "101" }]} />
+
+<ApiTry locale="ko" path="/api/v1/game/records/{region}/events/{eventId}/points/search" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "profileId", value: "59231009908" }]} />
+
 ## 곡 랭킹
 
 한 곡의 상위 100명.

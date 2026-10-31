@@ -58,6 +58,14 @@ GET /api/v1/game/records/{region}/events/{eventId}/challenges/{challengeId}/late
 
 <ApiTry path="/api/v1/game/records/{region}/events/{eventId}/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="zh-TW" />
 
+### 100 名以後
+
+每次讀取 100 名。`start` 會對齊到所在窗口的起始名次，`maxRank` 在看到榜尾之前為 null，`search` 依玩家 ID 查找前 2000 名。只有活動開放積分榜時才採集窗口。
+
+<ApiTry locale="zh-TW" path="/api/v1/game/records/{region}/events/{eventId}/points/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "start", value: "101" }]} />
+
+<ApiTry locale="zh-TW" path="/api/v1/game/records/{region}/events/{eventId}/points/search" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "profileId", value: "59231009908" }]} />
+
 ## 樂曲榜
 
 一首歌的前 100 名。

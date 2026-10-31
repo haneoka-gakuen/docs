@@ -45,6 +45,14 @@ import ApiTry from "../../../../components/ApiTry.astro";
 
 <ApiTry path="/api/v1/game/records/{region}/events/{eventId}/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ja" />
 
+### 100 位以降
+
+100 位ずつ読み取ります。`start` はその窓の先頭にそろえられ、`maxRank` は最終順位が分かるまで null です。`search` はプレイヤー ID で上位 2000 位を探します。窓はイベントにポイントランキングがある間だけ収集されます。
+
+<ApiTry locale="ja" path="/api/v1/game/records/{region}/events/{eventId}/points/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "start", value: "101" }]} />
+
+<ApiTry locale="ja" path="/api/v1/game/records/{region}/events/{eventId}/points/search" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "profileId", value: "59231009908" }]} />
+
 ## 楽曲ランキング
 
 1 曲の上位 100 名。

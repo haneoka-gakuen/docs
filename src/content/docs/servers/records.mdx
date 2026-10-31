@@ -58,6 +58,14 @@ Events that rank points have a third board. Rows carry `point` and no deck; othe
 
 <ApiTry path="/api/v1/game/records/{region}/events/{eventId}/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} />
 
+### Ranks past the top 100
+
+Read the board 100 ranks at a time. `start` falls back to its window, `maxRank` is null until the last rank is seen, and `search` looks through the top 2000 by player ID. Windows are collected only while an event has a point board.
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/points/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "start", value: "101" }]} />
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/points/search" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} query={[{ name: "profileId", value: "59231009908" }]} />
+
 ## Song rankings
 
 The top 100 for one song.
