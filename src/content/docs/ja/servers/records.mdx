@@ -39,6 +39,12 @@ import ApiTry from "../../../../components/ApiTry.astro";
 
 <ApiTry path="/api/v1/game/records/{region}/events/{eventId}/total/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ja" />
 
+## イベントポイントランキング
+
+ポイントを競うイベントには三つ目のランキングがあります。行は `point` を持ち、編成はありません。それ以外のイベントは 404 を返します。
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ja" />
+
 ## 楽曲ランキング
 
 1 曲の上位 100 名。
@@ -50,6 +56,18 @@ import ApiTry from "../../../../components/ApiTry.astro";
 リーグのランキングを 100 行ずつ。`bandId` はリーグのバンド、`start` は順位です。
 
 <ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "start", value: "1" }]} locale="ja" />
+
+### ポイント帯ごとの人数
+
+各しきい値以上のプレイヤー数を数えます。初回は `202` を返すので、`Retry-After` 秒後に再試行してください。
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/population" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "thresholds", value: "745,1505,4155" }]} locale="ja" />
+
+### プレイヤーを探す
+
+上位 `searchedTo` 位の中からゲーム内 ID を探します。範囲外なら `row` は `null` です。
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/search" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "profileId", value: "59231009908" }]} locale="ja" />
 
 ## プレイヤー
 

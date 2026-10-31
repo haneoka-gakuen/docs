@@ -39,6 +39,12 @@ import ApiTry from "../../../../components/ApiTry.astro";
 
 <ApiTry path="/api/v1/game/records/{region}/events/{eventId}/total/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ko" />
 
+## 이벤트 포인트 랭킹
+
+포인트를 겨루는 이벤트에는 세 번째 랭킹이 있습니다. 행에는 `point`가 있고 덱은 없습니다. 다른 이벤트는 404를 반환합니다.
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ko" />
+
 ## 곡 랭킹
 
 한 곡의 상위 100명.
@@ -50,6 +56,18 @@ import ApiTry from "../../../../components/ApiTry.astro";
 리그 랭킹을 100행씩. `bandId`는 리그의 밴드, `start`는 순위입니다.
 
 <ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "start", value: "1" }]} locale="ko" />
+
+### 포인트 구간별 인원
+
+각 기준점 이상인 플레이어 수를 셉니다. 처음에는 `202`를 반환하므로 `Retry-After`초 후 다시 요청하세요.
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/population" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "thresholds", value: "745,1505,4155" }]} locale="ko" />
+
+### 플레이어 찾기
+
+상위 `searchedTo`위 안에서 게임 내 ID를 찾습니다. 범위 밖이면 `row`는 `null`입니다.
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/search" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "profileId", value: "59231009908" }]} locale="ko" />
 
 ## 플레이어
 

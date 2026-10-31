@@ -1,0 +1,158 @@
+---
+title: オープンプラットフォーム
+description: 権限付きトークンで Haneoka アカウントを操作し、編成計算は呼び出し側の端末で行います。
+---
+
+Haneoka アカウントは、ツールがそのアカウントのデータを読み書きするためのトークンを発行できます。編成計算はサーバーでは行いません。コードがカードを読み込んだあと、Haneoka の編成ツールと同じエンジンを呼び出し側の端末で実行します。
+
+## 権限
+
+| スコープ | できること |
+| --- | --- |
+| `team:read` | ボックス、アカウントボーナス、保存した編成 |
+| `team:write` | ボックスと保存した編成の変更 |
+| `gacha:read` | クラウドのガチャ履歴 |
+| `games:read` | 連携したゲームアカウントとその概要 |
+| `profile:read` | UID、表示名、ハンドル、自己紹介 |
+
+トークンではコミュニティへの投稿、ログイン情報の変更、アカウント削除、他のトークンの管理はできません。
+
+| 手順 | 実行場所 |
+| --- | --- |
+| トークンを作成 | Haneoka のアカウント設定 |
+| カードとボーナスを読む | `GET /api/v1/team-data/{server}` |
+| 編成を計算 | 呼び出し側ブラウザの Web Worker |
+
+## トークンを作成
+
+1. [haneoka.org](https://haneoka.org) にログインし、**アカウント → ログインとセキュリティ**を開きます。
+2. **API トークン**で名前を入力し、30 日・90 日・1 年から選び、ツールに必要な権限だけにチェックを入れます。
+3. 値をコピーします。`hnk_` で始まり、一度だけ表示されます。
+
+1 アカウントにつき有効なトークンは 10 個までです。一覧から取り消すとすぐに無効になり、アカウントが制限・削除された場合も無効になります。
+
+トークンはパスワードと同じように扱ってください。各ユーザーが自分のトークンをツールに貼り付けて端末内に保存し、コミットや URL には入れないでください。
+
+## トークンを確認
+
+```sh
+curl -H "Authorization: Bearer $HANEOKA_TOKEN" https://haneoka.org/api/v1/open/me
+```
+
+```json
+{
+  "token": { "name": "My tool", "expiresAt": 1801176000000, "scopes": ["team:read", "profile:read"] },
+  "profile": { "uid": 1024, "displayName": "Player", "handle": "player", "bio": null }
+}
+```
+
+`profile:read` がない場合、`profile` は `null` です。
+
+## ボックスを読む
+
+```sh
+curl -H "Authorization: Bearer $HANEOKA_TOKEN" \
+  https://haneoka.org/api/v1/team-data/intl
+```
+
+`server` はカタログサーバー（`jp` または `intl`）です。どのオリジンからも呼び出せます。Cookie は無視され、トークンだけが認証情報です。
+
+```json
+{
+  "server": "intl",
+  "revision": 42,
+  "members": [
+    { "key": "m1", "cardId": 1, "level": 60, "awake": 2, "rank": 3,
+      "liveSkillLevel": 5, "gekisoSkillLevel": null }
+  ],
+  "snaps": [{ "key": "s1", "cardId": 1, "level": 40, "rank": 2 }],
+  "player": {
+    "characterRanks": { "1": 20 }, "characterTotalRank": null,
+    "bandItems": { "1": 3 }, "vipRank": null,
+    "characterMemory": {}, "musicMemory": {}
+  }
+}
+```
+
+| 項目 | 意味 |
+| --- | --- |
+| `revision` | ボックスのバージョン。`0` はこのサーバーにボックスがないことを示します |
+| `members`、`snaps` | ユーザーが参加にしたカード（エンジン入力形式） |
+| `player` | アカウント全体のボーナス |
+| `teams` | 保存した編成 |
+| 育成値が `null` | 未記録。`unknownPolicy` が補い方を決めます |
+
+## 編成を計算
+
+`fetchTeamData` がデータを読み、`createTeamBuilder` がエンジンを読み込みます。読み込み後の処理はすべて端末内で行われます。
+
+```js
+import { createTeamBuilder, fetchTeamData } from "https://haneoka.org/tools/team-builder.js";
+
+const server = "intl";
+const { members, snaps, player } = await fetchTeamData({ server, token });
+const engine = await createTeamBuilder({ server, maxWorkers: navigator.hardwareConcurrency });
+try {
+  const result = await engine.run({
+    members, snaps, player,
+    unknownPolicy: "min",
+    goal: { kind: "power", song: null, challengeEventId: null },
+    constraints: { requiredMembers: [], excludedMembers: [], requiredSnaps: [],
+      excludedSnaps: [], leader: null, bindings: [], noSnaps: false, minBonusPercent: null },
+    k: 5, timeLimitMs: 10000,
+  });
+  console.log(result.overall, result.stopReason);
+} finally {
+  engine.dispose();
+}
+```
+
+目標・条件・結果の項目は[端末で計算する](/ja/guides/local-computation/)を参照してください。
+
+## ボックスを変更
+
+`team:write` で一度に 4000 件まで変更を送れます。`null` はキーを消します。Web サイトは次の同期で変更を受け取ります。
+
+```sh
+curl -X POST -H "Authorization: Bearer $HANEOKA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"changes":[{"key":"m.1.own","value":true},{"key":"m.1.lvl","value":60}]}' \
+  https://haneoka.org/api/v1/team-data/intl
+```
+
+```json
+{ "revision": 43, "changed": 2 }
+```
+
+| キー | 値 |
+| --- | --- |
+| `m.<card>.own`、`s.<card>.own` | メンバー・スナップの所持 |
+| `m.<card>.use`、`s.<card>.use` | 検索に参加するか |
+| `m.<card>.lvl`、`awk`、`rnk`、`sk`、`gsk` | レベル、特訓、覚醒、ライブスキル、撃奏スキル |
+| `s.<card>.lvl`、`rnk` | スナップのレベルと限界突破 |
+| `cr.<character>`、`cm.<character>`、`mm.<song>`、`bi.<item>` | キャラクターランク、キャラクターメモリー、楽曲メモリー、バンドアイテム |
+| `p.vip` | VIP ランク |
+
+## ゲームアカウントとガチャ履歴
+
+```http
+GET /api/v1/open/game-accounts
+GET /api/v1/open/gacha-history
+GET /api/v1/open/gacha-history/{accountKey}
+```
+
+一覧はゲームアカウントごとに `accountKey` を返し、詳細には `histories` が加わります。
+
+## エラー
+
+| ステータス | コード | 対処 |
+| --- | --- | --- |
+| `401` | `invalid_token` | トークンがない・取り消し済み・期限切れです。作り直してください |
+| `403` | `account_restricted` | アカウントが制限または削除されています |
+| `403` | `insufficient_scope` | 必要な権限を付けたトークンを作ってください |
+| `404` | `server_not_found` | `jp` か `intl` を使ってください |
+| `413` | `box_too_large` | ボックスの上限に達しました |
+| `422` | `invalid_changes` | キーと値を確認してください |
+| `429` | `rate_limit_exceeded` | 時間をおいて再試行してください |
+
+ツール内に Haneoka のクレジットを表示してください。`createTeamBuilder` の戻り値の `attribution` に文言とリンクがあります。

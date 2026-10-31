@@ -31451,8 +31451,8 @@
         "tags": [
           "Game records"
         ],
-        "summary": "Read an event point ranking",
-        "description": "Latest point ranking of an event. Returns `404 not_found` when the event has no point ranking (see `pointRankingEnabled`).\n\nAuthentication: None. Public, anonymous read.\n\nCache-Control: `public, max-age=60, stale-while-revalidate=300`",
+        "summary": "Event point board",
+        "description": "The latest top 100 of the event point board. Only events that rank points have one; others answer 404. Rows match the total board without decks.\n\nCache-Control: `no-store`",
         "parameters": [
           {
             "name": "region",
@@ -50362,6 +50362,1708 @@
           "url": "https://docs.haneoka.org/sonolus/"
         }
       }
+    },
+    "/api/v1/team-data/{server}": {
+      "get": {
+        "operationId": "team-data.get",
+        "tags": [
+          "Open platform"
+        ],
+        "summary": "Read the token owner's team data",
+        "description": "Returns the owner's participating cards and account bonuses as engine inputs, and their saved teams in `teams`. Pass `members`, `snaps` and `player` to the browser engine or local tools service; the calculation runs on the caller's device. Any origin may call this route. Cookies are ignored.\n\nAuthentication: Required: `Authorization: Bearer <token>` with the `team:read` scope.\n\nCache-Control: `private, no-store`",
+        "security": [
+          {
+            "accountApiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server",
+            "in": "path",
+            "required": true,
+            "description": "Resource server slug the data belongs to, e.g. `intl`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "server": "intl",
+                  "revision": 42,
+                  "members": [
+                    {
+                      "key": "m1",
+                      "cardId": 1,
+                      "level": 60,
+                      "awake": 2,
+                      "rank": 3,
+                      "liveSkillLevel": 5,
+                      "gekisoSkillLevel": null
+                    }
+                  ],
+                  "snaps": [
+                    {
+                      "key": "s1",
+                      "cardId": 1,
+                      "level": 40,
+                      "rank": 2
+                    }
+                  ],
+                  "player": {
+                    "characterRanks": {
+                      "1": 20
+                    },
+                    "characterTotalRank": null,
+                    "bandItems": {
+                      "1": 3
+                    },
+                    "vipRank": null,
+                    "characterMemory": {},
+                    "musicMemory": {}
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token`: The token is missing, malformed, revoked or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account_restricted`: The owner cannot sign in or was deleted.\n`insufficient_scope`: The token lacks the scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`server_not_found`: Unknown server.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "team-data.write",
+        "tags": [
+          "Open platform"
+        ],
+        "summary": "Change the owner's box",
+        "description": "Applies box changes with the same key rules as the website. A `null` value clears a key. Keys include `m.<card>.own`, `m.<card>.lvl`, `m.<card>.awk`, `m.<card>.rnk`, `m.<card>.sk`, `m.<card>.gsk`, `s.<card>.own`, `s.<card>.lvl`, `s.<card>.rnk`, `cr.<character>`, `bi.<item>`, `cm.<character>`, `mm.<song>` and `p.vip`. The website picks up the change on its next sync.\n\nAuthentication: Required: `Authorization: Bearer <token>` with the `team:write` scope.\n\nCache-Control: `private, no-store`",
+        "security": [
+          {
+            "accountApiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "server",
+            "in": "path",
+            "required": true,
+            "description": "Resource server slug the data belongs to, e.g. `intl`.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "changes"
+                ],
+                "properties": {
+                  "changes": {
+                    "type": "array",
+                    "maxItems": 4000,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "key",
+                        "value"
+                      ],
+                      "properties": {
+                        "key": {
+                          "type": "string"
+                        },
+                        "value": {}
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "changes": [
+                  {
+                    "key": "m.1.own",
+                    "value": true
+                  },
+                  {
+                    "key": "m.1.lvl",
+                    "value": 60
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "revision": 43,
+                  "changed": 2
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token`: The token is missing, malformed, revoked or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account_restricted`: The owner cannot sign in or was deleted.\n`insufficient_scope`: The token lacks the scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`server_unavailable`: This server is not active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`box_too_large`: The box limit was reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`invalid_changes`: Send valid box changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/api-tokens": {
+      "get": {
+        "operationId": "account.api-tokens.list",
+        "tags": [
+          "Account"
+        ],
+        "summary": "List API tokens",
+        "description": "Token values are never returned after creation. `events` lists the latest 50 box writes made with tokens.\n\nAuthentication: Required: a session cookie, the `X-Haneoka-Expected-User` header and a same-origin request.\n\nCache-Control: `private, no-store`",
+        "parameters": [
+          {
+            "name": "X-Haneoka-Expected-User",
+            "in": "header",
+            "required": true,
+            "description": "The signed-in user's internal ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "tokens": [
+                    {
+                      "id": "3f2b1c9e-6c55-4a70-9f7d-1f5a8e2d4b10",
+                      "name": "My tool",
+                      "createdAt": 1793400000000,
+                      "expiresAt": 1801176000000,
+                      "lastUsedAt": null,
+                      "scopes": [
+                        "team:read"
+                      ]
+                    }
+                  ],
+                  "events": [
+                    {
+                      "id": 1,
+                      "tokenName": "My tool",
+                      "server": "intl",
+                      "changed": 2,
+                      "createdAt": 1793400000000
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "account.api-tokens.create",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Create an API token",
+        "description": "Creates a token with the chosen scopes and returns its value once. An account can hold 10 live tokens.\n\nAuthentication: Required: a session cookie, the `X-Haneoka-Expected-User` header and a same-origin request.\n\nCache-Control: `private, no-store`",
+        "parameters": [
+          {
+            "name": "X-Haneoka-Expected-User",
+            "in": "header",
+            "required": true,
+            "description": "The signed-in user's internal ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "days",
+                  "scopes"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "days": {
+                    "type": "integer",
+                    "enum": [
+                      30,
+                      90,
+                      365
+                    ]
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "profile:read",
+                        "games:read",
+                        "team:read",
+                        "team:write",
+                        "gacha:read"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "token": "hnk_REDACTED",
+                  "tokens": [
+                    {
+                      "id": "3f2b1c9e-6c55-4a70-9f7d-1f5a8e2d4b10",
+                      "name": "My tool",
+                      "createdAt": 1793400000000,
+                      "expiresAt": 1801176000000,
+                      "lastUsedAt": null,
+                      "scopes": [
+                        "team:read"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`too_many_tokens`: Revoke a token first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`invalid_token_request`: Send a name, 30, 90 or 365 days, and scopes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/api-tokens/{id}": {
+      "delete": {
+        "operationId": "account.api-tokens.revoke",
+        "tags": [
+          "Account"
+        ],
+        "summary": "Revoke an API token",
+        "description": "Deletes the token. Later requests with it return `401 invalid_token`.\n\nAuthentication: Required: a session cookie, the `X-Haneoka-Expected-User` header and a same-origin request.\n\nCache-Control: `private, no-store`",
+        "parameters": [
+          {
+            "name": "X-Haneoka-Expected-User",
+            "in": "header",
+            "required": true,
+            "description": "The signed-in user's internal ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Token ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "tokens": []
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/open/me": {
+      "get": {
+        "operationId": "open.me",
+        "tags": [
+          "Open platform"
+        ],
+        "summary": "Read the token and its owner",
+        "description": "Returns the token's name, expiry and scopes. `profile` is filled when the token has `profile:read`.\n\nAuthentication: Required: `Authorization: Bearer <token>`.\n\nCache-Control: `private, no-store`",
+        "security": [
+          {
+            "accountApiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "token": {
+                    "name": "My tool",
+                    "expiresAt": 1801176000000,
+                    "scopes": [
+                      "team:read",
+                      "profile:read"
+                    ]
+                  },
+                  "profile": {
+                    "uid": 1024,
+                    "displayName": "Player",
+                    "handle": "player",
+                    "bio": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token`: The token is missing, malformed, revoked or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account_restricted`: The owner cannot sign in or was deleted.\n`insufficient_scope`: The token lacks the scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/open/game-accounts": {
+      "get": {
+        "operationId": "open.game-accounts",
+        "tags": [
+          "Open platform"
+        ],
+        "summary": "List bound game accounts",
+        "description": "Returns the owner's bound game accounts and their latest summaries.\n\nAuthentication: Required: `Authorization: Bearer <token>` with the `games:read` scope.\n\nCache-Control: `private, no-store`",
+        "security": [
+          {
+            "accountApiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "accounts": []
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token`: The token is missing, malformed, revoked or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account_restricted`: The owner cannot sign in or was deleted.\n`insufficient_scope`: The token lacks the scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/open/gacha-history": {
+      "get": {
+        "operationId": "open.gacha-history",
+        "tags": [
+          "Open platform"
+        ],
+        "summary": "List gacha histories",
+        "description": "Returns one summary per game account with cloud history.\n\nAuthentication: Required: `Authorization: Bearer <token>` with the `gacha:read` scope.\n\nCache-Control: `private, no-store`",
+        "security": [
+          {
+            "accountApiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "accounts": []
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token`: The token is missing, malformed, revoked or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account_restricted`: The owner cannot sign in or was deleted.\n`insufficient_scope`: The token lacks the scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/open/gacha-history/{accountKey}": {
+      "get": {
+        "operationId": "open.gacha-history-get",
+        "tags": [
+          "Open platform"
+        ],
+        "summary": "Read one gacha history",
+        "description": "Returns the full history for one game account.\n\nAuthentication: Required: `Authorization: Bearer <token>` with the `gacha:read` scope.\n\nCache-Control: `private, no-store`",
+        "security": [
+          {
+            "accountApiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "accountKey",
+            "in": "path",
+            "required": true,
+            "description": "`accountKey` from the list.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "accountKey": "…",
+                  "server": "jp",
+                  "revision": 3,
+                  "histories": []
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token`: The token is missing, malformed, revoked or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`account_restricted`: The owner cannot sign in or was deleted.\n`insufficient_scope`: The token lacks the scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`history_not_found`: No history for this key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate_limit_exceeded`: Try again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/events/{eventId}/total/latest": {
+      "get": {
+        "operationId": "records.event-total",
+        "tags": [
+          "Game records"
+        ],
+        "summary": "Event total board",
+        "description": "The latest top 100 of the four-song total board, with decks.\n\nCache-Control: `no-store`",
+        "parameters": [
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "description": "Game region: `jp`, `tw`, `en` or `kr`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "Numeric event ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "region": "jp",
+                  "eventId": "4",
+                  "provider": "official",
+                  "observedAtMs": 1793424485170,
+                  "stale": false,
+                  "rows": [
+                    {
+                      "rank": 1,
+                      "tied": false,
+                      "profileId": "59231009908",
+                      "name": "Player",
+                      "point": 10098,
+                      "cards": [],
+                      "scoreExact": "123456789"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`: A path or query value is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`not_found`: Unknown region or no board.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`pending`: Not collected yet. Retry after `retryAfter` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/events/{eventId}/challenges/{challengeId}/latest": {
+      "get": {
+        "operationId": "records.event-challenge",
+        "tags": [
+          "Game records"
+        ],
+        "summary": "Challenge song board",
+        "description": "The latest top 100 of one challenge song, with decks.\n\nCache-Control: `no-store`",
+        "parameters": [
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "description": "Game region: `jp`, `tw`, `en` or `kr`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "Numeric event ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "challengeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Challenge song ID from the current event."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "region": "jp",
+                  "eventId": "4",
+                  "challengeId": "10",
+                  "rows": [
+                    {
+                      "rank": 1,
+                      "tied": false,
+                      "profileId": "59231009908",
+                      "name": "Player",
+                      "point": 10098,
+                      "cards": [],
+                      "scoreExact": "1234567"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`: A path or query value is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`not_found`: Unknown region or no board.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`pending`: Not collected yet. Retry after `retryAfter` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking": {
+      "get": {
+        "operationId": "records.arena-ranking",
+        "tags": [
+          "Game records"
+        ],
+        "summary": "Arena league board",
+        "description": "100 rows from rank `start`, with decks and name cards. `maxRank` is the board size.\n\nCache-Control: `no-store`",
+        "parameters": [
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "description": "Game region: `jp`, `tw`, `en` or `kr`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Arena season ID."
+          },
+          {
+            "name": "bandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The league's band ID."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "First rank; rounded down to a window of 100."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "region": "jp",
+                  "seasonId": "1",
+                  "bandId": "1",
+                  "start": 1,
+                  "end": 100,
+                  "maxRank": 35605,
+                  "rows": [
+                    {
+                      "rank": 1,
+                      "tied": false,
+                      "profileId": "59231009908",
+                      "name": "Player",
+                      "point": 10098,
+                      "cards": []
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`: A path or query value is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`not_found`: Unknown region or no board.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`pending`: Not collected yet. Retry after `retryAfter` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/population": {
+      "get": {
+        "operationId": "records.arena-population",
+        "tags": [
+          "Game records"
+        ],
+        "summary": "Arena players by points",
+        "description": "How many players hold at least each point threshold. Pass the rank thresholds you want counted.\n\nCache-Control: `no-store`",
+        "parameters": [
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "description": "Game region: `jp`, `tw`, `en` or `kr`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Arena season ID."
+          },
+          {
+            "name": "bandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The league's band ID."
+          },
+          {
+            "name": "thresholds",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated point thresholds, ascending, e.g. `745,1505,4155`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "region": "jp",
+                  "seasonId": "1",
+                  "bandId": "1",
+                  "maxRank": 35605,
+                  "tiers": [
+                    {
+                      "threshold": 745,
+                      "count": 2077
+                    },
+                    {
+                      "threshold": 1505,
+                      "count": 1014
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Counting. Retry after `Retry-After` seconds."
+          },
+          "400": {
+            "description": "`invalid_request`: A path or query value is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`not_found`: Unknown region or no board.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`pending`: Not collected yet. Retry after `retryAfter` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/search": {
+      "get": {
+        "operationId": "records.arena-search",
+        "tags": [
+          "Game records"
+        ],
+        "summary": "Find a player on an Arena board",
+        "description": "Looks for a player among the top `searchedTo` ranks. `row` is `null` when they are not there.\n\nCache-Control: `no-store`",
+        "parameters": [
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "description": "Game region: `jp`, `tw`, `en` or `kr`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Arena season ID."
+          },
+          {
+            "name": "bandId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The league's band ID."
+          },
+          {
+            "name": "profileId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "In-game player ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "region": "jp",
+                  "seasonId": "1",
+                  "bandId": "1",
+                  "profileId": "59231009908",
+                  "searchedTo": 2000,
+                  "row": {
+                    "rank": 1,
+                    "tied": false,
+                    "profileId": "59231009908",
+                    "name": "Player",
+                    "point": 10098,
+                    "cards": []
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_request`: A path or query value is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`not_found`: Unknown region or no board.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`pending`: Not collected yet. Retry after `retryAfter` seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -50380,6 +52082,10 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-Game-Application-Key"
+      },
+      "accountApiToken": {
+        "type": "http",
+        "scheme": "bearer"
       }
     },
     "schemas": {
