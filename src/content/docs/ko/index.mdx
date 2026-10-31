@@ -1,0 +1,32 @@
+---
+title: Haneoka 문서
+description: BanG Dream! Our Notes 데이터를 위한 공개 API, 임베드, 도구.
+template: splash
+hero:
+  title: Our Notes 데이터로 만들기
+  tagline: 곡, 카드, 스토리, 랭킹 등을 하나의 공개 API로. 키가 필요 없습니다.
+  actions:
+    - text: 빠른 시작
+      link: /ko/quickstart/
+      icon: right-arrow
+    - text: API 참조
+      link: /reference/openapi/
+      variant: minimal
+---
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import ApiTry from "../../../components/ApiTry.astro";
+
+## 직접 해보기
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100091" }]} query={[{ name: "server", value: "jp", options: ["jp", "intl"] }]} image="jacketUrl" locale="ko" />
+
+## 만들 수 있는 것
+
+<CardGrid>
+  <LinkCard title="게임 데이터" description="곡, 카드, 캐릭터, 이벤트, 스토리를 5개 언어로." href="/servers/catalog/" />
+  <LinkCard title="검색" description="카탈로그 전체를 모든 언어로 한 번에 검색." href="/ko/servers/search/" />
+  <LinkCard title="게임 기록" description="지역별 랭킹, 격주 아레나, 플레이어 정보." href="/ko/servers/records/" />
+  <LinkCard title="이미지" description="채보 이미지와 카드 아트를 PNG / SVG로." href="/guides/image-exports/" />
+  <LinkCard title="임베드" description="스토리, 채보, 장면을 내 페이지에서 재생." href="/embed/" />
+  <LinkCard title="오픈 플랫폼" description="계정 토큰으로 박스와 기록을 다룹니다." href="/ko/guides/team-data/" />
+</CardGrid>

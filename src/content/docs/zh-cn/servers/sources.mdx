@@ -2,10 +2,13 @@
 title: Source metadata
 description: 为 archive 和 build tooling 检查已发布的 source metadata。
 ---
+import ApiTry from "../../../../components/ApiTry.astro";
 
 Source record 是高级的 release-scoped 数据。普通应用可以继续使用当前 resource alias 和 DTO 返回的 media path。
 
-## Source tree
+## 源文件树
+
+<ApiTry path="/api/v1/servers/{server}/sources/tree" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-CN" />
 
 ```http
 GET /api/v1/servers/{server}/sources/tree
@@ -13,7 +16,7 @@ GET /api/v1/servers/{server}/sources/tree
 
 以 JSON 返回 release 的 source index tree。请将返回的路径用于 source-record route。
 
-## Source record
+## 源记录
 
 ```http
 GET /api/v1/servers/{server}/sources/Assets/{path}

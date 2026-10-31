@@ -1,0 +1,113 @@
+---
+title: 運營公告
+description: 獲取當前遊戲公告、正文與圖片。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+公告介面直接讀取所選伺服器當前釋出的遊戲資訊。列表提供標題與釋出時間，詳情提供正文和圖片；公告會獨立重新整理，呼叫方無需指定資源版本。
+
+## 列出最新公告
+
+<ApiTry path="/api/v1/announcements" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }, { name: "limit", value: "2" }]} locale="zh-TW" />
+
+```http
+GET /api/v1/announcements?server=intl&limit=2
+```
+
+`server` 預設使用Global `intl`，JP填寫 `jp`。`limit` 控制返回條數，範圍為 1–100，預設 100。列表提供公告摘要，正文透過詳情介面讀取。
+
+本節 JSON 是歷史回應的結構示例，實際 ID、標題和圖片以當前列表為準。
+
+```json
+{
+  "server": "intl",
+  "available": true,
+  "fetchedAt": "2026-09-30T04:14:16.536328Z",
+  "announcements": [
+    {
+      "id": 23,
+      "category": 6,
+      "title": "緊急維護公告",
+      "startAt": 1790730300,
+      "endAt": 1790751600,
+      "updatedAt": 1790695244,
+      "bodyImage": "https://haneoka.org/api/v1/announcements/media/intl/1aaf53f946ee62d677d1d8cb3b0e54ef6e7556ebe48af07bfeb76bd6f13851e3.jpg",
+      "bodyImageWidth": 420,
+      "bodyImageHeight": 180,
+      "sourceLanguage": "zh-Hant"
+    },
+    {
+      "id": 24,
+      "category": 3,
+      "title": "「由我主演的賽博之夜」轉蛋舉辦預告！",
+      "startAt": 1790730000,
+      "endAt": 1790751600,
+      "updatedAt": 1790695246,
+      "sourceLanguage": "zh-Hant"
+    }
+  ]
+}
+```
+
+`startAt`、`endAt` 和 `updatedAt` 使用 Unix 秒時間戳。`fetchedAt` 以 UTC ISO-8601 格式記錄這一批公告的獲取時間。尚無公告資料的伺服器返回 `available: false`、`fetchedAt: null` 和空陣列。
+
+## 讀取一條公告
+
+公告會更新。先從列表取得實際 `id`，再讀取詳情；歷史示例中的 23 可能已經不在當前列表。下面是可直接執行的只讀 JavaScript：
+
+```js
+const origin = "https://haneoka.org";
+const response = await fetch(`${origin}/api/v1/announcements?server=intl&limit=1`);
+if (!response.ok) throw new Error(`公告列表 HTTP ${response.status}`);
+const feed = await response.json();
+const first = feed.announcements[0];
+if (first) {
+  const detailResponse = await fetch(`${origin}/api/v1/announcements/${encodeURIComponent(first.id)}?server=intl`);
+  if (!detailResponse.ok) throw new Error(`公告詳情 HTTP ${detailResponse.status}`);
+  const detail = await detailResponse.json();
+  console.log(detail.title, detail.bodyImage);
+} else {
+  console.log("當前沒有公告。");
+}
+```
+
+詳情回應在同一物件中提供伺服器、獲取時間和完整公告：
+
+```json
+{
+  "server": "intl",
+  "available": true,
+  "fetchedAt": "2026-09-30T04:14:16.536328Z",
+  "id": 23,
+  "category": 6,
+  "title": "緊急維護公告",
+  "startAt": 1790730300,
+  "endAt": 1790751600,
+  "updatedAt": 1790695244,
+  "sourceLanguage": "zh-Hant",
+  "html": "<p>…</p>"
+}
+```
+
+`html` 保留公告正文的原始 HTML。網頁展示時，先使用 DOMPurify 等成熟工具清理，再渲染正文；允許的標籤、屬性、連結協議與圖片路徑應明確配置。指令碼、事件處理屬性和危險連結需要移除。純文字工具可以提取正文文字。
+
+### 語言與渲染
+
+`sourceLanguage` 根據公告標題和正文推斷內容語言，使用 BCP 47 標籤，如 `ja`、`zh-Hant`、`zh-Hans`、`ko` 或 `en`。將它設定為文章的 `lang`，可幫助字型選擇合適的字形。公告保留伺服器提供的文字，介面語言由呼叫方自行選擇。缺少語言資訊時，可用 `und` 標記。
+
+### 圖片與尺寸
+
+`bodyImage` 是正文圖片，`banner` 是公告橫幅；二者均為可選的 HTTPS 地址。對應的寬、高欄位記錄原始畫素尺寸。網頁可據此預留空間，按原始比例縮放圖片，避免載入後版式跳動。
+
+正文內的 `<img src>` 同樣使用本站圖片介面。直接使用返回的地址與尺寸即可。
+
+## 下載公告圖片
+
+```http
+GET /api/v1/announcements/media/{server}/{fullhash}.{ext}
+HEAD /api/v1/announcements/media/{server}/{fullhash}.{ext}
+```
+
+`fullhash` 是圖片內容的 64 位小寫 SHA-256 摘要。副檔名支援 `avif`、`gif`、`jpg`、`jpeg`、`png` 和 `webp`，回應會提供對應的圖片型別。內容地址保持穩定並支援長期快取；不存在的公告或圖片返回 `404`。
+
+樂曲、角色等資料仍可透過 `/api/v1/songs` 等[資料介面](../catalog/)讀取。公告介面用於獲取運營資訊。

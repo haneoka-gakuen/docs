@@ -1,0 +1,58 @@
+---
+title: 快速開始
+description: 發出第一個請求，然後讀取列表並顯示圖片。
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+API 是公開的，不需要金鑰。本頁所有示例都可以直接執行。
+
+## 1. 讀取一首歌
+
+<ApiTry locale="zh-TW" path="/api/v1/songs/{id}" params={[{ name: "id", value: "100091" }]} query={[{ name: "server", value: "jp", options: ["jp", "intl"] }]} image="jacketUrl" />
+
+`server` 選擇資料目錄：`jp`，或代表 Global 的 `intl`（預設）。文字欄位是陣列，順序為日語、英語、繁體中文、簡體中文、韓語。空字串表示該語言還沒有文字。
+
+## 2. 讀取列表
+
+<ApiTry locale="zh-TW" path="/api/v1/songs" query={[{ name: "server", value: "jp", options: ["jp", "intl"] }, { name: "limit", value: "3" }]} />
+
+列表返回 `items`，還有更多內容時附帶 `nextCursor`。把它作為 `cursor` 傳回即可讀取下一頁：
+
+```js
+const base = "https://haneoka.org/api/v1/songs?server=jp&limit=100";
+const songs = [];
+let cursor = null;
+
+do {
+  const url = cursor ? `${base}&cursor=${encodeURIComponent(cursor)}` : base;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const page = await response.json();
+  songs.push(...page.items);
+  cursor = page.nextCursor;
+} while (cursor);
+
+console.log(songs.length);
+```
+
+## 3. 顯示在頁面上
+
+圖片欄位是 haneoka.org 上的路徑，使用時要加上域名，並設定 `referrerpolicy="no-referrer"`：檔案會拒絕來源為其他網站的請求。
+
+```html
+<img id="jacket" alt="" width="240" height="240" referrerpolicy="no-referrer">
+<h1 id="title"></h1>
+<script type="module">
+  const origin = "https://haneoka.org";
+  const song = await (await fetch(`${origin}/api/v1/songs/100091?server=jp`)).json();
+  document.querySelector("#title").textContent = song.musicTitle[0];
+  document.querySelector("#jacket").src = origin + song.jacketUrl;
+</script>
+```
+
+## 下一步
+
+- 在整個目錄中[搜尋](/zh-tw/servers/search/)
+- 讀取各區服的[排行榜和玩家](/zh-tw/servers/records/)
+- [處理錯誤](/zh-tw/errors/)和重試
+- 用 [JavaScript 客戶端](/zh-tw/servers/client/)代替 `fetch`

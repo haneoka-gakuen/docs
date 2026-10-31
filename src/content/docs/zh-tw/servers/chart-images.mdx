@@ -1,0 +1,118 @@
+---
+title: 譜面圖片
+description: 獲取當前譜面的 SVG 或 PNG 概覽並讀取最終圖片尺寸。
+---
+
+import DemoChartImage from "../../../../components/DemoChartImage.astro";
+
+
+介面透過 Cassiopeia 靜態概覽 renderer 呈現已釋出譜面。Handler支援SVG和已註冊PNG rasterizer，PNG部署包含匹配Fontsource manifest/files；下方應用顯示實際公開Worker回應。
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs/100070/charts/expert/image.svg?server=intl&locale=en&height=720&download=1' \
+  -o chart.svg
+```
+
+把字尾換成 png 得到 PNG。顯式形式為 `/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}`。兩者固定讀取當前資料，不接受 release。難度應來自歌曲 DTO 已公佈的 difficulty。
+
+| 引數 | 值 | 含義 |
+| --- | --- | --- |
+| server | 活動 slug，alias 預設 intl | 資料伺服器 |
+| difficulty | easy/normal/hard/expert/special/master | 路徑引數，歌曲必須提供該難度 |
+| locale | ja/en/zh-TW/zh-CN/ko | 圖中文字，省略時協商 Accept-Language |
+| height | 360–1440 整數，預設720 | 單個譜面段高度，不含頁首 |
+| download | 1/0，預設1 | attachment 或 inline |
+| format | svg/png | 檔案字尾與 MIME |
+
+重複或空引數返回400。輸入和輸出受渲染預算約束，超預算返回413。
+
+## 尺寸與快取
+
+最終圖片包含頁首和整曲所需段數；提高段高會影響段數及最終寬度。以 X-Haneoka-Image-Width/Height 為圖片佔位尺寸，與 SVG width/height 或 PNG IHDR 一致。height query 不是最終畫布高度。
+
+回應還包含 Content-Type、Content-Length、Content-Disposition、Content-Language、ETag、X-Haneoka-Server/Release-Id/Chart-Renderer。GET 返回圖片，HEAD 只返回頭，If-None-Match 可得到304且不帶 Content-Length。公開端點支援匿名 CORS、OPTIONS204 和不支援方法的405/Allow。
+
+```js
+const url = "https://haneoka.org/api/v1/songs/100070/charts/expert/image.png?locale=en&download=0";
+const response = await fetch(url, { credentials: "omit" });
+if (!response.ok) {
+  const failure = await response.json();
+  throw new Error(`${response.status}: ${failure.error.code}`);
+}
+const width = Number(response.headers.get("X-Haneoka-Image-Width"));
+const height = Number(response.headers.get("X-Haneoka-Image-Height"));
+const imageUrl = URL.createObjectURL(await response.blob());
+console.log(width, height, imageUrl);
+// 給 img 設定寬高與 src，解除安裝時 URL.revokeObjectURL(imageUrl)。
+```
+
+## 錯誤恢復
+
+錯誤為 error.code/message/requestId，帶 X-Request-Id 和 no-store。引數錯誤400，歌曲/難度/譜面缺失404，格式406，輸入/渲染預算413，光柵失敗502，當前釋出不可用503。具體 code 見 OpenAPI。PNG 字型缺失或無效為 chart_image_failed，字型預算超限為 chart_render_budget；未接 rasterizer 的部署可返回501 png_renderer_unavailable。保留 requestId，根據引數或部署原因修復後重試。
+
+## 傳送並檢查實際請求
+
+修改server/song/difficulty/format/locale/段高/download，選擇GET/HEAD/OPTIONS。點選才請求真實端點，成功GET按真實尺寸預覽並下載同一回應bytes；錯誤顯示真實status/body，不用本地圖片替代不可用服務。
+
+<DemoChartImage locale="zh-TW" />
+
+scoped選顯式server路徑，apiBase為相容API，acceptLanguage/ifNoneMatch為header；ifNoneMatch:$last使用上一ETag，這些是應用transport欄位。HEAD/OPTIONS/304無新圖正文，正式cache應複用舊錶示，檢查器顯示頭。清理/替換/退出revoke BlobURL，不import GPU/SDK或預載入圖片。
+
+## route/query完整契約
+
+GET/HEAD alias `/api/v1/songs/{songId}/charts/{difficulty}/image.{format}`，可選server；或 `/api/v1/servers/{server}/songs/{songId}/charts/{difficulty}/image.{format}`。公開無需帳號；OPTIONS先204，不讀源，其他方法405/Allow。
+
+| 引數 | 必填/預設 | 校驗/作用 |
+| --- | --- | --- |
+| songId | 必填string路徑 |1–256位，首字母數字，其餘可 . _ : ~ -，單段編碼；非法/缺404 song_not_found。 |
+| difficulty | 必填小寫路徑 | easy/normal/hard/expert/special/master且DTO有，缺404 difficulty_not_found。 |
+| format | 必填字尾 | svg/png小寫；匹配但不支援的小寫字尾406，壞route可404。 |
+| server | scoped必填，alias intl | 活動1–40位小寫字母數字/連字元，首尾字母數字。alias重複400 invalid_server，壞/未知404；scopedquery需匹配path。 |
+| locale | 可選，協商 | ja/en/zh-TW/zh-CN/ko，空/重複/不支援400 invalid_locale，與server獨立。 |
+| height | 可選720 |1–4位十進位制整數360–1440，空/小數/越界/重複400 invalid_height；單段不含header。 |
+| download | 可選1 |僅0/1一次，inline/attachment，空/其它/重複400 invalid_download。 |
+| release | 不支援 |任何值400 release_not_supported，current讀取。 |
+
+沒有width/title/band/noteSpeed/jacket覆蓋引數，來自實際song/score。query大小寫精確；非空body400 body_not_allowed。
+
+## 全部header/二進位制語義
+
+| header | 方向/預設 | 作用 |
+| --- | --- | --- |
+| Accept-Language | 可選request | 無locale時BCP47協商。 |
+| If-None-Match | 可選request |強/弱etag或*匹配304，無Content-Length。 |
+| Content-Type | response | SVGUTF8/PNG，錯誤JSON。 |
+| Content-Length |200/HEAD |真實編碼bytes，304無。 |
+| Content-Disposition |response |預設attachment或inline，檔名含server/song/difficulty/locale。 |
+| Content-Language |response |選定語言。 |
+| ETag |response |表示bytes+server/release/song/locale/renderer identity。 |
+| X-Haneoka-Server |response |registry。 |
+| X-Haneoka-Release-Id |response |真實current版本。 |
+| X-Haneoka-Chart-Renderer |response |renderer版本。 |
+| X-Haneoka-Image-Width/Height |response |含header/panels的最終畫布。 |
+| Cache-Control |success public/max-age300/must-revalidate |錯誤no-store。 |
+| Vary |Accept-Language |協商快取。 |
+| X-Request-Id |dispatcher |錯誤body也有requestId。 |
+| Allow |405 |GET/HEAD/OPTIONS。 |
+
+匿名CORS origin*，允許上述方法和Content-Type/Accept/Accept-Language/If-None-Match；暴露Disposition/Length、renderer/release/server/尺寸/ETag。瀏覽器只讀允許暴露的頭，header讀不到時保留錯誤body.requestId。HEAD無正文，Range不是圖片API欄位，讀取全圖或ETag複驗。
+
+## 預算和每類錯誤
+
+chart2MiB、可選jacket1MiB；缺/不支援jacket可省略仍渲染。最多256panels、12000000pixels、SVG8MiB；PNG驗證signature/IHDR/尺寸及8MiB。預算不是query開關，PNG部署包括rasterizer和Fontsource manifest/files。
+
+| status/code | 原因 | 恢復 |
+| --- | --- | --- |
+|400 invalid_height/locale/download/server |壞/空/重複 |改引數。 |
+|400 release_not_supported/body_not_allowed |release/body |current無body讀取。 |
+|404 server/song/difficulty/chart_not_found |無可用源 |從catalog選已有。 |
+|405 method_not_allowed |非read |GET/HEAD/OPTIONS。 |
+|406 format_not_supported |匹配但不支援字尾 |svg/png。 |
+|413 chart_too_large/chart_render_budget |input/font/output預算 |選較小可用譜面/報告，不同參重複超限無效。 |
+|501 png_renderer_unavailable |未部署PNG器 |SVG或部署。 |
+|502 chart_path_invalid/chart_invalid/release_invalid |壞identity/path/score |保留requestId報告。 |
+|502 png_invalid/chart_image_failed |signature/尺寸/font失敗 |修部署/字型。 |
+|503 release_unavailable |無current |有界backoff重試。 |
+
+公開dispatcher error為code/message/requestId，帶X-Request-Id/no-store。fetch/CORS/abort在此envelope之前，獨立展示。是否上線以實際Worker回應為準，頁面示例記錄它，不把docs部署當API部署。

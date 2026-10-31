@@ -2,6 +2,7 @@
 title: Media and files
 description: Turn catalog media paths into images, audio, video, and chart requests.
 ---
+import ApiTry from "../../../components/ApiTry.astro";
 
 Most applications reach media through URLs returned by a current catalog DTO. Resolve a path such as `/assets/intl/...png` or `/runtime/intl/...mp3` against `https://haneoka.org` and request it directly:
 
@@ -10,6 +11,10 @@ curl --fail-with-body \
   https://haneoka.org/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png \
   -o jacket.png
 ```
+
+Open a real jacket:
+
+<ApiTry path="/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png" image="true" />
 
 The server chooses the current release for the selected server. Keep the returned `ETag` and `Content-Type` when caching or displaying the file. Release manifests, source trees, and content-addressed bundles are advanced inputs for crawlers and client-build tooling.
 
@@ -66,4 +71,4 @@ The endpoint may require the viewer to be able to read the post that owns the at
 
 ## Render a chart image
 
-A score file can also be rendered by the prepared [chart image API](../chart-images/) as SVG or PNG. Choose the actual difficulty name, use panel height independently from final canvas dimensions, and retain the response ETag. For playback inside your page, see [Cassiopeia embeds](../../embed/cassiopeia/).
+A score file can also be rendered by the [chart image API](../chart-images/) as SVG or PNG. Choose the actual difficulty name, use panel height independently from final canvas dimensions, and retain the response ETag. For playback inside your page, see [Cassiopeia embeds](../../embed/cassiopeia/).

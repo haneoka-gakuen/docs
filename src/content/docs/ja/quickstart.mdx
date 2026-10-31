@@ -1,0 +1,58 @@
+---
+title: クイックスタート
+description: 最初のリクエストを送り、一覧を読み、画像を表示します。
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+API は公開されており、キーは不要です。ここの例はすべてこのページ上で実行できます。
+
+## 1. 楽曲を 1 件読む
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100091" }]} query={[{ name: "server", value: "jp", options: ["jp", "intl"] }]} image="jacketUrl" locale="ja" />
+
+`server` はカタログを選びます。`jp`、または既定の Global を表す `intl` です。テキスト項目は日本語、英語、繁体字中国語、簡体字中国語、韓国語の順の配列です。空文字列はその言語の文章がまだないことを示します。
+
+## 2. 一覧を読む
+
+<ApiTry path="/api/v1/songs" query={[{ name: "server", value: "jp", options: ["jp", "intl"] }, { name: "limit", value: "3" }]} locale="ja" />
+
+一覧は `items` を返し、続きがある間は `nextCursor` も返します。次のページではそれを `cursor` に渡します。
+
+```js
+const base = "https://haneoka.org/api/v1/songs?server=jp&limit=100";
+const songs = [];
+let cursor = null;
+
+do {
+  const url = cursor ? `${base}&cursor=${encodeURIComponent(cursor)}` : base;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const page = await response.json();
+  songs.push(...page.items);
+  cursor = page.nextCursor;
+} while (cursor);
+
+console.log(songs.length);
+```
+
+## 3. ページに表示する
+
+画像項目は haneoka.org 上のパスです。オリジンを付け、`referrerpolicy="no-referrer"` を指定してください。他サイトをリファラーとするリクエストは拒否されます。
+
+```html
+<img id="jacket" alt="" width="240" height="240" referrerpolicy="no-referrer">
+<h1 id="title"></h1>
+<script type="module">
+  const origin = "https://haneoka.org";
+  const song = await (await fetch(`${origin}/api/v1/songs/100091?server=jp`)).json();
+  document.querySelector("#title").textContent = song.musicTitle[0];
+  document.querySelector("#jacket").src = origin + song.jacketUrl;
+</script>
+```
+
+## 次へ
+
+- カタログ全体を[検索](/ja/servers/search/)
+- 各地域の[ランキングとプレイヤー](/ja/servers/records/)を読む
+- [エラー処理](/errors/)と再試行
+- `fetch` の代わりに [JavaScript クライアント](/servers/client/)を使う

@@ -2,6 +2,7 @@
 title: 约定
 description: API 共用的 URL、响应、缓存、身份验证和分页规则。
 ---
+import ApiTry from "../../../components/ApiTry.astro";
 
 ## 基础 URL 和当前数据 alias
 
@@ -18,6 +19,10 @@ GET /api/v1/{resource}/relations/{relation}/{key}
 这些路径默认使用当前 `intl` server。添加 `?server=jp` 或 `GET /api/v1/releases` 返回的其他 slug 选择活动 server。显式的 `/api/v1/servers/{server}/...` 使用同一个 catalog handler，并增加供可重现 build 使用的 `release` 参数。
 
 `resource`、`id`、`view`、`relation` 和 `key` 都由数据定义。构造路径前先读取 catalog manifest 或 index。`releases`、`servers`、`account`、`me`、`community` 和 `garupa` 等顶层分组保留自己的 API 路由，不是 catalog resource name。对动态片段进行 URL 编码；只有路由明确接受 path 时才保留 `/`。
+
+试一个直接路由：
+
+<ApiTry path="/api/v1/bands" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-CN" />
 
 ## JSON 和字段
 

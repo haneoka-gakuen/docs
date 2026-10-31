@@ -2,10 +2,13 @@
 title: 运营公告
 description: 获取当前游戏公告、正文与图片。
 ---
+import ApiTry from "../../../../components/ApiTry.astro";
 
 公告接口直接读取所选服务器当前发布的游戏资讯。列表提供标题与发布时间，详情提供正文和图片；公告会独立刷新，调用方无需指定资源版本。
 
 ## 列出最新公告
+
+<ApiTry path="/api/v1/announcements" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }, { name: "limit", value: "2" }]} locale="zh-CN" />
 
 ```http
 GET /api/v1/announcements?server=intl&limit=2

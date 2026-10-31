@@ -1,0 +1,25 @@
+---
+title: 検索
+description: カタログを全言語で全文検索します。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+1 つのカタログサーバーの楽曲、カード、キャラクター、イベント、募集、ストーリー、アイテムを検索します。クエリは全言語に一致するため、`千早爱音`、`千早愛音`、`Anon Chihaya` は同じキャラクターを見つけます。
+
+<ApiTry path="/api/v1/search" query={[{ name: "q", value: "千早爱音" }, { name: "server", value: "jp", options: ["jp", "intl"] }, { name: "locale", value: "zh-CN", options: ["ja", "en", "zh-TW", "zh-CN", "ko"] }, { name: "limit", value: "5" }]} image="hits.0.image" locale="ja" />
+
+## パラメーター
+
+| 名前 | 必須 | 意味 |
+| --- | --- | --- |
+| `q` | はい | 検索文字列（200 文字まで） |
+| `server` | はい | `jp` または `intl` |
+| `locale` | はい | 返すタイトルの言語 |
+| `section` | いいえ | `catalog` または `stories` |
+| `kind` | いいえ | `kinds` のいずれか 1 種類 |
+| `limit` | いいえ | 1–50、既定は 20 |
+| `offset` | いいえ | 0–1000 |
+
+コミュニティ投稿は閲覧者によって見える内容が変わるため含まれません。
+
+`503` はインデックスの準備中を示します。時間をおいて再試行してください。

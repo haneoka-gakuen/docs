@@ -1,0 +1,28 @@
+---
+title: Source metadata
+description: 為 archive 和 build tooling 檢查已釋出的 source metadata。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+Source record 是高階的 release-scoped 資料。普通應用可以繼續使用當前 resource alias 和 DTO 返回的 media path。
+
+## 原始檔樹
+
+<ApiTry path="/api/v1/servers/{server}/sources/tree" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-TW" />
+
+```http
+GET /api/v1/servers/{server}/sources/tree
+```
+
+以 JSON 返回 release 的 source index tree。請將返回的路徑用於 source-record route。
+
+## 源記錄
+
+```http
+GET /api/v1/servers/{server}/sources/Assets/{path}
+GET /api/v1/servers/{server}/sources/Packages/{path}
+```
+
+Source path 以 `Assets/` 或 `Packages/` 開頭，並透過 release index 解析。Source record 是當前 release 釋出的 JSON DTO，可能包含 importer metadata、asset relationships 或 source-specific fields。
+
+Release identity 和回應 headers 中的 `sourceId` 標識 source snapshot。Source tree 和 source DTO 是隻讀公開資料，不會暴露經過身份驗證的帳號資料。

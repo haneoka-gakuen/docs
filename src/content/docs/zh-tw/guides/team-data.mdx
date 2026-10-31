@@ -1,0 +1,158 @@
+---
+title: 開放平臺
+description: 用帶許可權範圍的令牌操作一個 Haneoka 帳號，配隊在呼叫方裝置上計算。
+---
+
+Haneoka 帳號可以簽發令牌，讓工具讀取或更新該帳號的資料。配隊計算不是伺服器功能：你的程式碼讀取卡牌後，在呼叫方裝置上執行與 Haneoka 配隊頁面相同的引擎。
+
+## 許可權
+
+| 範圍 | 允許 |
+| --- | --- |
+| `team:read` | Box、帳號加成和儲存的隊伍 |
+| `team:write` | 修改 Box 和儲存的隊伍 |
+| `gacha:read` | 雲端抽卡記錄 |
+| `games:read` | 繫結的遊戲帳號及其摘要 |
+| `profile:read` | UID、顯示名稱、使用者名稱和簡介 |
+
+令牌不能在社群發帖、修改登入資訊、刪除帳號或管理其他令牌。
+
+| 步驟 | 執行位置 |
+| --- | --- |
+| 建立令牌 | Haneoka 帳號設定 |
+| 讀取卡牌和加成 | `GET /api/v1/team-data/{server}` |
+| 計算配隊 | 呼叫方瀏覽器的 Web Worker |
+
+## 建立令牌
+
+1. 登入 [haneoka.org](https://haneoka.org)，開啟**帳號 → 登入與安全**。
+2. 在 **API 令牌**下填寫名稱，選擇 30 天、90 天或 1 年，只勾選工具需要的許可權。
+3. 複製令牌。它以 `hnk_` 開頭，只顯示一次。
+
+每個帳號最多有 10 個有效令牌。在同一列表撤銷後立即失效，帳號被限制或刪除時令牌也會失效。
+
+請像對待密碼一樣對待令牌：讓每位使用者把自己的令牌貼上到你的工具裡，儲存在其裝置上，不要提交到程式碼庫，也不要放進 URL。
+
+## 檢查令牌
+
+```sh
+curl -H "Authorization: Bearer $HANEOKA_TOKEN" https://haneoka.org/api/v1/open/me
+```
+
+```json
+{
+  "token": { "name": "My tool", "expiresAt": 1801176000000, "scopes": ["team:read", "profile:read"] },
+  "profile": { "uid": 1024, "displayName": "Player", "handle": "player", "bio": null }
+}
+```
+
+沒有 `profile:read` 時 `profile` 為 `null`。
+
+## 讀取 Box
+
+```sh
+curl -H "Authorization: Bearer $HANEOKA_TOKEN" \
+  https://haneoka.org/api/v1/team-data/intl
+```
+
+`server` 是圖鑑伺服器：`jp` 或 `intl`。任何來源都可以呼叫此介面。介面忽略 Cookie，令牌是唯一憑據。
+
+```json
+{
+  "server": "intl",
+  "revision": 42,
+  "members": [
+    { "key": "m1", "cardId": 1, "level": 60, "awake": 2, "rank": 3,
+      "liveSkillLevel": 5, "gekisoSkillLevel": null }
+  ],
+  "snaps": [{ "key": "s1", "cardId": 1, "level": 40, "rank": 2 }],
+  "player": {
+    "characterRanks": { "1": 20 }, "characterTotalRank": null,
+    "bandItems": { "1": 3 }, "vipRank": null,
+    "characterMemory": {}, "musicMemory": {}
+  }
+}
+```
+
+| 欄位 | 含義 |
+| --- | --- |
+| `revision` | Box 版本。`0` 表示使用者在此伺服器沒有儲存 Box |
+| `members`、`snaps` | 使用者標記為參與的卡牌，格式即引擎輸入 |
+| `player` | 帳號全域性加成 |
+| `teams` | 儲存的隊伍 |
+| 養成欄位為 `null` | 未記錄，由 `unknownPolicy` 決定引擎如何填充 |
+
+## 計算配隊
+
+`fetchTeamData` 讀取資料，`createTeamBuilder` 載入引擎。讀取之後的全部步驟都在本地執行。
+
+```js
+import { createTeamBuilder, fetchTeamData } from "https://haneoka.org/tools/team-builder.js";
+
+const server = "intl";
+const { members, snaps, player } = await fetchTeamData({ server, token });
+const engine = await createTeamBuilder({ server, maxWorkers: navigator.hardwareConcurrency });
+try {
+  const result = await engine.run({
+    members, snaps, player,
+    unknownPolicy: "min",
+    goal: { kind: "power", song: null, challengeEventId: null },
+    constraints: { requiredMembers: [], excludedMembers: [], requiredSnaps: [],
+      excludedSnaps: [], leader: null, bindings: [], noSnaps: false, minBonusPercent: null },
+    k: 5, timeLimitMs: 10000,
+  });
+  console.log(result.overall, result.stopReason);
+} finally {
+  engine.dispose();
+}
+```
+
+目標、約束和結果欄位見[在使用者裝置上執行計算](/zh-tw/guides/local-computation/)。沒有瀏覽器的指令碼可以把同樣的資料發給該頁介紹的本地 HTTP 服務。
+
+## 修改 Box
+
+使用 `team:write` 一次最多傳送 4000 項修改。`null` 表示清除該鍵。網站下次同步時會讀到修改。
+
+```sh
+curl -X POST -H "Authorization: Bearer $HANEOKA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"changes":[{"key":"m.1.own","value":true},{"key":"m.1.lvl","value":60}]}' \
+  https://haneoka.org/api/v1/team-data/intl
+```
+
+```json
+{ "revision": 43, "changed": 2 }
+```
+
+| 鍵 | 值 |
+| --- | --- |
+| `m.<card>.own`、`s.<card>.own` | 擁有成員或留影 |
+| `m.<card>.use`、`s.<card>.use` | 是否參與搜尋 |
+| `m.<card>.lvl`、`awk`、`rnk`、`sk`、`gsk` | 等級、特訓、覺醒、演出技能、激奏技能 |
+| `s.<card>.lvl`、`rnk` | 留影等級和突破 |
+| `cr.<character>`、`cm.<character>`、`mm.<song>`、`bi.<item>` | 角色等級、角色記憶、歌曲記憶、樂隊道具 |
+| `p.vip` | VIP 等級 |
+
+## 遊戲帳號和抽卡記錄
+
+```http
+GET /api/v1/open/game-accounts
+GET /api/v1/open/gacha-history
+GET /api/v1/open/gacha-history/{accountKey}
+```
+
+列表為每個遊戲帳號返回一個 `accountKey`，完整記錄另含 `histories`。
+
+## 錯誤
+
+| 狀態碼 | 錯誤碼 | 處理 |
+| --- | --- | --- |
+| `401` | `invalid_token` | 令牌缺失、已撤銷或已過期，請新建 |
+| `403` | `account_restricted` | 帳號被限制或已刪除 |
+| `403` | `insufficient_scope` | 新建帶該許可權的令牌 |
+| `413` | `box_too_large` | 已達到 Box 上限 |
+| `422` | `invalid_changes` | 檢查鍵和值 |
+| `404` | `server_not_found` | 使用 `jp` 或 `intl` |
+| `429` | `rate_limit_exceeded` | 稍後重試 |
+
+請在工具中註明 Haneoka。`createTeamBuilder` 返回物件的 `attribution` 提供了文字和連結。

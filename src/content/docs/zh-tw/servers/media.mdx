@@ -1,0 +1,74 @@
+---
+title: Media 和檔案
+description: 將 catalog media path 轉為圖片、音訊、影片和譜面請求。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+大多數應用從當前 catalog DTO 返回的 URL 讀取媒體。將 `/assets/intl/...png` 或 `/runtime/intl/...mp3` 這樣的路徑解析到 `https://haneoka.org` 後直接請求：
+
+```bash
+curl --fail-with-body \
+  https://haneoka.org/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png \
+  -o jacket.png
+```
+
+伺服器會為所選 server 使用當前 release。快取或顯示檔案時保留返回的 `ETag` 和 `Content-Type`。Release manifest、source tree 和 content-addressed bundle 屬於 crawler 與 client-build tooling 使用的高階輸入。
+
+開啟一張真實的歌曲封面：
+
+<ApiTry path="/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png" image="true" locale="zh-TW" />
+
+## Release 媒體樹
+
+```http
+GET /assets/{server}/{path}
+HEAD /assets/{server}/{path}
+GET /runtime/{server}/{path}
+HEAD /runtime/{server}/{path}
+GET /objects/{server}/{path}
+HEAD /objects/{server}/{path}
+```
+
+活動 release index 會將這些路徑解析為 content-addressed objects。`assets` 和 `runtime` 接受已釋出 release 中的路徑。`assets` 路徑必須以 `Assets/` 或 `Packages/` 開頭；`objects` 路徑必須以 `unity/` 開頭。具體路徑來自 release manifest 或 catalog DTO。
+
+回應包含 `ETag`、`Content-Length`、`Accept-Ranges: bytes` 和 `Content-Security-Policy: default-src 'none'; sandbox`。未知路徑返回帶有純文字 `not found` 回應的 `404`。
+
+## 位元組範圍
+
+```http
+GET /assets/{server}/{path}
+Range: bytes=0-1048575
+If-Range: "etag-from-a-previous-response"
+```
+
+有效 range 返回 `206` 和 `Content-Range: bytes <start>-<end>/<size>`。無效 range 返回 `416` 和 `Content-Range: bytes */<size>`。如果 `If-Range` 不匹配，伺服器返回完整物件。
+
+## 內容定址檔案
+
+```http
+GET /artifacts/{server}/{sourceId}/android/bundles/{filename}
+HEAD /artifacts/{server}/{sourceId}/android/bundles/{filename}
+```
+
+該路由提供 source descriptor 中列出的原始檔名對應的 Unity bundle。路由只接受一個 filename 片段，並返回 `application/octet-stream`。`{sourceId}` 和 filename 必須來自 source metadata；它們不是任意的 object-storage path。
+
+Artifact 回應支援與 release objects 相同的單 range 請求模式，包括 `206`、`416`、`ETag` 和 `Content-Range`。
+
+## 本地化媒體回退
+
+包含 `(en)`、`(ko)`、`(zh-Hans)` 或 `(zh-Hant)` 的 release path 可能回退到匹配的 alternate 或無本地化版本。使用者應使用返回的回應，不要在自己的 URL 生成邏輯中固化 fallback 順序。
+
+## 社群附件內容
+
+社群上傳使用單獨的已驗證生命週期。就緒的公開附件內容可透過以下介面獲取：
+
+```http
+GET /api/v1/community/attachments/{attachmentId}/content
+HEAD /api/v1/community/attachments/{attachmentId}/content
+```
+
+該 endpoint 可能要求檢視者有權讀取擁有附件的帖子。當附件回應公佈對應 URL 時，可以使用 `?variant=media`、`poster` 或 `thumb` 請求媒體處理變體。
+
+## 譜面圖片與播放器
+
+準備釋出的 [譜面圖片介面](../chart-images/) 可將譜面呈現為 SVG/PNG。選擇歌曲實際提供的難度，區分段高與最終畫布尺寸，並保留 ETag。網頁內播放使用 [Cassiopeia 嵌入](../../embed/cassiopeia/)。

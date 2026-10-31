@@ -2,6 +2,7 @@
 title: Catalog data
 description: Browse current resources, entities, views, relations, and batches.
 ---
+import ApiTry from "../../../components/ApiTry.astro";
 
 ## Start with the direct routes
 
@@ -19,6 +20,10 @@ The default server is `intl`. The `server` query selects another active server. 
 Common resource names include `songs`, `bands`, `characters`, `cards`, `stories`, `events`, `audio`, `videos`, and `voices`. The selected catalog is authoritative: use its resource names, IDs, views, and relations instead of maintaining a hard-coded list.
 
 ## Resource indexes and entities
+
+Try it: pick a song and server. Change the ID to any `musicId` from the index.
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100001" }]} query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} />
 
 An index request returns a provider-shaped document. Collection resources commonly return an object keyed by entity ID:
 
@@ -51,7 +56,7 @@ The entity may contain more fields than the index entry, such as localized credi
 
 ## Optional pagination
 
-For a collection or declared view, add `limit` to request an envelope instead of its full index. Pagination belongs to the prepared Worker update; deploy it alongside the updated client when adopting this interface.
+For a collection or declared view, add `limit` to request an envelope instead of its full index. 
 
 ```http
 GET /api/v1/songs?server=intl&limit=20
@@ -97,6 +102,8 @@ The [typed client](../client/) validates the envelope and supports decoders for 
 
 Repeat `id` to fetch a small set of entities:
 
+<ApiTry path="/api/v1/songs?id=100001&id=100002"  />
+
 ```bash
 curl --fail-with-body \
   'https://haneoka.org/api/v1/songs?id=100001&id=100002&server=jp'
@@ -134,6 +141,8 @@ GET /api/v1/{resource}/relations/{relation}/{key}
 The manifest's `valueMode` explains the result. `ids` relations expand to canonical entities keyed by ID. `records` relations return provider records from the relation document. An empty relation key returns `{}` when the relation exists but has no value.
 
 Use the selected server's manifest when you need these names:
+
+<ApiTry path="/api/v1/servers/{server}/catalog" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} />
 
 ```bash
 curl --fail-with-body https://haneoka.org/api/v1/servers/intl/catalog

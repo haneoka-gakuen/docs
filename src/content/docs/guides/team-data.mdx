@@ -1,0 +1,158 @@
+---
+title: Open platform
+description: Act on one Haneoka account with a scoped token, and compute teams on the caller's device.
+---
+
+A Haneoka account can issue tokens that let a tool read or update that account's data. Team calculations are not a server feature: your code reads the cards, then runs the same engine as the Haneoka team builder on the device that called it.
+
+## Permissions
+
+| Scope | Allows |
+| --- | --- |
+| `team:read` | Box, account bonuses and saved teams |
+| `team:write` | Change the box and saved teams |
+| `gacha:read` | Cloud gacha history |
+| `games:read` | Bound game accounts and their summaries |
+| `profile:read` | UID, display name, handle and bio |
+
+Tokens cannot post in the community, change sign-in details, delete the account or manage other tokens.
+
+| Step | Where it runs |
+| --- | --- |
+| Create a token | Haneoka account settings |
+| Read cards and bonuses | `GET /api/v1/team-data/{server}` |
+| Compute teams | The caller's browser, in a Web Worker |
+
+## Create a token
+
+1. Sign in at [haneoka.org](https://haneoka.org) and open **Account → Sign-in & security**.
+2. Under **API tokens**, enter a name, choose 30 days, 90 days or 1 year, and tick only the permissions the tool needs.
+3. Copy the value. It starts with `hnk_` and is shown once.
+
+An account can hold 10 live tokens. Revoking one in the same list takes effect immediately, and tokens stop working if the account is restricted or deleted.
+
+Treat a token like a password. Have each user paste their own token into your tool, keep it on their device, and never commit it or put it in a URL.
+
+## Check a token
+
+```sh
+curl -H "Authorization: Bearer $HANEOKA_TOKEN" https://haneoka.org/api/v1/open/me
+```
+
+```json
+{
+  "token": { "name": "My tool", "expiresAt": 1801176000000, "scopes": ["team:read", "profile:read"] },
+  "profile": { "uid": 1024, "displayName": "Player", "handle": "player", "bio": null }
+}
+```
+
+`profile` is `null` without `profile:read`.
+
+## Read the box
+
+```sh
+curl -H "Authorization: Bearer $HANEOKA_TOKEN" \
+  https://haneoka.org/api/v1/team-data/intl
+```
+
+`server` is the catalog server: `jp` or `intl`. Any origin may call this route. Cookies are ignored, so the token is the only credential.
+
+```json
+{
+  "server": "intl",
+  "revision": 42,
+  "members": [
+    { "key": "m1", "cardId": 1, "level": 60, "awake": 2, "rank": 3,
+      "liveSkillLevel": 5, "gekisoSkillLevel": null }
+  ],
+  "snaps": [{ "key": "s1", "cardId": 1, "level": 40, "rank": 2 }],
+  "player": {
+    "characterRanks": { "1": 20 }, "characterTotalRank": null,
+    "bandItems": { "1": 3 }, "vipRank": null,
+    "characterMemory": {}, "musicMemory": {}
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `revision` | Box version. `0` means the user has no saved box on this server |
+| `members`, `snaps` | Cards the user marked as taking part, in engine input format |
+| `player` | Account-wide bonuses |
+| `teams` | Saved teams |
+| `null` growth | Not recorded. `unknownPolicy` decides how the engine fills it |
+
+## Compute teams
+
+`fetchTeamData` reads the data and `createTeamBuilder` loads the engine. Everything after the read happens locally.
+
+```js
+import { createTeamBuilder, fetchTeamData } from "https://haneoka.org/tools/team-builder.js";
+
+const server = "intl";
+const { members, snaps, player } = await fetchTeamData({ server, token });
+const engine = await createTeamBuilder({ server, maxWorkers: navigator.hardwareConcurrency });
+try {
+  const result = await engine.run({
+    members, snaps, player,
+    unknownPolicy: "min",
+    goal: { kind: "power", song: null, challengeEventId: null },
+    constraints: { requiredMembers: [], excludedMembers: [], requiredSnaps: [],
+      excludedSnaps: [], leader: null, bindings: [], noSnaps: false, minBonusPercent: null },
+    k: 5, timeLimitMs: 10000,
+  });
+  console.log(result.overall, result.stopReason);
+} finally {
+  engine.dispose();
+}
+```
+
+Goals, constraints and results are covered in [Run calculations on your device](/guides/local-computation/). From a script without a browser, send the same data to the local HTTP service described there.
+
+## Change the box
+
+Send up to 4000 changes with `team:write`. A `null` value clears a key. The website picks them up on its next sync.
+
+```sh
+curl -X POST -H "Authorization: Bearer $HANEOKA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"changes":[{"key":"m.1.own","value":true},{"key":"m.1.lvl","value":60}]}' \
+  https://haneoka.org/api/v1/team-data/intl
+```
+
+```json
+{ "revision": 43, "changed": 2 }
+```
+
+| Key | Value |
+| --- | --- |
+| `m.<card>.own`, `s.<card>.own` | Owned member or snap |
+| `m.<card>.use`, `s.<card>.use` | Takes part in searches |
+| `m.<card>.lvl`, `awk`, `rnk`, `sk`, `gsk` | Level, training, awakening, live skill, gekiso skill |
+| `s.<card>.lvl`, `rnk` | Snap level and limit break |
+| `cr.<character>`, `cm.<character>`, `mm.<song>`, `bi.<item>` | Character rank, character memory, song memory, band item |
+| `p.vip` | VIP rank |
+
+## Game accounts and gacha history
+
+```http
+GET /api/v1/open/game-accounts
+GET /api/v1/open/gacha-history
+GET /api/v1/open/gacha-history/{accountKey}
+```
+
+The list returns one `accountKey` per game account. The full history adds `histories`.
+
+## Errors
+
+| Status | Code | Fix |
+| --- | --- | --- |
+| `401` | `invalid_token` | The token is missing, revoked or expired. Create a new one |
+| `403` | `account_restricted` | The account is restricted or deleted |
+| `403` | `insufficient_scope` | Create a token with the named permission |
+| `413` | `box_too_large` | The box limit was reached |
+| `422` | `invalid_changes` | Check the keys and values |
+| `404` | `server_not_found` | Use `jp` or `intl` |
+| `429` | `rate_limit_exceeded` | Wait and retry |
+
+Credit Haneoka in your tool. The handle returned by `createTeamBuilder` carries the text and link in `attribution`.

@@ -1,0 +1,66 @@
+---
+title: ゲーム記録
+description: Haneoka が公式から収集したランキング、激奏アリーナ、プレイヤー情報。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+ゲーム記録は公式ゲームのスナップショットで、Haneoka のアカウントプールが収集します。読み取りはすべて公開で、キーは不要です。
+
+各地域は別々のゲームサーバーなので、リクエストには **region** を使います。
+
+| region | サーバー |
+| --- | --- |
+| `jp` | JP |
+| `tw` | TW/HK/MO |
+| `en` | EN Regions |
+| `kr` | KR |
+
+`tw`、`en`、`kr` はいずれも Global カタログを共有します。
+
+## 保留中の応答
+
+データは保存済みスナップショットから読むため、リクエストがゲームを待つことはありません。未収集の場合はキューに入れ `503` を返します。
+
+```json
+{ "error": { "kind": "pending", "retryAfter": 30 } }
+```
+
+`retryAfter` 秒待ってから同じリクエストを送ってください。多くは数分以内に完了します。
+
+## 現在のイベント
+
+開催中のイベント、期間、ランキングの種類。イベントがないときは `event` が `null` です。
+
+<ApiTry path="/api/v1/game/records/{region}/events/current" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }]} locale="ja" />
+
+## イベントランキング
+
+総合ランキングまたは課題曲ランキングの上位 100 名と編成。
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/total/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ja" />
+
+## 楽曲ランキング
+
+1 曲の上位 100 名。
+
+<ApiTry path="/api/v1/game/records/{region}/songs/{musicId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "musicId", value: "100007" }]} locale="ja" />
+
+## 激奏アリーナ
+
+リーグのランキングを 100 行ずつ。`bandId` はリーグのバンド、`start` は順位です。
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "start", value: "1" }]} locale="ja" />
+
+## プレイヤー
+
+ゲーム内に表示される ID で公開プロフィールを読みます。
+
+<ApiTry path="/api/v1/game/records/{region}/players/{profileId}" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "profileId", value: "59231009908" }]} image="profile.profileCard.thumbnailUrls.0" locale="ja" />
+
+初回は `pending` を返すことがあります。記録は 6 時間後に更新されます。
+
+## JavaScript で
+
+```json
+{ "error": { "kind": "pending", "retryAfter": 30 } }
+```

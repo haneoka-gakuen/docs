@@ -1,0 +1,172 @@
+---
+title: Catalog 資料
+description: 瀏覽當前 resource、entity、view、relation 和 batch。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+## 先使用直接路由
+
+普通應用使用讀取當前資料的短 URL：
+
+```http
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}?server=jp
+GET /api/v1/{resource}/{id}?server=jp
+```
+
+預設 server 是 `intl`。`server` query 用於選擇活動 server。這些路徑與 `/api/v1/servers/{server}/{resource}` 使用同一個 catalog handler；顯式形式用於同時需要 release 引數的 build 和 archive 工具。
+
+常見 resource name 包括 `songs`、`bands`、`characters`、`cards`、`stories`、`events`、`audio`、`videos` 和 `voices`。選定 catalog 才是權威來源，請使用它提供的 resource name、ID、view 和 relation，不要維護硬編碼列表。
+
+## 索引和實體
+
+試一試：選擇歌曲和伺服器。把 ID 換成索引裡的任意 `musicId`。
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100001" }]} query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-TW" />
+
+Index 請求返回 provider-shaped document。Collection resource 通常返回以 entity ID 為鍵的 object：
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs
+```
+
+```json
+{
+  "100001": {
+    "musicId": 100001,
+    "musicTitle": ["迷星叫", "Mayoiuta", "迷星叫", "迷星叫", "헤매는 노래"],
+    "bandId": 1,
+    "difficulty": [
+      { "difficulty": 0, "difficultyName": "easy", "displayLevel": 9, "noteCount": 342 }
+    ],
+    "jacketUrl": "/assets/intl/Assets/AddressableResources/Image/Jacket/jkt_001_100001.png",
+    "musicUrl": "/runtime/intl/cri/sound/musicscore/M_Mayoiuta/1_M_Mayoiuta.mp3"
+  }
+}
+```
+
+使用 key 讀取完整 entity：
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/songs/100001
+```
+
+Entity 可能比 index 專案包含更多欄位，例如本地化創作者、釋出日期、combo rewards、譜面路徑和 video IDs。保留未知欄位，並把 `null` 視為 source 當前沒有值。其他 resource 有自己的 shape；events document 使用 `entries` 和 `hasGameEvents`，而不是歌曲欄位。
+
+## 可選分頁
+
+Collection 和已宣告的 view 可透過 `limit` 獲取分頁 envelope。這項介面屬於準備釋出的 Worker 更新，採用時應同時部署對應客戶端。
+
+```http
+GET /api/v1/songs?server=intl&limit=20
+GET /api/v1/{resource}/views/{view}?server=intl&limit=20
+```
+
+```json
+{
+  "items": [{ "id": "100070", "value": { "musicId": 100070 } }],
+  "total": 84,
+  "limit": 20,
+  "nextCursor": "opaque-cursor-from-the-response",
+  "release": {
+    "schema": "haneoka-resource-release-identity-v1",
+    "server": "intl",
+    "releaseId": "r-0123456789abcdef0123",
+    "sourceId": "source-snapshot-id"
+  }
+}
+```
+
+示例縮略了實體欄位，實際條目與 count 來自所選 catalog。limit 為 1–100，僅傳 cursor 時預設 50。每次最多掃描 8 個實體分片，因此頁長可能小於 limit，空頁也可能仍有 nextCursor。只在 `nextCursor === null` 時結束。順序按分片和分片內 ID 字典序，不是遊戲順序或數字 ID 順序。
+
+用 URLSearchParams 原樣傳回 cursor。它固定第一頁 release，並繫結 server/resource/view；當前指標推進後仍繼續原快照。錯誤或不匹配的 cursor 返回 400 invalid_cursor，快照不可用返回 404 release_not_found；後者應重新讀取第一頁。只有有實體儲存的 collection/view 支援分頁。省略 limit/cursor 保留完整 index；id 批次不能與分頁混用。
+
+```js
+const scope = { server: "intl", limit: "20" };
+let cursor;
+do {
+  const query = new URLSearchParams(scope);
+  if (cursor) query.set("cursor", cursor);
+  const response = await fetch(`https://haneoka.org/api/v1/songs?${query}`);
+  if (!response.ok) throw new Error(`Catalog HTTP ${response.status}`);
+  const page = await response.json();
+  for (const { id, value } of page.items) console.log(id, value);
+  cursor = page.nextCursor;
+} while (cursor !== null);
+```
+
+[型別化客戶端](../client/) 提供 envelope 校驗與實體 decode。
+
+## 批次讀取
+
+<ApiTry path="/api/v1/songs?id=100001&id=100002" locale="zh-TW" />
+
+重複 `id` 讀取一組 entity：
+
+```bash
+curl --fail-with-body \
+  'https://haneoka.org/api/v1/songs?id=100001&id=100002&server=jp'
+```
+
+回應為：
+
+```json
+{
+  "items": {
+    "100001": { "musicId": 100001, "musicTitle": ["迷星叫", "Mayoiuta"] }
+  },
+  "missing": ["100002"]
+}
+```
+
+`items` 使用請求的 ID 作為 key；沒有 entity 的 ID 出現在 `missing`。提交 1–100 個 id 引數，去重前計算引數數量。API 會排序並去重 ID，以穩定快取。
+
+## 檢視和關係
+
+<ApiTry path="/api/v1/servers/{server}/catalog" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-TW" />
+
+Catalog manifest 會為 resource 宣告可選 view 和 relation。View 是有自己 index 和 entity shape 的命名 projection：
+
+```http
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/views/{view}?id={id}&id={id}
+```
+
+Relation 使用 resource、relation name 和 key：
+
+```http
+GET /api/v1/{resource}/relations/{relation}/{key}
+```
+
+Manifest 中的 `valueMode` 說明結果。`ids` relation 會展開為以 ID 為鍵的 canonical entity；`records` relation 直接返回 provider record。已宣告但沒有值的 relation key 返回 `{}`。
+
+需要這些名稱時讀取所選 server 的 manifest：
+
+```bash
+curl --fail-with-body https://haneoka.org/api/v1/servers/intl/catalog
+```
+
+Manifest 描述 resource `kind`、count、index path、entity store、view path 與 shape、relation name 和 dependencies。Storage 欄位適合 crawler；普通應用可以繼續使用直接路由。
+
+## 對呼叫方有用的欄位語義
+
+| 欄位模式 | 使用方式 |
+| --- | --- |
+| `musicTitle`、`bandName` 等本地化陣列 | 選擇檔案規定的 locale 位置，值為空時提供 fallback；保留陣列以支援之後切換 locale。 |
+| `*Url` 和 `file` path | 以 `https://haneoka.org` 為基準解析，需要二進位制時傳送到對應 media 或 game-client 路由。 |
+| Difficulty record | 分別讀取 `difficultyName`、`displayLevel`、`playLevel`、`sortLevel` 和 `noteCount`，保留 chart `file` path。 |
+| `musicId`、`bandId`、`videoIds` 等 ID | 保留 source 的數字或字串型別；ID 規則由 resource 定義。 |
+| `null` | Source 當前沒有值，不要轉換為空字串。 |
+
+## 高階顯式形式
+
+Server-scoped 請求使用：
+
+```http
+GET /api/v1/servers/{server}/{resource}
+GET /api/v1/servers/{server}/{resource}/{id}
+```
+
+只有可重現 build 或 archive 需要固定 catalog 時，才新增 `release=r-<20 lowercase hex characters>`。[高階伺服器介面](../releases/) 介紹 release、source、media 和 storage surface。

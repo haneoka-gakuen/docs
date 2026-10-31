@@ -1,0 +1,25 @@
+---
+title: 검색
+description: 카탈로그를 모든 언어로 전문 검색합니다.
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+한 카탈로그 서버의 곡, 카드, 캐릭터, 이벤트, 모집, 스토리, 아이템을 검색합니다. 검색어는 모든 언어에 일치하므로 `千早爱音`, `千早愛音`, `Anon Chihaya`는 같은 캐릭터를 찾습니다.
+
+<ApiTry path="/api/v1/search" query={[{ name: "q", value: "千早爱音" }, { name: "server", value: "jp", options: ["jp", "intl"] }, { name: "locale", value: "zh-CN", options: ["ja", "en", "zh-TW", "zh-CN", "ko"] }, { name: "limit", value: "5" }]} image="hits.0.image" locale="ko" />
+
+## 매개변수
+
+| 이름 | 필수 | 의미 |
+| --- | --- | --- |
+| `q` | 예 | 검색어 (200자 이내) |
+| `server` | 예 | `jp` 또는 `intl` |
+| `locale` | 예 | 반환할 제목의 언어 |
+| `section` | 아니요 | `catalog` 또는 `stories` |
+| `kind` | 아니요 | `kinds` 중 한 종류 |
+| `limit` | 아니요 | 1–50, 기본값 20 |
+| `offset` | 아니요 | 0–1000 |
+
+커뮤니티 게시글은 보는 사람에 따라 내용이 달라 포함되지 않습니다.
+
+`503`은 색인이 준비되지 않았다는 뜻입니다. 나중에 다시 시도하세요.

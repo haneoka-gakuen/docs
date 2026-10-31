@@ -1,0 +1,359 @@
+---
+title: Cassiopeia 譜面嵌入
+description: 使用本站或自帶譜面、音訊和素材建立獨立播放器。
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+import DocsDisclosure from "../../../../components/DocsDisclosure.astro";
+
+[完整示例 chart.json](/examples/chart.json)引用的[原創音訊 original-tone.wav](/examples/original-tone.wav)已提供。下載後保持這兩個檔案相鄰；頁面原創示例的簡圖由示例 rendererAdapter 繪製，使用遊戲主題的入口見下文字站譜面。
+
+
+`mountChart` 預設組合 Cassiopeia kernel、Vue ChartPlayer、Our Notes plugin、Three renderer 和 Web 音訊/輸入宿主。它擁有掛載 DOM、媒體、input、renderer 與資料 loader。自定義 renderer 可沿用 kernel/Web host 並呈現作者自己的圖形。候選產物安裝與 CDN 方法見 [JavaScript 嵌入](../)。
+
+## 1. 儲存一個完整可執行播放器
+
+將[完整 watch HTML](/examples/chart-watch-zh.html)另存為 `index.html`，再把 [chart.json](/examples/chart.json)和[original-tone.wav](/examples/original-tone.wav)儲存到同一個資料夾。JSON 是完整的八秒原創 ChartEmbedDocument，WAV 是音量較低的原創測試音。
+
+```text
+my-chart/
+  index.html
+  chart.json
+  original-tone.wav
+```
+
+在 `my-chart` 資料夾中開啟終端，執行 `python3 -m http.server 8000`（Windows 用 `py -m http.server 8000`），再開啟 [http://localhost:8000/](http://localhost:8000/)。Python 安裝和編輯器 HTTP 預覽方法見[快速開始](/zh-tw/quickstart/)。完成後在終端按 Ctrl+C 關閉服務。
+
+點選**載入我的 chart.json**，等待**已就緒**，再點**播放**。你會看見原創示例的音符以預設遊戲畫面呈現，測試音提供實際媒體時鐘。**暫停**停止播放，進度滑塊按秒跳轉。**關閉播放器**停止媒體並移除畫面，之後可以重新載入。載入或播放失敗會在畫面上方顯示原因，修正檔案或連線後重試。
+
+託管模組提供預設播放器和配套樣式；模組與公開畫面素材需要聯網，自己的 JSON 和 WAV 則由本地 HTTP 提供。初始例子關閉按鍵音效，配樂仍正常播放。
+
+<DocsDisclosure title="完整 index.html：全部複製到一個檔案">
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>觀看 Cassiopeia 譜面</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input,select{font:inherit}button{min-height:48px;margin:.25rem;padding:.5rem 1rem}label{display:block;margin:.5rem 0}#stage{height:min(70vh,640px);min-height:320px;position:relative}#progress{width:100%}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p><h1>觀看 Cassiopeia 譜面</h1>
+<p>將 chart.json 和 original-tone.wav 放在此 HTML 旁邊，即可載入八秒原創示例。</p>
+<button id="load-example">載入我的 chart.json</button>
+<label>本站歌曲 ID <input id="song-id" value="100070"></label>
+<label>難度 <select id="difficulty"><option>easy</option><option>normal</option><option>hard</option><option selected>expert</option><option>special</option><option>master</option></select></label>
+<button id="load-game">載入本站歌曲</button><button id="cancel" disabled>取消載入</button><button id="close">關閉播放器</button>
+<p id="status" role="status" aria-live="polite">選擇來源後點選載入。</p>
+<button id="play" disabled>播放</button><button id="pause" disabled>暫停</button>
+<label>播放位置 <input id="progress" type="range" min="0" max="0" step="0.1" value="0" disabled><output id="time">0.0 / 0.0 s</output></label>
+<div id="stage"></div>
+<link rel="stylesheet" href="https://docs.haneoka.org/examples/disclosure.css">
+<section class="docs-disclosure" data-docs-disclosure>
+<button id="state-trigger" class="docs-disclosure__trigger" type="button" aria-expanded="false" aria-controls="state-panel" data-docs-disclosure-trigger disabled><span>當前播放器狀態</span><svg class="docs-disclosure__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" /></svg></button>
+<div id="state-panel" class="docs-disclosure__panel" role="region" aria-labelledby="state-trigger" data-docs-disclosure-panel hidden><pre id="output"></pre></div>
+</section>
+<script defer src="https://docs.haneoka.org/examples/disclosure.js"></script>
+<script type="module">
+const by = id => document.getElementById(id);
+let player, controller, generation = 0;
+function controls(ready) { for (const id of ["play", "pause", "progress"]) by(id).disabled = !ready; }
+function loading(value) { for (const id of ["load-example", "load-game"]) by(id).disabled = value; by("cancel").disabled = !value; }
+function refresh() {
+  if (!player) return;
+  const state = player.snapshot;
+  by("progress").max = String(state.duration || 0);
+  if (document.activeElement !== by("progress")) by("progress").value = String(state.time || 0);
+  by("time").textContent = `${(state.time || 0).toFixed(1)} / ${(state.duration || 0).toFixed(1)} s`;
+  by("output").textContent = JSON.stringify(state, null, 2);
+}
+async function dispose() {
+  ++generation; controller?.abort(); controls(false);
+  const old = player; player = undefined; await old?.dispose();
+}
+async function load(game) {
+  loading(true); const current = ++generation;
+  const old = player; player = undefined; controller?.abort(); controls(false);
+  try {
+    await old?.dispose(); if (current !== generation) return;
+    controller = new AbortController(); const signal = controller.signal;
+    by("status").textContent = "正在載入譜面與畫面素材…"; by("output").textContent = "";
+    const [sdk, core] = await Promise.all([
+      import("https://haneoka.org/embed/cassiopeia.js"),
+      import("https://haneoka.org/embed/core.js"),
+    ]);
+    signal.throwIfAborted(); if (current !== generation) return;
+    const songId = by("song-id").value.trim();
+    if (game && !songId) throw new Error("先填寫歌曲 ID。");
+    const source = game
+      ? sdk.haneokaChartSource({ songId, difficulty: by("difficulty").value })
+      : core.httpDataSource({ url: new URL("./chart.json", location.href).href });
+    player = sdk.mountChart(by("stage"), {
+      source, theme: sdk.haneokaChartTheme(), server: "intl", locale: document.documentElement.lang,
+      mode: "watch", volume: 0.3, rate: 1, noteSoundEnabled: false,
+      skin: { noteSkin: "skin001", noteEffectSkin: "effect001", currentQuality: 2, noteSeGroup: 1 },
+      signal, loadTimeoutMs: 45000,
+      onEvent(event) {
+        if (current !== generation) return;
+        if (event.type === "state" || event.type === "player") refresh();
+        if (event.type === "error") by("status").textContent = String(event.error?.message ?? event.error);
+      },
+    });
+    await player.ready; signal.throwIfAborted(); if (current !== generation) return;
+    controls(true); refresh(); by("status").textContent = "已就緒，點選播放。";
+  } catch (error) {
+    if (current === generation) {
+      const failed = player; player = undefined; controls(false);
+      await failed?.dispose().catch(() => {});
+      if (current === generation) by("status").textContent = `操作失敗： ${error.message}`;
+    }
+  } finally { if (current === generation) loading(false); }
+}
+async function action(operation, label) {
+  const active = player, current = generation;
+  try {
+    if (!active) throw new Error("先載入譜面。");
+    await operation(active);
+    if (current === generation && player === active) { refresh(); by("status").textContent = label; }
+  } catch (error) { if (current === generation) by("status").textContent = `操作失敗： ${error.message}`; }
+}
+by("load-example").onclick = () => { void load(false); };
+by("load-game").onclick = () => { void load(true); };
+by("play").onclick = () => { void action(active => active.play(), "播放中"); };
+by("pause").onclick = () => { void action(active => active.pause(), "已暫停"); };
+by("progress").onchange = () => { void action(active => active.seek(Number(by("progress").value)), "播放位置已改變。"); };
+by("cancel").onclick = () => { controller?.abort(); player?.cancel(); };
+by("close").onclick = async () => {
+  by("close").disabled = true; const current = generation + 1;
+  try { await dispose(); if (current !== generation) return; by("status").textContent = "播放器已關閉，可以再次載入。"; }
+  catch (error) { by("status").textContent = `操作失敗： ${error.message}`; }
+  finally { if (current === generation) { loading(false); by("close").disabled = false; by("output").textContent = ""; by("progress").value = "0"; by("time").textContent = "0.0 / 0.0 s"; } }
+};
+window.addEventListener("pagehide", () => { void dispose().catch(() => {}); }, { once: true });
+</script></html>
+```
+
+</DocsDisclosure>
+
+## 2. 載入本站真實歌曲
+
+在同一網頁中保持歌曲 ID `100070`、難度 `expert`，點選**載入本站歌曲**。等**已就緒**後點**播放**。source 讀取當前歌曲，解析它返回的譜面檔案，使用返回的配樂 URL。其他歌曲 ID 可以從[API 入門示例](/examples/api-start-zh.html)取得；歌曲必須實際提供所選難度。換來源前先關閉當前播放器。
+
+資料 source 和畫面 theme 是兩個獨立 factory。完整 HTML 使用公開瀏覽器入口：
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/cassiopeia.js";
+const chart = mountChart(container, {
+  source: haneokaChartSource({ songId: "100070", difficulty: "expert" }),
+  theme: haneokaChartTheme(), server: "intl", locale: "zh-CN", mode: "watch",
+});
+await chart.ready;
+// 播放按鈕中呼叫 await chart.play()；元件關閉時 await chart.dispose()。
+```
+
+這段展示接入點；上面的完整 HTML 已提供 container、按鈕、載入狀態、取消、錯誤和清理。它使用輕量素材 quality 2，伺服器與文字語言獨立，無需帳號或 release ID。
+
+## 3. 每次只改變一個引數
+
+在完整 HTML 的 `mountChart` 引數中，把 `volume: 0.3` 改為 0–1 的音量，或把 `rate: 1` 改為 `0.8`，重新整理網頁後重新載入。`mode: "watch"` 在點選播放後自動演奏；`mode: "play"` 開啟手動譜面輸入。加入 `settings: { noteSpeed: 9 }` 可以調整滾動速度。後面的引數、skin、settings、source 和 handle 表保留完整公開預設值、範圍和限制。自帶 JSON 使用標準 ChartDocument；其他遊戲的原始譜面應先透過其 parser/converter 轉換。
+
+後文包匯入供已有打包應用參考，npm 釋出另行進行。最初的普通 HTML 使用上述託管 ESM；打包應用單獨 import `@haneoka/embed-cassiopeia/style.css`，官方 facade 會掛載匹配樣式，並在最後一個例項銷燬時移除。
+
+## 自帶譜面與音訊
+
+`ChartEmbedDocument` 包含 `chart`，可選 `audio`、`background`、`bgmOffsetMs` 和 `assets`。chart 使用公開 `ChartDocument` 欄位：version、bpmChanges、signatureChanges、timeScaleChanges、notes、lines、timeline、durationMs。選擇 document 或 source 其中一個。
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "musique/été.wav", bgmOffsetMs: 250 },
+  assetsBase: "https://my.example/project/",
+  theme: haneokaChartTheme(),
+  locale: "fr-CA",
+  labels: { player: "Partition", pause: "Pause", loading: "Chargement" },
+});
+await handle.ready;
+```
+
+`myChartDocument` 是呼叫方實際準備的標準譜面。音訊為時鐘：`seek(seconds)` 使用媒體/呈現秒數，譜面時間減去 bgmOffsetMs，正偏移產生前導。沒有音訊時為暫停視覺預覽。
+
+HTTP 透過 `httpDataSource({url,decode})`，本地透過 `fileDataSource(jsonFile)` 與 `fileResourceResolver(Map)`。作者可使用單語言和 Unicode 素材名。原生 theme 自己還請求公開 API/素材；嚴格本地 Map 應讓合法的公開絕對路徑透過，或提供完整自帶 theme。自帶素材可用 `document.assets: OurNotesAssetManifest` 或 `theme({loader,signal,skin})` factory。
+
+## 自定義圖形
+
+```js
+const handle = mountChart(element, {
+  document: { chart: myChartDocument, audio: "audio.ogg" },
+  assetsBase: "https://my.example/project/",
+  rendererAdapter: {
+    async create({ element, chart, loader, signal }) {
+      const canvas = document.createElement("canvas");
+      element.append(canvas);
+      const context = canvas.getContext("2d");
+      const artwork = await loader.resourceUrl("notes.svg", { signal });
+      return {
+        render(snapshot, options) { drawMyChart(context, chart, snapshot, options, artwork); },
+        resize(width, height, ratio) { canvas.width = width * ratio; canvas.height = height * ratio; },
+        dispose() { canvas.remove(); },
+      };
+    },
+  },
+});
+```
+
+`drawMyChart` 由作者實現。adapter 路徑載入 kernel/Web host；自己的 render、resize、dispose 負責圖形與 SE。可選 `laneAtClientPoint(x,y)` 返回 0–23 連續原生 lane，外部為 -1，以接收 play-mode input。`createSession` 為另一個源遊戲提供自己的規則；預設使用當前 Cassiopeia session。
+
+## 控制、事件和銷燬
+
+```js
+await chart.setOptions({ rate: 0.8, volume: 0.6, noteSoundVolume: 0.4, settings: { noteSpeed: 9 } });
+await chart.setSkin({ noteSkin: "skin003", noteEffectSkin: "effect001Simple", noteSeGroup: 4 });
+chart.seek(12);
+await chart.play();
+chart.pause();
+await chart.dispose();
+```
+
+`play`、`setOptions`、`setSkin`、`dispose` 返回 Promise，pause/seek 同步。ready 表示視覺初始化，不表示媒體完整下載；在使用者點選後呼叫 play 以解鎖音訊。預設 theme 更換皮膚時在當前媒體位置重新構建並暫停。skin001/002/003 為 Our Notes/Garupa/Honeycomb，effect001/effect001Simple 為效果版本，SE 組 1–4 為 Our Notes/Solid/Wood/Typing。
+
+`loadTimeoutMs` 預設 30000，只覆蓋構造。cancel 和外部 signal 終止 handle；dispose 冪等，載入中也能呼叫，拆除 DOM、停音訊並釋放 loader URL。重試先銷燬再掛載。snapshot 提供 phase、playing、time、duration。
+
+onEvent/subscribe 提供 load、state、player、error，load 保留 core 每個資源的進度，player 將既有播放器事件及引數轉交宿主。subscribe 返回取消監聽函式，監聽錯誤與操作結果隔離。
+
+## 跨域與靜態分發
+
+`assetsBase` 解析作者資料資源；theme 的 `apiBase`/`publicBase` 獨立指定公開 API/原素材根。core 預設 cors/omit，可配置 fetcher、headers、credentials 與每項預設 64 MiB 預算。預設播放器的媒體/貼圖/SE 使用既有原生載入器及 anonymous CORS，未經過注入 fetcher/private headers；私人素材可由宿主供應可訪問 URL 或 Blob。
+
+把全部延遲 chunk 與模組一起釋出，單獨連結 style.css。本站影象消費在外站遇到 Referer 403 時，可讓資料傳輸使用 `new Request(request,{referrerPolicy:"no-referrer"})`；原生貼圖/音訊請求仍由其載入器控制，需按部署的 origin/載入方式確認訪問。CSP 應允許模組、素材、媒體以及使用的 blob URL。
+
+宿主沿用已有 Material 控制元件和載入狀態，保持舞臺尺寸及觸控按鈕。Cassiopeia 預設顯示原圖示與Haneoka連結，圖示半透明懸浮，畫面保持全尺寸，dispose自動清理；作者素材保持原許可。
+
+
+
+## 本頁實際譜面應用
+
+預設八秒原創ChartDocument、輕音量WAV Blob和作者Canvas adapter，透過真實Cassiopeia session/MediaClock驅動。它展示作者整合，不冒充遊戲皮膚。HTTP讀取[實際譜面JSON](/examples/chart.json)，file用你選的File；本站模式改用真實song source/native theme。修改options後載入，再play/pause/seek/setOptions，預設theme支援setSkin。
+
+<DemoPlayer kind="chart" locale="zh-TW" />
+
+點選才import/create，同頁另一個例項先dispose。input/publicSource/nativeTheme/url為示例欄位，會轉成真實factory；callback不能寫JSON，實際adapter在原始碼連結中。五語顯示另保留作者locale輸入。
+
+```js
+import { mountChart, haneokaChartSource, haneokaChartTheme } from "https://haneoka.org/embed/r-22bfe102f7deb73f/cassiopeia.js";
+const chart = mountChart(element, { source: haneokaChartSource({songId:"100070",difficulty:"expert"}), theme:haneokaChartTheme(), server:"intl",locale:"en",mode:"watch" });
+await chart.ready;
+await chart.play(); // 使用者按鈕
+await chart.dispose();
+```
+
+實際示例使用穩定官方alias。官方facade在mount注入原包CSS、最後dispose移除；包/bundler方式單獨import style.css。r22沒有nonce引數，後續nonce介面需取該版本真實receipt/interface。CDN檔案為部署build輸出，倉庫保留原始碼。
+
+使用本地音樂創作可編輯音符，見[譜面創作器教程](../../creation/chart-editor/)。其 Project JSON 和帶音訊備份與下面的播放 ChartDocument 分別使用對應入口。
+
+## mountChart 完整引數
+
+container必填瀏覽器HTMLElement且有效尺寸，非法TypeError、同容器重複Error。runtime嚴格source/document二選一，否則TypeError。預設composition還需theme或document.assets，自帶renderer管理自己的圖形。
+
+| 欄位 | 型別/預設 | 作用/錯誤/組合 |
+| --- | --- | --- |
+| document | ChartEmbedDocument，替代source必填 | notes/lines array和finite durationMs，非法ready TypeError。 |
+| source | DataSource&lt;ChartEmbedDocument&gt;，替代document必填 | memory/http/file/custom，load失敗拒絕ready。 |
+| server | string/undefined，本站intl | registry，與locale獨立。 |
+| locale | string/en | 作者/UI語言。 |
+| assetsBase | 可選HTTP(S)目錄/sourcebase | 無query/fragment，非法TypeError。 |
+| resolveResource | (key,DataContext)=&gt;URL/string/Blob/Promise | literal鍵，預設原key；缺資源失敗。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt;，fetch | core/nativebytes；公開Haneoka assets/runtime/embed no-referrer，作者/API保留策略；音樂獨立anonymous CORS。 |
+| credentials | omit/same-origin/include，omit | core傳輸，需要origin/credential允許。 |
+| headers | HeadersInit，無 | core頭，音樂不繼承私有header。 |
+| maxBytes | 正safe integer/67108864 | 每decodedresponse，非法RangeError；URL/媒體元素另計。 |
+| onListenerError | (unknown)=&gt;void，可選 | observer隔離。 |
+| theme | (ChartThemeContext)=&gt;manifest或Promise，可選 | 預設呈現，優先於document.assets；factory失敗拒絕construct，setSkin需要。 |
+| skin | ChartSkin/\{\} | 下表四欄位；作者renderer不消費native皮膚。 |
+| rendererAdapter | ChartRendererAdapter，可選 | 選kernel/Webhost作者呈現，自己擁有SE。 |
+| createSession | (chart,playbackOptions)=&gt;CassiopeiaSessionPort，可選 | 作者renderer替代規則，預設ChartSession；不傳給預設Vue driver。 |
+| signal | AbortSignal，可選 | 終止handle，ready後也適用。 |
+| loadTimeoutMs | 正safe integer/30000 | 檔案與每構造階段期限，不是player生命週期；非法RangeError/超時TimeoutError。 |
+| labels | \{player?,pause?,loading?\} | 可選string，預設Chart player/Pause/Loading，僅預設Vue。 |
+| onEvent | (ChartEmbedEvent)=&gt;void，可選 | 載入前登記。 |
+| mode | chart/watch/play，watch | 預覽/自動/手動input，變更沿driver reset/pause。 |
+| settings | Partial&lt;RenderSettings&gt;+judgementOffsetMs，\{\} | 下表完整；setOptions合併。 |
+| volume | number/.8 | 0–1，初始media超界拒絕，更新clamp，需finite。 |
+| rate | number/1 | 正數規範化 .25–4；非法/非正用fallback。 |
+| loop | boolean/false | 音樂loop。 |
+| noteSoundEnabled | boolean/true | 預設SE，作者renderer自管SE。 |
+| noteSoundVolume | number/.7 | 預設SE gain，使用finite0–1。 |
+
+core共同引數見[core](../core/)。無autoplay，ready後使用者操作play；construct deadline按階段，不表示ready已下載完整音樂。
+
+## skin、labels 和 factory 全部欄位
+
+| skin | 取值/本站預設 | 含義 |
+| --- | --- | --- |
+| noteSkin | skin001/002/003，001 | Our Notes/Garupa/Honeycomb。 |
+| noteEffectSkin | effect001/effect001Simple，前者 | native效果。 |
+| noteSeGroup |1–4，1 | Our Notes/Solid/Wood/Typing。 |
+| currentQuality |0/1/2，2 | high/middle/low素材，與graphicsQuality獨立。 |
+
+typed union由theme解析，壞/缺素材拒絕構造。labels.player/pause/loading全為可選string，不選擇server或語言。
+
+haneokaChartSource(\{songId,difficulty,apiBase?\})的前兩項必填，difficulty為easy/normal/hard/expert/special/master且該曲提供；apiBase 預設 `https://haneoka.org/api/v1/`。讀取返回譜面file並parse/build，再用musicUrl；缺difficulty Error，data/budget/parser保留原因。server從mount。
+
+haneokaChartTheme(\{apiBase?,publicBase?,server?\}=\{\})：API預設上述root，publicBase預設其origin根，server override預設loader.server→intl；與作者assetsBase獨立。真實descriptor缺失/歧義Error。ChartThemeContext完整為loader、signal、skin；可以按signal讀loader bytes並返回manifest。
+
+## settings 全部欄位
+
+以下是public OurNotes外掛RenderSettings預設，mount本身只給partial\{\}；固定舊SDK仍保留其plugin版本。未被mount顯式校驗的項原樣傳遞，使用finite和建議區間，不偽稱SDK逐項驗證。
+
+| 欄位 | 型別/預設 | 呈現/規範化 |
+| --- | --- | --- |
+| noteSpeed | number/5 | scroll速度。 |
+| noteSpeedCurve | number/1.30999994 | offset curve常量。 |
+| mirror | boolean/false | 原24lane映象。 |
+| effects | boolean/true | note效果。 |
+| noteSize | number/1 | .1–2 clamp。 |
+| longAlpha | number/.6 | .1–1。 |
+| guideAlpha | number/.6 | .1–1。 |
+| graphicsQuality | number/1 | 原0/1/2高/中/低。 |
+| guidelineCount | number/6 | lane分隔。 |
+| guidelineOpacity | number/.25 | 建議0–1 alpha。 |
+| laneOpacity | number/.8 | 建議0–1。 |
+| showJudgementLine | boolean/false | 判定線。 |
+| showSimultaneousLine | boolean/true | 同時線。 |
+| showEaseNote | boolean/false | ease/critical強調。 |
+| backgroundBrightness | number/.7 | 建議0–1。 |
+| judgeResultPosition | center/lane/none，center | 位置。 |
+| noteOverlapLaneBuffer | number/0 | 判定lane buffer。 |
+| showFastSlow | boolean/true | 時機提示。 |
+| showPerfectFastSlow | boolean/true | 包括Perfect。 |
+| showJudgeOffsetMs | boolean/false | ms顯示。 |
+| alwaysShowFastSlow | boolean/false | 常駐偏好。 |
+| scoreRankScores | readonly number[]/無 | C/B/A/S/SS閾值。 |
+| judgementOffsetMs | number/0 | ms session offset，作者adapter用setOffset更新。 |
+
+## 完整document/renderer介面
+
+ChartEmbedDocument.chart必填；audio/background?:string預設無，資源key/URL；bgmOffsetMs?:number預設0，chartTime=mediaMs-offset；assets?:OurNotesAssetManifest在無theme時提供預設圖形，rendererAdapter可省略；無audio為暫停預覽。
+
+ChartDocument root必填欄位：version、bpmChanges、signatureChanges、timeScaleChanges、notes、lines、timeline、durationMs。BPM行tick/beat/timeMs/bpm；signature行tick/beat/timeMs/numerator/denominator；scale行timeMs/scale；timeline skills行index/tick/timeMs，fever行index/startTick/endTick/startTimeMs/endTimeMs，callChanges行index/tick/timeMs/rhythms。line為id/kind:long或guide/critical/noteIds。
+
+note全部欄位：id/tick/timeMs/beat/pos/size/laneX/width；operateType/judgementType/judgementAreaOffsetType/direction；critical/judged/visible；lineIds；slideAlong；indexInLine:number/null；easeL/easeR:enum/null。使用公共converter/enums，原創例子包含全部必填。
+
+native manifest root為id、source\{game,noteSkin,laneSkin,noteEffectSkin,authoredProfile\}、liveQuality\{quality,effectRenderingScale,backgroundCameraFps,live2dFps\}、noteAtlas、arrowGradient?、lane、particles、slideLineStyle、hud、tmpSdfFont?、noteSeGroup、noteSounds、palette、tiltThresholds[\{distance,value\}]。它是provider DTO；sprite/particle/audio詳細descriptor見[完整公開schema](https://github.com/haneoka-gakuen/cassiopeia-plugin-our-notes/blob/main/src/assets/manifest.ts)，資源交給loader。
+
+rendererAdapter.create(\{element,chart,loader,signal\})同步/Promise返回render(snapshot,options)、resize(width,height,pixelRatio)、dispose()、可選laneAtClientPoint(clientX,clientY)。snapshot複用，只在當次消費；lane連續0–23或外部-1。作者adapter用真實MediaClock/input/session；createSession可以提供自己的publicsession規則，遵循reset/update/input/finish。
+
+## handle/events 全部成員
+
+| 成員 | 簽名 | 生命週期/錯誤 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | 視覺準備，requiredSE失敗拒絕，音訊可還buffer。 |
+| snapshot | phase/playing/time/duration | phase為loading/ready/cancelled/error/disposed，秒。 |
+| play | ()=&gt;Promise&lt;void&gt; | 需ready，返回瀏覽器audio拒絕。 |
+| pause | ()=&gt;void | 需ready，state暫停。 |
+| seek | (seconds)=&gt;void | finite非負否則RangeError，已知durationclamp，需ready。 |
+| setOptions | ChartPlaybackOptions=&gt;Promise&lt;void&gt; | partialsettings合併，其它交driver。 |
+| setSkin | ChartSkin=&gt;Promise&lt;void&gt; | ready+預設theme factory，作者/no factory Error；當前位置重建並暫停。 |
+| subscribe | listener=&gt;unsubscribe | 未來事件，disposed Error。 |
+| cancel | ()=&gt;void | boot/ready都終止，停止player/input/資源。 |
+| dispose | 共用Promise&lt;void&gt; | 冪等，包括loading；移DOM/fullscreen監聽，停media/renderer/revoke；失敗AggregateError。 |
+
+events為load\{event\}、state\{snapshot\}、player\{name,args\}、error\{error\}。預設轉發playing/media-playing/timeupdate/duration/judgement/skill/fever/callchange；timeupdate/duration為秒，judgement含note/judgement/timing/diffMs/judgedAtMs/combo/maxCombo/score/scoreDelta/life。observer異常由onListenerError隔離，source/transport/theme/decoder保留原Error，沒有新的錯誤envelope。同容器重新mount前先dispose。
+
+當前原始碼的署名背景透明，圖示透明度55%，48px角落觸控區域懸浮在完整畫面上。穩定alias隨匹配構建部署採用該行為；固定r22保留舊的預留行佈局，顯式固定舊版時以該版行為為準。

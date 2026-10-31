@@ -2,10 +2,13 @@
 title: 服务器与版本
 description: 选择活动 server，并为可重现 build 固定不可变 release。
 ---
+import ApiTry from "../../../../components/ApiTry.astro";
 
 本页介绍高级 server-scoped contract。普通消费者直接使用 `/api/v1/songs` 等 alias；省略 `server` 时，它们读取 `intl` 的当前数据。
 
-## 列出活动 server slug
+## 列出可用服务器
+
+<ApiTry path="/api/v1/releases" locale="zh-CN" />
 
 ```http
 GET /api/v1/releases
@@ -18,16 +21,16 @@ HEAD /api/v1/releases
 {
   "releases": [
     { "id": "intl", "displayName": "Global", "region": "global" },
-    { "id": "intl-cbt", "displayName": "Global CBT", "region": "global" },
-    { "id": "jp", "displayName": "Japan", "region": "jp" },
-    { "id": "jp-cbt", "displayName": "Japan CBT", "region": "jp" }
+    { "id": "jp", "displayName": "JP", "region": "jp" }
   ]
 }
 ```
 
 此响应中的 `id` 是 server slug，用于 `?server=` 和显式 server-scoped 路由的 `{server}`。当部署新增或停用 server 时，列表会变化。
 
-## 读取当前 release manifest
+## 读取当前 Release 清单
+
+<ApiTry path="/api/v1/servers/{server}/release" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} query={[{ name: "projection", value: "identity" }]} locale="zh-CN" />
 
 ```http
 GET /api/v1/servers/{server}/release

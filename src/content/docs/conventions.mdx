@@ -2,6 +2,7 @@
 title: Conventions
 description: URL, response, caching, authentication, and pagination rules shared by the API.
 ---
+import ApiTry from "../../components/ApiTry.astro";
 
 ## Base URL and current-data aliases
 
@@ -18,6 +19,10 @@ GET /api/v1/{resource}/relations/{relation}/{key}
 These routes use the current `intl` server by default. Add `?server=jp` or another slug from `GET /api/v1/releases` to select a different active server. The explicit `/api/v1/servers/{server}/...` form reaches the same catalog handler and adds the `release` option used by reproducible builds.
 
 `resource`, `id`, `view`, `relation`, and `key` are data-defined values. Read the catalog manifest or an index response before constructing a route. Top-level groups such as `releases`, `servers`, `account`, `me`, `community`, and `garupa` keep their own API routes and are not catalog resource names. URL-encode each dynamic segment; preserve `/` only where the documented route accepts a path.
+
+Try a direct route:
+
+<ApiTry path="/api/v1/bands" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} />
 
 ## JSON and fields
 

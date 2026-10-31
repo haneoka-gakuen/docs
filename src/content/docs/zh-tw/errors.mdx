@@ -1,0 +1,60 @@
+---
+title: 錯誤和重試
+description: 讀取結構化失敗並選擇安全的重試策略。
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+## 錯誤回應
+
+JSON API 失敗使用以下 envelope：
+
+```json
+{
+  "error": {
+    "code": "entity_not_found",
+    "message": "Catalog entity not found",
+    "requestId": "request-id-when-available"
+  }
+}
+```
+
+根據 HTTP status 和穩定的 `code` 分支。`message` 適合開發者和日誌，可隨服務改進而更具體；`requestId` 是可選欄位，報告服務故障時請保留。
+
+看一個真實錯誤：
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "1" }]} locale="zh-TW" />
+
+## Status 指南
+
+| Status | 含義 | 呼叫方操作 |
+| --- | --- | --- |
+| `400` | query、路由值、JSON 或 batch ID 無效 | 修正請求後再傳送。 |
+| `401` | 需要 session | 登入並攜帶瀏覽器憑據。 |
+| `403` | origin、驗證、帳號或許可權檢查失敗 | 修正請求上下文，或向使用者顯示所需操作。 |
+| `404` | server、resource、entity、view、relation 或檔案不存在 | 重新整理 catalog 或移除缺失專案。 |
+| `409` | 版本、冪等性或狀態衝突 | 重新讀取 resource，再基於最新版本修改。 |
+| `413` / `415` | body 過大或 media type 不支援 | 縮小 body 或使用宣告的 content type。 |
+| `422` | body 欄位驗證失敗 | 修正回應指出的欄位。 |
+| `429` | 達到速率限制或配額 | 遵守 `Retry-After`，並使用退避。 |
+| `500` | Worker 意外失敗 | 對冪等讀取使用退避重試。 |
+| `502` | upstream 或 provider projection 失敗 | 退避後重試，並保留 `X-Request-Id`。 |
+| `503` | database、catalog、identity 或 storage 不可用 | 對安全讀取使用退避重試。 |
+
+未知 error code 按不透明失敗處理；用 status 類別決定使用者介面行為。
+
+## 重試策略
+
+網路失敗、`408`、`429` 和臨時 `5xx` 後，`GET` 與 `HEAD` 可以安全重試。使用帶 jitter 的指數退避，遵守 `Retry-After`，並限制嘗試次數。重試 current alias 時重新讀取當前 catalog，因為重試成功時 catalog 可能已經更新。
+
+Mutation 需要介面專屬規則。只有介面定義了冪等性或操作明確可重複時才重試。Upload intent 要求 `Idempotency-Key`；使用同一個 key 傳送不同 metadata 會返回 `409 idempotency_conflict`。
+
+## 常見 catalog 失敗
+
+- `route_not_found`：頂層路徑不是公開 API 路由。
+- `server_not_found`：`server` query 值不是活動 server。
+- `resource_not_found`：所選 catalog 沒有該 resource。
+- `entity_not_found`：resource 存在，但請求的 ID 不存在。
+- `view_not_found` 或 `relation_not_found`：manifest 沒有宣告該 view 或 relation。
+- `release_not_found`：高階顯式請求使用了不可用的 release ID。
+
+直接 alias 使用當前資料，不需要 release ID。需要固定歷史 catalog 時，請閱讀[高階伺服器介面](/zh-tw/servers/releases/)。

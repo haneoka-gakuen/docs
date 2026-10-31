@@ -1,0 +1,32 @@
+---
+title: Haneoka 檔案
+description: BanG Dream! Our Notes 資料的公開 API、嵌入和工具。
+template: splash
+hero:
+  title: 用 Our Notes 資料構建
+  tagline: 樂曲、卡牌、故事、排行榜等內容，透過一個公開 API 獲取，無需金鑰。
+  actions:
+    - text: 快速開始
+      link: /zh-tw/quickstart/
+      icon: right-arrow
+    - text: API 參考
+      link: /zh-tw/reference/openapi/
+      variant: minimal
+---
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+import ApiTry from "../../../components/ApiTry.astro";
+
+## 試一試
+
+<ApiTry locale="zh-TW" path="/api/v1/songs/{id}" params={[{ name: "id", value: "100091" }]} query={[{ name: "server", value: "jp", options: ["jp", "intl"] }]} image="jacketUrl" />
+
+## 可以用來做什麼
+
+<CardGrid>
+  <LinkCard title="遊戲資料" description="樂曲、卡牌、角色、活動和故事，提供五種語言。" href="/zh-tw/servers/catalog/" />
+  <LinkCard title="搜尋" description="一次查詢覆蓋整個目錄和所有語言。" href="/zh-tw/servers/search/" />
+  <LinkCard title="遊戲記錄" description="各區服的排行榜、激奏競技場榜單和玩家資料。" href="/zh-tw/servers/records/" />
+  <LinkCard title="圖片" description="PNG 或 SVG 格式的譜面圖片和卡面。" href="/zh-tw/guides/image-exports/" />
+  <LinkCard title="嵌入" description="在你自己的頁面上播放故事、譜面和場景。" href="/zh-tw/embed/" />
+  <LinkCard title="社群" description="帖子、個人資料和上傳。" href="/zh-tw/community/" />
+</CardGrid>

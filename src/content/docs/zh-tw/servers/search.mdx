@@ -1,0 +1,43 @@
+---
+title: 搜尋
+description: 對資料目錄進行全文搜尋，同時覆蓋所有語言。
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+搜尋覆蓋單個目錄伺服器的樂曲、卡牌、角色、活動、招募、故事和道具。查詢會匹配所有語言，所以 `千早愛音`、`千早愛音` 和 `Anon Chihaya` 都能找到同一個角色。
+
+<ApiTry locale="zh-TW" path="/api/v1/search" query={[{ name: "q", value: "千早愛音" }, { name: "server", value: "jp", options: ["jp", "intl"] }, { name: "locale", value: "zh-CN", options: ["ja", "en", "zh-TW", "zh-CN", "ko"] }, { name: "limit", value: "5" }]} image="hits.0.image" />
+
+## 引數
+
+| 名稱 | 必填 | 含義 |
+| --- | --- | --- |
+| `q` | 是 | 搜尋文字，最多 200 個字元 |
+| `server` | 是 | `jp` 或 `intl` |
+| `locale` | 是 | 返回標題的語言：`ja`、`en`、`zh-TW`、`zh-CN` 或 `ko` |
+| `section` | 否 | `catalog` 或 `stories` |
+| `kind` | 否 | `kinds` 中的某一類，例如 `songs` |
+| `limit` | 否 | 1–50，預設 20 |
+| `offset` | 否 | 0–1000 |
+
+## 回應
+
+| 欄位 | 含義 |
+| --- | --- |
+| `total` | 本次查詢的匹配數 |
+| `kinds` | 各類的匹配數，可用於篩選標籤 |
+| `hits[].title`、`excerpt` | 已轉義的 HTML，匹配部分在 `<mark>` 中 |
+| `hits[].url` | haneoka.org 上的頁面路徑 |
+| `hits[].kind`、`section` | 結果的型別 |
+| `hits[].image` | 縮圖（如有） |
+
+## 匹配規則
+
+- 所有詞都必須匹配；沒有結果時改為匹配任意一詞。
+- 拼錯的拉丁詞會用詞幹重試，所以 `Mujika` 能找到 Ave Mujica。
+- 簡體、繁體和日文字形視為同一個字。
+- 實體本身排在最前：先是角色和樂曲，然後是卡牌和活動，最後是貼紙和道具。
+
+社群帖子不包含在內，因為帖子是否可見取決於讀者身份。請用 `GET /api/v1/community/posts?q=` 搜尋帖子。
+
+`503` 表示索引尚未就緒，請稍後再試。

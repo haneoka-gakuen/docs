@@ -2,6 +2,7 @@
 title: Errors and retries
 description: Read structured failures and choose a safe retry strategy.
 ---
+import ApiTry from "../../components/ApiTry.astro";
 
 ## Error response
 
@@ -18,6 +19,10 @@ JSON API failures use this envelope:
 ```
 
 Branch on the HTTP status and stable `code`. Display `message` to a developer or log entry; it can become more specific. `requestId` is optional and is useful when reporting a service failure.
+
+See a real one:
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "1" }]} />
 
 ## Status guide
 

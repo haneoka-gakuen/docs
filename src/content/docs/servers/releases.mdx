@@ -2,10 +2,13 @@
 title: Servers and releases
 description: Select an active server and pin an immutable release for reproducible builds.
 ---
+import ApiTry from "../../../components/ApiTry.astro";
 
 This page covers the advanced server-scoped contract. Everyday consumers can use `/api/v1/songs` and the other direct aliases, which read current data from `intl` by default.
 
 ## List active server slugs
+
+<ApiTry path="/api/v1/releases" />
 
 ```http
 GET /api/v1/releases
@@ -18,9 +21,7 @@ The historical route name is retained for compatibility. Its response lists acti
 {
   "releases": [
     { "id": "intl", "displayName": "Global", "region": "global" },
-    { "id": "intl-cbt", "displayName": "Global CBT", "region": "global" },
-    { "id": "jp", "displayName": "Japan", "region": "jp" },
-    { "id": "jp-cbt", "displayName": "Japan CBT", "region": "jp" }
+    { "id": "jp", "displayName": "JP", "region": "jp" }
   ]
 }
 ```
@@ -28,6 +29,8 @@ The historical route name is retained for compatibility. Its response lists acti
 In this response, `id` is a server slug. It is the value used by `?server=` and by the `{server}` path segment in explicit server-scoped routes. The list changes when deployments add or retire a server.
 
 ## Read the current release manifest
+
+<ApiTry path="/api/v1/servers/{server}/release" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} query={[{ name: "projection", value: "identity" }]} />
 
 ```http
 GET /api/v1/servers/{server}/release

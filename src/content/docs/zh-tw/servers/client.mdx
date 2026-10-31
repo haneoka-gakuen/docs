@@ -1,0 +1,194 @@
+---
+title: 型別化 JavaScript API 客戶端
+description: 用 Haneoka ESM 客戶端讀取當前實體、分頁、批次與關聯資料。
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+
+
+先[開啟完整歌曲讀取 HTML](/examples/api-start-zh.html)，點「讀取歌曲列表」並選擇一首歌，標題與封面會直接顯示在頁面裡。儲存為 index.html 並透過本地 HTTP 開啟的步驟見[快速開始](/zh-tw/quickstart/)。這個入門專案使用 `https://haneoka.org/embed/api-client.js`，無需安裝 npm；下文包匯入與 TypeScript 片段用於已經構建的工程。
+
+`@haneoka/api-client/haneoka` 提供 createHaneokaClient，主入口 createApiClient 保留通用 HTTP 能力。使用包含 `./haneoka` 子入口的匹配版本。支援瀏覽器/Node Fetch，也接受宿主 `transport(Request)`。
+
+```ts
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+import { ApiClientError } from "@haneoka/api-client";
+const api = createHaneokaClient({ baseUrl: "https://haneoka.org/api/v1/" });
+const controller = new AbortController();
+try {
+  const servers = await api.servers({ signal: controller.signal });
+  const song = await api.entity("songs", "100070", {
+    server: "intl", locale: "en", signal: controller.signal,
+  });
+  console.log(servers, song);
+} catch (error) {
+  if (error instanceof ApiClientError) console.error(error.code, error.status, error.requestId, error.retryable);
+  else throw error;
+}
+// 請求期間取消：controller.abort()。
+```
+
+baseUrl 是 /api/v1/ 根。server 預設 intl，可從 servers() 的 id 讀取；locale 為 ja/en/zh-TW/zh-CN/ko。返回 catalog 仍保留所有語言，自帶檔案的其他作者語言交給 [embed-core](../../embed/core/)。
+
+## 分頁、批次與 DTO
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await api.page("songs", { server: "intl", limit: 20, ...(cursor ? { cursor } : {}) });
+  for (const entry of page.items) console.log(entry.id, entry.value);
+  cursor = page.nextCursor ?? undefined;
+} while (cursor !== undefined);
+const batch = await api.batch("songs", ["100001", "100070"], { server: "intl" });
+console.log(batch.items, batch.missing);
+```
+
+page 預設 limit50，驗證 ID、頁大小、cursor 與 snapshot identity；短頁/空頁仍可能繼續。batch 接受 1–100 個輸入 ID 並返回 items/missing。兩者可用 manifest 宣告的 view 引數。
+
+index 讀取完整索引，entity 讀取一項，relation(resource,relation,key,scope) 讀取關係；relation 不接受 view。都支援 signal 和 decode(value:unknown)，預設返回 JSON 型別，decode 校驗並給出業務 DTO 型別。校驗失敗使用 invalid_payload。
+
+release 只使用服務返回的 immutable ID；客戶端自動切到 /servers/\{server\}/...，普通 alias 不支援 release。chartImageUrl 只構造當前圖片 URL，不下載二進位制：
+
+```ts
+const url = api.chartImageUrl("100070", "expert", {
+  server: "intl", locale: "en", format: "svg", height: 720, download: false,
+});
+```
+
+## 錯誤與傳輸
+
+ApiClientError 儲存 method/url/status/code/requestId/details/retryable。取消為 request_aborted 且不可重試，HTML/壞 JSON 錯誤頁仍保留 HTTP status；成功回應的格式錯誤為 invalid_content_type、invalid_json 或 invalid_payload。客戶端不自動重試。
+
+構造時可提供 headers 或 transport，只向預期 origin 傳送身份憑據。公開資料無需 session。圖片 bytes 或 [排行介面](../records/) 的獨立 error shape 可用通用客戶端 response() 或原生 fetch。
+
+## 在此執行客戶端
+
+選擇用法、修改 JSON，再點選**載入並執行**。每個預設呼叫對應的真實客戶端方法；分頁會將 nextCursor 寫回編輯器供下一次點選。client 是構造引數，scope 是資料讀取引數，request 是通用 HTTP 引數；validateMusicId:true 啟用示例裡的實體校驗 callback。讀取演示接受 GET/HEAD，記錄 URL/status，不記錄 header 值。
+
+<DemoData kind="api" locale="zh-TW" />
+
+示例在點選執行後動態匯入已上線的 `https://haneoka.org/embed/api-client.js`，直接使用官方客戶端。SDK 由已提交原始碼在部署時構建；當前不可變版本以 [manifest](https://haneoka.org/embed/manifest.json) 的 release 與 modules 為準。npm仍是獨立釋出步驟。
+
+## 全部構造引數
+
+createHaneokaClient(options=\{\}) 提供資料方法，createApiClient(options) 提供通用 HTTP。
+
+| 欄位 | 型別/必填 | 預設值 | 作用、限制與錯誤 |
+| --- | --- | --- | --- |
+| baseUrl | string；通用必填，Haneoka 可選 | Haneoka 為 `https://haneoka.org/api/v1/` | API 目錄，通用客戶端 trim 並補末尾斜線，空值 TypeError；URL/Request 構造時拒絕非法地址。瀏覽器/SSR 使用絕對 HTTP(S) 地址。 |
+| headers | 可選 HeadersInit：Headers、record、pairs | 不附加 | 共用頭，逐次請求標頭按大小寫不敏感覆蓋；非法值由 Headers 拒絕。資料 scope 沒有逐次 headers 欄位。 |
+| transport | 可選 (Request)=&gt;Promise&lt;Response&gt; | fetch | 接收完整 Request 和 signal，返回真實 Response。拒絕包裝為 network_error/request_aborted；主動拋 ApiClientError 保留原錯誤。可以配置宿主傳輸、截止時間和憑據。 |
+
+Haneoka 請求預設 omit/cors/no-referrer，覆蓋 registry 和資料讀取。通用客戶端保持 Request 預設行為，callback 可建立新 Request。構造引數沒有 timeout/retry/maxBytes/cache/dispose；這些策略由 signal/transport 和呼叫方負責。
+
+```ts
+import { createApiClient } from "@haneoka/api-client";
+import { createHaneokaClient } from "@haneoka/api-client/haneoka";
+const api = createHaneokaClient({
+  baseUrl: "https://haneoka.org/api/v1/",
+  headers: { Accept: "application/json" },
+  transport(request) { console.log(request.method, request.url); return fetch(request); },
+});
+const general = createApiClient({ baseUrl: "https://haneoka.org/api/v1/" });
+```
+
+## 資料位置引數與全部 scope
+
+下面覆蓋 HaneokaScope/HaneokaReadOptions；servers 只接受 signal，圖片 URL 使用單獨引數列。
+
+| 引數 | 型別/預設 | 約束、作用與失敗 |
+| --- | --- | --- |
+| resource | 必填 string 位置引數 | manifest 名稱，1–64 位小寫字母/數字/連字元，首尾字母數字。保留組 game/search/account/admin/announcements/auth/catalog/community/garupa/me/release/releases/servers/sources/ui-marks 拒絕。非法語法/保留組 TypeError，不存在404。 |
+| id、relation key、image songId | 對應方法必填 string | 1–256 位，首位字母數字，其餘還可 . _ : ~ -；客戶端編碼為一段，不能含 /。非法 TypeError，缺項按端點404。 |
+| server | 可選 string；intl | 活動 slug，1–40 位小寫字母數字/連字元、首尾字母數字。語法 TypeError，不活動404，與 locale 獨立。 |
+| locale | 可選 ja/en/zh-TW/zh-CN/ko；省略 | 加 locale query，保留 catalog 多語欄位；非法 TypeError。省略時端點協商語言，自帶 embed 檔案可使用其他語言。 |
+| release | 可選 string；當前版本 | 返回的 r- 加20位小寫十六進位制；切至 /servers/\{server\}/…，語法 TypeError，不可用404。普通 HTTP alias 拒絕 release query。 |
+| signal | 可選 AbortSignal；無 | 取消請求，傳輸取消為 request_aborted/status0/retryablefalse；取消後新操作使用新 controller。 |
+| view | 可選 string；canonical resource | 名稱語法同 resource，供 index/entity/batch/page；非法 TypeError，缺 view404，relation 不能提供。 |
+| decode | 可選 (unknown)=&gt;T；JSON-value decoder | 同步校驗/轉換。index/entity/relation 整體呼叫，batch/page 每實體呼叫；拋錯為 invalid_payload，ApiClientError 原樣保留。泛型本身不做校驗。 |
+
+## 全部資料方法
+
+| 方法 | 引數/結果 | 組合與行為 |
+| --- | --- | --- |
+| servers(scope=\{\}) | 僅 signal；Promise&lt;\{id,displayName,region\}[]&gt; | 校驗 registry.releases，id 是 server slug。 |
+| index(resource,options=\{\}) | shared read options；完整 index 或 decode 值 | 可選 view，不自動分頁。 |
+| entity(resource,id,options=\{\}) | 必填 ID；單項 Promise | 可選 view。 |
+| batch(resource,ids,options=\{\}) | readonly string[]；\{items:Record&lt;id,T&gt;,missing:string[]\} | 1–100 個輸入 ID，重複項也先計數；空/超量/非法 ID TypeError。缺失項是 batch 成功結果。 |
+| page(resource,options=\{\}) | shared + limit/cursor；下表 envelope | 端點需 collection/view entity storage。 |
+| relation(resource,relation,key,options=\{\}) | relation 名語法同 resource，key 同 ID | 使用 manifest 關係；view+relation TypeError。現存空關係可返回\{\}，關係不存在404。 |
+| chartImageUrl(songId,difficulty,options=\{\}) | 返回 string | 同步構造，不請求，無 signal/decode。 |
+
+### 分頁全部欄位
+
+limit?:number 預設50，整數1–100；錯誤在請求前 TypeError。cursor?:string 預設無，由服務返回並原樣傳回，非法/錯 scope 的 cursor 被端點拒絕。它固定 server/resource/view/首 release。保留 scope；快照不可用時重新取第一頁。
+
+| 回應 | 型別 | 用途 |
+| --- | --- | --- |
+| items | readonly \{id:string,value:T\}[] | 不超過 limit；8分片預算可能短頁/空頁仍可繼續。 |
+| total | 非負 safe integer | manifest 總數。 |
+| limit | 1–100整數 | 客戶端要求與請求有效值相同。 |
+| nextCursor | 非空 string/null | 只有 null 結束。 |
+| release.schema | literal haneoka-resource-release-identity-v1 | envelope 版本。 |
+| release.server | string | 匹配請求/預設 server。 |
+| release.releaseId | string | 若顯式給 release，必須匹配。 |
+| release.sourceId | string | 保留真實來源快照 ID。 |
+
+客戶端校驗 envelope/ID/snapshot，不重排或自動翻頁。batch 與 page 的方法引數分離，端點禁止 id 批次混分頁。
+
+### 圖片 URL 全部引數
+
+| 欄位 | 預設/範圍 | 作用/錯誤 |
+| --- | --- | --- |
+| difficulty | 必填 easy/normal/hard/expert/special/master | 非法 TypeError；端點要求該曲有該難度。 |
+| server | 可選，intl | 同 scope slug 校驗。 |
+| locale | 可選支援語言 | 圖片文字語言。 |
+| format | 可選 svg/png，svg | 非法 TypeError。 |
+| height | 可選整數360–1440；省略時端點720 | 譜面段高，非法 TypeError；最終畫布尺寸看回應頭。 |
+| download | 可選 boolean；省略 | true→1、false→0；省略沿端點 attachment 預設。 |
+
+沒有 release/view/decode/signal 圖片選項。獲取位元組需單獨 fetch；[譜面圖片](../chart-images/)說明字型/渲染部署和錯誤。
+
+## 通用 HTTP 全部引數和方法
+
+| 欄位 | 型別/預設 | 作用與約束 |
+| --- | --- | --- |
+| path | 必填 string 位置引數 | 相對地址去掉前導 / 後基於 baseUrl；絕對 HTTP(S) 保留 origin。非法 URL/Request 拋原生錯誤。 |
+| method | DELETE/GET/HEAD/PATCH/POST/PUT；GET | request/response 使用，get 強制 GET；非法 body/method 組合由 Request 拒絕。 |
+| query | 可選 readonly record | 值為 string/number/boolean/null/undefined 或其 readonly array。鍵排序追加，陣列重複，null/undefined 省略，保留已有 URL query。 |
+| headers | 可選 HeadersInit；構造 headers | 逐次覆蓋。 |
+| body | 可選 BodyInit/null；省略 | JSON 由呼叫方編碼並設定 MIME，stream/FormData 遵循原生 Fetch。 |
+| signal | 可選 AbortSignal；無 | 取消與自定超時。 |
+| decode | 可選 (unknown)=&gt;T；原 JSON | get/request 使用；HEAD/204/205 輸入 undefined，拋錯為 invalid_payload；response 不接此欄位。 |
+
+get 解析成功 JSON，request 允許 method。兩者非2xx 拋 ApiClientError，有正文需 application/json 或 +json，JSON 格式失敗單獨報錯。response 返回真實 Response（包括失敗），呼叫方檢查 ok/status/消費body。url 構造 string 不請求。
+
+```ts
+const dto = await general.request("songs/100070", {
+  method: "GET", query: { server: "intl", locale: "en" },
+  headers: { Accept: "application/json" }, signal: new AbortController().signal,
+});
+const raw = await general.response("songs/100070", { method: "HEAD" });
+console.log(raw.status, raw.headers.get("X-Haneoka-Release-Id"));
+console.log(general.url("songs", { id: ["100001", "100070"] }));
+```
+
+## 完整錯誤物件
+
+ApiClientError 擴充套件 Error，公開 name/message/繼承 cause/code/details/method/url/status/可選requestId/retryable。HTTP 使用返回 error.code/message/details，HTML/壞錯誤 JSON 回退 http_STATUS 並保留status；requestId 來自 X-Request-Id。網路失敗 status0/network_error/retryabletrue，取消 request_aborted/retryablefalse；HTTP408/429/5xx 標記可重試。成功回應格式/校驗失敗分別 invalid_content_type/invalid_json/invalid_payload，客戶端不自動重試。
+
+自定義傳輸可構造：code/message/method/url 必填，cause/details/requestId 可選，retryable 預設false，status 預設0。此客戶端沒有 subscribe/events/dispose，結果透過 Promise/Response 提供，AbortController 與回應流歸呼叫方。
+
+包的 ./browser 原始碼入口合併 createApiClient、ApiClientError 和 createHaneokaClient，沒有額外引數或瀏覽器副作用；官方託管 facade 的出口以實際 release manifest 為準。
+
+## 當前官方瀏覽器模組
+
+穩定地址為 `https://haneoka.org/embed/{name}.js`，name 可用 api-client、core、vega、cassiopeia、home-spot、vega-theme。需要固定版本時，讀取 [manifest](https://haneoka.org/embed/manifest.json)，將同一回應中的 modules 路徑基於 `https://haneoka.org/embed/` 解析。舊版本的固定地址保留其對應行為。
+
+```js
+import { createHaneokaClient } from "https://haneoka.org/embed/api-client.js";
+const api = createHaneokaClient();
+console.log(await api.entity("songs", "100070", { server: "intl", locale: "en" }));
+```
+
+當前生產版本由 manifest 標識；穩定入口隨新版本更新，manifest 中的固定路徑保持對應版本行為。

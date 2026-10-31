@@ -1,0 +1,66 @@
+---
+title: 게임 기록
+description: Haneoka가 공식 서버에서 수집한 랭킹, 아레나, 플레이어 정보.
+---
+import ApiTry from "../../../../components/ApiTry.astro";
+
+게임 기록은 공식 게임의 스냅샷으로, Haneoka의 계정 풀이 수집합니다. 모든 읽기는 공개이며 키가 필요 없습니다.
+
+각 지역은 별도의 게임 서버이므로 요청에는 **region**을 사용합니다.
+
+| region | 서버 |
+| --- | --- |
+| `jp` | JP |
+| `tw` | TW/HK/MO |
+| `en` | EN Regions |
+| `kr` | KR |
+
+`tw`, `en`, `kr`은 모두 Global 카탈로그를 공유합니다.
+
+## 대기 응답
+
+데이터는 저장된 스냅샷에서 읽으므로 요청이 게임을 기다리지 않습니다. 아직 수집되지 않았다면 대기열에 넣고 `503`을 반환합니다.
+
+```json
+{ "error": { "kind": "pending", "retryAfter": 30 } }
+```
+
+`retryAfter`초를 기다린 뒤 같은 요청을 다시 보내세요. 대부분 몇 분 안에 완료됩니다.
+
+## 현재 이벤트
+
+진행 중인 이벤트, 기간, 랭킹 종류. 이벤트가 없으면 `event`는 `null`입니다.
+
+<ApiTry path="/api/v1/game/records/{region}/events/current" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }]} locale="ko" />
+
+## 이벤트 랭킹
+
+종합 또는 챌린지 곡 랭킹의 상위 100명과 덱.
+
+<ApiTry path="/api/v1/game/records/{region}/events/{eventId}/total/latest" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "eventId", value: "4" }]} locale="ko" />
+
+## 곡 랭킹
+
+한 곡의 상위 100명.
+
+<ApiTry path="/api/v1/game/records/{region}/songs/{musicId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "musicId", value: "100007" }]} locale="ko" />
+
+## 격주 아레나
+
+리그 랭킹을 100행씩. `bandId`는 리그의 밴드, `start`는 순위입니다.
+
+<ApiTry path="/api/v1/game/records/{region}/arena/seasons/{seasonId}/leagues/{bandId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "seasonId", value: "1" }, { name: "bandId", value: "1" }]} query={[{ name: "start", value: "1" }]} locale="ko" />
+
+## 플레이어
+
+게임에 표시되는 ID로 공개 프로필을 읽습니다.
+
+<ApiTry path="/api/v1/game/records/{region}/players/{profileId}" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "profileId", value: "59231009908" }]} image="profile.profileCard.thumbnailUrls.0" locale="ko" />
+
+처음 읽을 때 `pending`이 올 수 있습니다. 기록은 6시간 후 갱신됩니다.
+
+## JavaScript에서
+
+```json
+{ "error": { "kind": "pending", "retryAfter": 30 } }
+```

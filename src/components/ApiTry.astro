@@ -1,12 +1,16 @@
 ---
 // A live request: edit the parameters, send it, read the real response.
 interface Param { name: string; value: string; label?: string; options?: string[] }
-interface Props { method?: "GET"; path: string; params?: Param[]; query?: Param[]; locale?: "en" | "zh-CN"; image?: string }
+interface Props { method?: "GET"; path: string; params?: Param[]; query?: Param[]; locale?: "en" | "ja" | "ko" | "zh-CN" | "zh-TW"; image?: string }
 const { method = "GET", path, params = [], query = [], locale = "en", image } = Astro.props;
-const zh = locale === "zh-CN";
-const text = zh
-  ? { send: "发送请求", copy: "复制 curl", idle: "尚未发送", sending: "请求中…", failed: "请求失败", copied: "已复制" }
-  : { send: "Send request", copy: "Copy curl", idle: "Not sent yet", sending: "Sending…", failed: "Request failed", copied: "Copied" };
+const labels = {
+  en: { send: "Send request", copy: "Copy curl", idle: "Not sent yet", sending: "Sending…", failed: "Request failed", copied: "Copied" },
+  ja: { send: "リクエストを送信", copy: "curl をコピー", idle: "未送信", sending: "送信中…", failed: "リクエスト失敗", copied: "コピーしました" },
+  ko: { send: "요청 보내기", copy: "curl 복사", idle: "아직 보내지 않음", sending: "보내는 중…", failed: "요청 실패", copied: "복사됨" },
+  "zh-CN": { send: "发送请求", copy: "复制 curl", idle: "尚未发送", sending: "请求中…", failed: "请求失败", copied: "已复制" },
+  "zh-TW": { send: "傳送請求", copy: "複製 curl", idle: "尚未傳送", sending: "請求中…", failed: "請求失敗", copied: "已複製" },
+};
+const text = labels[locale];
 const field = (param: Param, kind: string) => ({ ...param, kind });
 const fields = [...params.map((param) => field(param, "path")), ...query.map((param) => field(param, "query"))];
 ---

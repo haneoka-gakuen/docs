@@ -2,6 +2,7 @@
 title: Catalog 数据
 description: 浏览当前 resource、entity、view、relation 和 batch。
 ---
+import ApiTry from "../../../../components/ApiTry.astro";
 
 ## 先使用直接路由
 
@@ -18,7 +19,11 @@ GET /api/v1/{resource}/{id}?server=jp
 
 常见 resource name 包括 `songs`、`bands`、`characters`、`cards`、`stories`、`events`、`audio`、`videos` 和 `voices`。选定 catalog 才是权威来源，请使用它提供的 resource name、ID、view 和 relation，不要维护硬编码列表。
 
-## Resource index 和 entity
+## 索引和实体
+
+试一试：选择歌曲和服务器。把 ID 换成索引里的任意 `musicId`。
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "100001" }]} query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-CN" />
 
 Index 请求返回 provider-shaped document。Collection resource 通常返回以 entity ID 为键的 object：
 
@@ -93,7 +98,9 @@ do {
 
 [类型化客户端](../client/) 提供 envelope 校验与实体 decode。
 
-## Batch 读取
+## 批量读取
+
+<ApiTry path="/api/v1/songs?id=100001&id=100002" locale="zh-CN" />
 
 重复 `id` 读取一组 entity：
 
@@ -115,7 +122,9 @@ curl --fail-with-body \
 
 `items` 使用请求的 ID 作为 key；没有 entity 的 ID 出现在 `missing`。提交 1–100 个 id 参数，去重前计算参数数量。API 会排序并去重 ID，以稳定缓存。
 
-## View 和 relation
+## 视图和关系
+
+<ApiTry path="/api/v1/servers/{server}/catalog" params={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-CN" />
 
 Catalog manifest 会为 resource 声明可选 view 和 relation。View 是有自己 index 和 entity shape 的命名 projection：
 

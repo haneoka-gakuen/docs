@@ -1,0 +1,211 @@
+---
+title: 資料來源與資源載入
+description: 讀取物件、HTTP JSON、本地檔案和素材，再交給相應播放器。
+---
+
+import DemoData from "../../../../components/DemoData.astro";
+import DocsDisclosure from "../../../../components/DocsDisclosure.astro";
+
+Core 讀取資料、解析素材路徑並管理載入與清理。它保留原資料格式；Vega、Cassiopeia、Home Spot 分別負責自己的畫面。本頁先讀取一個真實 JSON 和圖片，劇情播放見 [Vega 教程](../vega/)。瀏覽器使用已託管的 `https://haneoka.org/embed/core.js`，無需安裝 npm。
+
+## 1. 讀取現成 JSON
+
+[開啟完整 promenade.json](/examples/promenade.json)。它儲存標題、背景路徑和一行文字；[garden.svg](/examples/garden.svg)是對應的原創圖片。下面的頁內示例選擇「HTTP JSON」並載入，即可看見資料。隨後點「解析資源 URL」取得圖片地址，或「讀取資源位元組」檢查實際內容。這裡讀到的 lines 資料不是 Vega 可播放檔案，轉換見第 3 步。
+
+<DemoData kind="core" locale="zh-TW" />
+
+```js
+import { createEmbedLoader, httpDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: httpDataSource({ url: "https://docs.haneoka.org/examples/promenade.json" }),
+  locale: "fr",
+});
+const data = await loader.load();
+const imageUrl = await loader.resourceUrl(data.background);
+// 消費者使用完這個地址後，再 await loader.dispose()。
+```
+
+HTTP 相對素材以配置的 JSON 所在目錄為基準，重定向不改變這個基準；顯式 assetsBase 可覆蓋它。resourceUrl 取得地址，resourceBytes 讀取實際位元組。source/locale/resourceKey 等示例面板欄位會轉換成實際 factory，其中 resourceKey/resourceField 是此演示選擇素材的欄位，完整 SDK 引數見後面的表。
+
+<span id="自帶記憶體http-或檔案"></span>
+
+## 2. 真正選擇本地 JSON 和圖片
+
+分別儲存 [promenade.json](/examples/promenade.json) 與 [garden.svg](/examples/garden.svg)。[開啟完整檔案讀取網頁](/examples/core-file-zh.html)，先選擇 JSON，再選擇圖片，點選「載入所選檔案」。你會看見標題 Une promenade、原創庭園圖片及實際圖片位元組數。關閉讀取器會先移除圖片，再銷燬 loader 和它的 Blob URL；可以重新選擇檔案再載入。
+
+將下面程式碼儲存為 UTF-8 的 `index.html` 即可保留這個完整專案；本地 HTTP 開啟方法見[快速開始](/zh-tw/quickstart/)。目錄為 index.html、promenade.json、garden.svg 三個檔案。JSON 中 background 是素材鍵，檔案對映以這個鍵指向你實際選擇的 File，也支援合法 Unicode 路徑。
+
+<DocsDisclosure title="完整 index.html：實際檔案選擇器與圖片消費者">
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>讀取本地 JSON 與圖片</title>
+<style>body{max-width:60rem;margin:auto;padding:1rem;font:1rem/1.5 sans-serif;color:CanvasText;background:Canvas}button,input{font:inherit}button,label{min-height:48px}label{display:block;margin:.5rem 0}img{width:320px;aspect-ratio:16/9;object-fit:contain}[hidden]{display:none!important}pre{white-space:pre-wrap}</style>
+<p><a href="https://haneoka.org/">Haneoka</a></p>
+<h1>讀取本地 JSON 與圖片</h1><p>選擇 promenade.json 和 garden.svg，再一起載入。</p>
+<label>JSON 檔案 <input id="json-file" type="file" accept=".json,application/json"></label>
+<label>圖片檔案 <input id="image-file" type="file" accept="image/*,.svg"></label>
+<button id="load">載入所選檔案</button><button id="cancel" disabled>取消</button><button id="close">關閉讀取器</button>
+<p id="status" role="status" aria-live="polite">先選擇兩個檔案。</p><h2 id="title"></h2><img id="preview" hidden alt="從所選檔案讀取的圖片"><pre id="output"></pre>
+<script type="module">
+const by=id=>document.getElementById(id); let loader,controller,generation=0;
+async function close(){generation++;controller?.abort();by("preview").hidden=true;by("preview").removeAttribute("src");by("title").textContent="";by("output").textContent="";const old=loader;loader=undefined;await old?.dispose();by("cancel").disabled=true;}
+by("load").onclick=async()=>{
+  by("load").disabled=true;let current;
+  try{
+    await close();current=++generation;controller=new AbortController();const signal=controller.signal;by("cancel").disabled=false;by("status").textContent="正在讀取…";
+    const jsonFile=by("json-file").files[0],imageFile=by("image-file").files[0];
+    if(!jsonFile||!imageFile)throw new Error("先選擇 JSON 和圖片。");
+    const {createEmbedLoader,fileDataSource,fileResourceResolver}=await import("https://haneoka.org/embed/core.js");
+    signal.throwIfAborted();if(current!==generation)return;
+    const files=new Map();
+    loader=createEmbedLoader({source:fileDataSource(jsonFile),locale:"fr",maxBytes:1048576,resolveResource:fileResourceResolver(files)});
+    const data=await loader.load({signal});
+    if(typeof data.background!=="string"||!data.background)throw new Error("JSON 需要 background 素材鍵。");
+    files.set(data.background,imageFile);
+    const bytes=await loader.resourceBytes(data.background,{signal});
+    const url=await loader.resourceUrl(data.background,{signal});
+    if(current!==generation)return;
+    by("title").textContent=String(data.title??"");by("output").textContent=JSON.stringify({data,imageBytes:bytes.length},null,2);
+    by("preview").src=url;by("preview").hidden=false;await by("preview").decode();
+    if(current===generation)by("status").textContent="JSON 與所選圖片已載入。";
+  }catch(error){if(current===generation){by("status").textContent=`讀取失敗： ${error.message}`;const failed=loader;loader=undefined;by("preview").removeAttribute("src");by("preview").hidden=true;await failed?.dispose().catch(()=>{});}}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{controller?.abort();};
+by("close").onclick=async()=>{await close();by("load").disabled=false;by("status").textContent="讀取器已關閉，可以再次載入。";};
+window.addEventListener("pagehide",()=>{void close();},{once:true});
+</script></html>
+```
+
+</DocsDisclosure>
+
+分別選擇 JSON 和所需素材。這裡對映一張圖片；多檔案專案為每個宣告的素材鍵及模型清單引用檔案提供對應的 File。
+
+## 3. 把本頁的通用資料轉換為劇情
+
+promenade.json 的格式是本頁的資料讀取例，不是 AdvStory。Vega 要求 commands 陣列。對這份明確的 lines 格式，可以在讀取 data 後建立：
+
+```js
+const storyDocument = {
+  localization: { locales: [data.language], defaultLocale: data.language },
+  commands: [
+    { command: 25, background: { url: data.background } },
+    ...data.lines.map(line => ({ command: 2, targetName: line.speaker, text: line.text })),
+  ],
+};
+```
+
+把 storyDocument 作為 mountStory 的 document，並把 assetsBase 指向同一素材目錄；完整可儲存劇情網頁與載入步驟在 [Vega](../vega/)。選擇的 JSON 已是完整 AdvStory 時，直接讀取它，不再做這個特定 lines 轉換。decode 校驗／轉換實際資料，TypeScript 泛型只描述期望型別。
+
+## 4. 讀取 Haneoka 當前資料
+
+在頁內示例選「本站資料」，載入公開歌曲後解析 jacketUrl。介面卡與消費者均可使用託管入口：
+
+```js
+import { createEmbedLoader, haneokaDataSource } from "https://haneoka.org/embed/core.js";
+const loader = createEmbedLoader({
+  source: haneokaDataSource({ resource: "songs", id: "100070" }),
+  server: "intl", locale: "en",
+});
+const song = await loader.load();
+const imageUrl = await loader.resourceUrl(song.jacketUrl);
+// 先結束消費者，再 await loader.dispose()。
+```
+
+公開讀取無需帳號或 release。server 選擇素材目錄，locale 選擇語言上下文，返回資料保留源提供的多語欄位。source.assetsBase 預設是 API origin；資源基於它解析，顯式 loader.assetsBase 可覆蓋。repeat load 會再次讀取當前資料。自有物件使用 memoryDataSource，選中的 File 使用 fileDataSource，更多簽名和傳輸限制都在下方完整參考。
+
+---
+
+## createEmbedLoader 全部引數
+
+| 欄位 | 型別/必填/預設 | 作用、組合和錯誤 |
+| --- | --- | --- |
+| source | 必填 DataSource&lt;T&gt; | 提供 load(context)，每次 load 呼叫；可選 source.assetsBase 為素材目錄，dispose 清理一次。資料格式應符合消費宿主。 |
+| server | 可選 string，undefined | 原樣傳給 source/resolver；本站 adapter 預設intl並用公開客戶端校驗 slug，與語言獨立。 |
+| locale | 可選 string，en | 原樣保留 fr/pt-BR 等作者語言；本站透過 Accept-Language 協商支援語言。 |
+| assetsBase | 可選 string，source.assetsBase→無 | 覆蓋 source base，絕對 HTTP(S) 目錄，不含 query/fragment，補斜線；構造時非法 TypeError，無base相對key URL構造失敗。 |
+| resolveResource | 可選 (key,DataContext)=&gt;string/URL/Blob 或其Promise，預設原key | 完整對映key，相對結果基於base；拒絕即資源失敗，Map缺key不回落網路。 |
+| fetcher | 可選 (Request)=&gt;Promise&lt;Response&gt;，預設fetch | 接收cors、配置headers/credentials/signal的Request，檔案和資源共同使用；媒體元素有獨立載入器。拒絕傳遞為操作失敗。 |
+| credentials | omit/same-origin/include，omit | 跨域帶cookie需服務允許origin與credentials；非法值由Request拒絕。 |
+| headers | 可選 HeadersInit，無 | 共用頭，source逐次header覆蓋同名值；本站以locale設Accept-Language，校驗遵循Fetch。 |
+| maxBytes | 可選正safe integer，67108864 | 每項解碼JSON/資源bytes預算，不是總場景/cache/URL預算。構造非法RangeError，超預算read RangeError（本站包裝response_too_large）。 |
+| onListenerError | 可選 (unknown)=&gt;void，忽略 | 接收observer異常，自身異常隔離，不影響操作結果。 |
+
+構造無signal/timeout/decode/自動重試cache選項；使用逐次signal、source decoder和宿主策略。resourceUrl僅解析，不下載，也不約束之後媒體元素的位元組量。
+
+## 全部 source factory
+
+| Factory | 必填 | 可選/預設 | 路徑與校驗 |
+| --- | --- | --- | --- |
+| memoryDataSource(data) | 任意T | 無 | 返回同一值/物件identity，不復制校驗，無預設素材目錄。 |
+| httpDataSource(\{url,decode?\}) | 絕對HTTP(S) string/URL | decode(unknown)=&gt;T，預設JSON | factory校驗URL/protocol，base為配置URL目錄；redirect不改變base。讀取遵循signal/budget，JSON/decoder失敗拒絕。 |
+| fileDataSource(file,decode?) | File或Blob | decoder同上 | 無網路base，實際Blob bytes受預算/進度控制，壞JSON/decoder拒絕。 |
+| fileResourceResolver(files) | ReadonlyMap&lt;string,Blob&gt; | 無 | Unicode完整key字面查詢，不規範化；缺項Error。URL生成owned BlobURL，bytes直接讀Blob。 |
+| haneokaDataSource(options) | resource:string | 下述欄位 | 當前公開目錄，不填帳號/release。 |
+
+本站source全部欄位：resource 使用manifest資源語法；id?:string 有值取entity，省略取index；view?:string 選manifest投影；apiBase?:string 預設 `https://haneoka.org/api/v1/`，絕對HTTP(S)目錄不含query/fragment；decode? 校驗index/entity，預設JSON值。語法/不存在等load錯誤沿[客戶端](../../servers/client/)。source預設素材base是API的origin根，可由loader.assetsBase覆蓋；server/locale來自loader。
+
+## 自定義 source/resolver 的完整 context
+
+DataSource&lt;T&gt; 包含 load(context):T|Promise&lt;T&gt;、可選 assetsBase?:string、dispose():void|Promise&lt;void&gt;。loader銷燬時清理一次並等待，cleanup失敗拒絕dispose；擁有資源的source按單loader所有權使用。
+
+| DataContext欄位 | 型別 | 含義 |
+| --- | --- | --- |
+| server | 可選string | 原樣registry。 |
+| locale | string | 作者語言或預設值。 |
+| signal | AbortSignal | 當前操作取消，底層工作應跟隨。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt; | 配置後的傳輸。 |
+| maxBytes | number | 有效解碼預算，自定義解析也應遵守。 |
+| progress | (\{loaded:number,total?:number\})=&gt;void | 實際位元組，未知總量省略total。 |
+
+Resolver同步/非同步返回string、URL、Blob。絕對HTTP/HTTPS/Blob/data保留origin，相對基於assetsBase，/開頭用origin根；其他protocol TypeError，不猜SSR/頁面base。
+
+```ts
+const source = {
+  assetsBase: "https://author.example/project/",
+  async load(context) {
+    context.signal.throwIfAborted();
+    const response = await context.fetcher(new Request("https://author.example/project/story.json", { signal: context.signal }));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json(); // 接入自己的格式校驗和預算讀取。
+  },
+  dispose() { /* 回收source擁有的資源 */ },
+};
+const loader = createEmbedLoader({ source, locale: "pt-BR", resolveResource: key => key });
+```
+
+## handle 的全部屬性和方法
+
+| 成員 | 引數/結果 | 生命週期 |
+| --- | --- | --- |
+| locale | readonly string | 有效語言。 |
+| server | readonly string/undefined | 顯式server，adapterfallback前。 |
+| disposed | readonly boolean | dispose開始即true。 |
+| load(options=\{\}) | 可選signal，Promise&lt;T&gt; | 每次獨立source操作，key為$data。 |
+| resourceUrl(key,options=\{\}) | 必填string，可選signal；Promise&lt;string&gt; | 不下載，每個Blob複用一個URL直到銷燬。 |
+| resourceBytes(key,options=\{\}) | key/可選signal；Promise&lt;Uint8Array&gt; | status/budget/progress真實讀取。 |
+| subscribe(listener) | 必填(event)=&gt;void；返回unsubscribe | 後續事件，不重放；已銷燬拋Error。 |
+| cancel() | void | 取消當前全部操作，loader可重用。 |
+| dispose() | 共用Promise&lt;void&gt; | 立即禁止新工作、abort、revoke、disposed事件、清監聽、source清理一次；冪等，不能重用。 |
+
+忽略signal的source也不能遲到ready/progress覆蓋已取消操作；底層source仍應主動停止。cancel可繼續，dispose結束loader。先銷燬consumer，再撤銷loader擁有的URL；作者自行建立的URL自行管理。
+
+## 全部事件和錯誤
+
+| type | 欄位 | 時機 |
+| --- | --- | --- |
+| start/ready | operation:number,key:string | 開始/成功。 |
+| progress | operation/key/loaded:number/total?:number | 實際解碼位元組，記憶體或僅URL無自動bytes進度；壓縮或未知length不填total。 |
+| error/cancelled | operation/key/error:unknown | 失敗/取消。 |
+| disposed | 僅type | 銷燬，銷燬後的取消錯誤不繼續發出。 |
+
+operation按loader增長，key為$data或原資源名。observer異常不拒絕操作，併發獨立、不自動重試或去重；演示只保留32條顯示記錄，不改變SDK事件流。
+
+EmbedHttpError(status,url) 擴充套件Error，帶name/message/status/url。URL/base/protocol非法TypeError，預算RangeError，JSON SyntaxError，作者source/resolver/decode原錯誤保留。本站保留ApiClientError，預算為response_too_large及HTTPstatus，預設不可重試。abort拒絕signal.reason，通常AbortError/TimeoutError。dispose後呼叫為Error，sourcecleanup失敗拒絕dispose。
+
+## branding子入口全部引數
+
+createHaneokaBranding(document,options=\{\}) 在官方core facade和包/branding入口可用。document必填DOM Document；corner?:top-left/top-right/bottom-left/bottom-right，預設top-left。返回HTMLAnchorElement，不自動append，不請求影象。宿主在有定位的完整容器角落懸浮append，保留48px觸控區域，清理時remove。連結固定為 [Haneoka](https://haneoka.org/)，_blank/noopener、原inlineSVG、48px觸控與focus；可視embed自動管理，data-only core匯入不碰DOM。

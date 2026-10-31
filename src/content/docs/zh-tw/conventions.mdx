@@ -1,0 +1,77 @@
+---
+title: 約定
+description: API 共用的 URL、回應、快取、身份驗證和分頁規則。
+---
+import ApiTry from "../../../components/ApiTry.astro";
+
+## 基礎 URL 和當前資料 alias
+
+生產環境使用 `https://haneoka.org`。直接 catalog 路由為：
+
+```text
+GET /api/v1/{resource}
+GET /api/v1/{resource}/{id}
+GET /api/v1/{resource}/views/{view}
+GET /api/v1/{resource}/views/{view}/{id}
+GET /api/v1/{resource}/relations/{relation}/{key}
+```
+
+這些路徑預設使用當前 `intl` server。新增 `?server=jp` 或 `GET /api/v1/releases` 返回的其他 slug 選擇活動 server。顯式的 `/api/v1/servers/{server}/...` 使用同一個 catalog handler，並增加供可重現 build 使用的 `release` 引數。
+
+`resource`、`id`、`view`、`relation` 和 `key` 都由資料定義。構造路徑前先讀取 catalog manifest 或 index。`releases`、`servers`、`account`、`me`、`community` 和 `garupa` 等頂層分組保留自己的 API 路由，不是 catalog resource name。對動態片段進行 URL 編碼；只有路由明確接受 path 時才保留 `/`。
+
+試一個直接路由：
+
+<ApiTry path="/api/v1/bands" query={[{ name: "server", value: "intl", options: ["intl", "jp"] }]} locale="zh-TW" />
+
+## JSON 和欄位
+
+JSON 回應使用 `application/json; charset=utf-8`。Catalog index 通常是以 entity ID 為鍵的 object，entity value 保留 source DTO shape。例如 song 使用 `musicId`、`musicTitle` 等本地化陣列、difficulty records 和 media path；events resource 可以返回 `{ "entries": {}, "hasGameEvents": false }`。按照請求 resource 的欄位編寫程式碼，並保留額外欄位。
+
+API 不會為 provider DTO 加入統一的 `id`、`title` 或 `data` wrapper。Index key 是 lookup ID，即使 value 使用 resource 專屬的 ID 欄位。`null` 表示 source 當前沒有該屬性的值。
+
+## 常用回應 headers
+
+| Header | 含義 |
+| --- | --- |
+| `X-Request-Id` | 錯誤或診斷報告的關聯 ID。 |
+| `X-Haneoka-Release-Id` | server-scoped 回應使用的當前 release。 |
+| `X-Haneoka-Source-Id` | 與該 release 關聯的 source snapshot。 |
+| `ETag` | 條件請求使用的 representation validator。 |
+| `Cache-Control` | 服務指定的新鮮度和重新驗證策略。 |
+| `Content-Range` | 返回的 byte range，或無效 range 時的 `bytes */size`。 |
+
+直接 alias 會在服務提升新 catalog 時變化。需要解釋使用者看到哪個資料版本時，可將 release headers 與快取一起儲存。需要穩定重放的應用可以改用顯式 `release` 請求；高階 release 頁面介紹該流程。
+
+## Batch、view 和 relation
+
+重複 `id` 批次讀取：
+
+```text
+GET /api/v1/songs?id=100001&id=100002
+```
+
+Catalog batch 返回 `{ "items": { ... }, "missing": [ ... ] }`。服務會排序並去重 ID 以穩定快取 key。缺失 ID 是該 ID 的結果，不表示請求失敗。
+
+Catalog manifest 會宣告每個 resource 的 view 和 relation。View 有自己的 index 和 entity shape。Relation 會返回以 ID 為鍵的 canonical entity（`valueMode: "ids"`），或 relation document 中的 provider record（`valueMode: "records"`）。按 manifest 提供的名稱和 shape 讀取，不能假設所有 resource 相同。
+
+## 快取和媒體
+
+請遵守 `ETag` 和 `Cache-Control`。傳送 `If-None-Match`，representation 未變化時會收到 `304`。將 `/assets/intl/...` 和 `/runtime/intl/...` 這樣的相對 media path 解析到 `https://haneoka.org`。
+
+二進位制路由會宣告 media type，並可能支援單一 byte range。有效的部分回應是 `206`；無效 range 返回 `416` 和 `Content-Range: bytes */<size>`。不要原樣重試 `416`。
+
+## 身份驗證和同源寫入
+
+公開 catalog、media、Sonolus 和 Bestdori 讀取不需要 session。社群寫入、資料修改、偏好設定、上傳和 Better Auth 操作使用 HTTP-only cookie 與同源瀏覽器請求：
+
+```ts
+await fetch("/api/v1/account/profile", {
+  credentials: "include",
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ bio: "Hello", version: 4 }),
+});
+```
+
+不要將 session cookie 寫入日誌或前端 bundle。每個身份驗證頁面會說明 request body、conflict 欄位和 moderation 狀態。

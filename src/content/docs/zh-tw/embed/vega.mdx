@@ -1,0 +1,494 @@
+---
+title: Vega 劇情嵌入
+description: 從建立完整劇情 JSON 到網頁載入，再逐步加入背景、聲音與 Live2D。
+---
+
+import DemoPlayer from "../../../../components/DemoPlayer.astro";
+
+先寫兩句對白，儲存成檔案，在自己的網頁上播放。跑通以後，再依次新增背景、聲音和模型。本教程使用已託管的 [Vega 瀏覽器模組](https://haneoka.org/embed/vega.js)，第一步無需安裝 npm 包。
+
+## 1. 先在這裡播放一次
+
+保持選中「完整原創示例」，點選「載入所選內容」，等待就緒，再點「播放」。你會看見庭園背景和第一句對白。「下一句」繼續對白；「暫停」暫停播放；進度條可以跳轉。「換內容前退出」關閉當前播放器。
+
+<DemoPlayer kind="story" locale="zh-TW" />
+
+原創示例使用[這份完整中文 story.json](/examples/story-zh.json) 和 [garden.svg](/examples/garden.svg)。「Our Notes 寶物」讀取本站已釋出的遊戲劇情及它引用的模型、聲音素材。「高階引數」裡的設定在下次載入時生效。切換語言會選擇作者已有的對應文字；單語劇情不會自動翻譯。
+
+## 2. 建立自己的劇情檔案
+
+新建一個叫 `my-story` 的資料夾。在純文字編輯器裡貼上下面的**完整 JSON**，以 UTF-8 儲存為 **story.json**，放進這個資料夾。確認實際檔名不是 `story.json.txt`。JSON 存的是資料：保留引號和逗號，不要寫入 `const`、`import` 等 JavaScript 程式碼。
+
+```json
+{"localization":{"locales":["zh-CN"],"defaultLocale":"zh-CN"},"commands":[
+  {"command":2,"targetName":"小遙","text":"這是我的第一段劇情。"},
+  {"command":2,"targetName":"小遙","text":"點選下一句繼續。"}
+]}
+```
+
+也可以[開啟完整對白 JSON](/examples/dialogue-zh.json)，另存為 `story.json`。`commands` 是按順序執行的劇情動作。這裡的 `2` 表示對白，`targetName` 是說話人的名字，`text` 是螢幕上的句子。先改這兩句文字，其餘欄位照示例保留。
+
+## 3. 建立網頁並開啟
+
+[開啟完整入門 HTML](/examples/first-story-zh.html)，儲存為 **index.html**，與 `story.json` 放在一起。也可以[下載完整入門資料夾 ZIP](/examples/first-story-zh.zip)，解壓即可得到這個目錄。下面給出了可以整體複製的原始碼。
+
+```text
+my-story/
+  index.html
+  story.json
+```
+
+用 HTTP 開啟這個資料夾。沒有 Python 時先從 [Python 官網](https://www.python.org/downloads/)下載安裝。已安裝 Python 3 時，在 `my-story` 資料夾裡開啟終端，執行：
+
+```sh
+python3 -m http.server 8000
+```
+
+Windows 使用 `py -m http.server 8000`。然後在瀏覽器開啟 [http://localhost:8000/](http://localhost:8000/)。編輯器提供的本地 HTTP 預覽也可以。直接雙擊檔案得到的是 `file://` 地址；讀取 JSON 應使用 HTTP 地址。完成後在終端按 Ctrl+C 關閉服務。
+
+點選「載入 / 重試」，等頁面顯示「已載入」，再點「播放」。第一句會出現，「下一句」會顯示完整文字或繼續下一句。這份初始劇情沒有圖片，所以背景是純色。點「退出」釋放播放器後，可以重新載入。
+
+<details>
+<summary>完整 index.html：全部複製到一個檔案中</summary>
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的第一段劇情</title>
+<style>
+  body { max-width: 60rem; margin: auto; padding: 1rem; font: 1rem/1.5 sans-serif; color: CanvasText; background: Canvas; }
+  #stage { height: 60vh; min-height: 320px; position: relative; }
+  button { font: inherit; min-height: 48px; margin: .25rem; }
+</style>
+<h1>我的第一段劇情</h1>
+<p id="status" role="status" aria-live="polite">點選載入，讀取 story.json。</p>
+<div id="stage"></div>
+<button id="load">載入 / 重試</button>
+<button id="play" disabled>播放</button>
+<button id="pause" disabled>暫停</button>
+<button id="next" disabled>下一句</button>
+<button id="close">退出</button>
+<script type="module">
+const button = id => document.getElementById(id);
+const status = document.getElementById("status");
+let handle, controller, generation = 0;
+
+function controls(enabled) {
+  for (const id of ["play", "pause", "next"]) button(id).disabled = !enabled;
+}
+async function close() {
+  generation++; controller?.abort(); controls(false);
+  const old = handle; handle = undefined;
+  await old?.dispose();
+}
+button("load").onclick = async () => {
+  button("load").disabled = true;
+  let current;
+  try {
+    await close(); current = ++generation;
+    controller = new AbortController(); const signal = controller.signal;
+    status.textContent = "正在載入…";
+    const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+    const response = await fetch("./story.json", { signal });
+    if (!response.ok) throw new Error(`story.json: HTTP ${response.status}`);
+    const storyData = await response.json();
+    signal.throwIfAborted(); if (current !== generation) return;
+    handle = mountStory(document.getElementById("stage"), {
+      document: storyData,
+      locale: storyData.localization?.defaultLocale ?? "en",
+      assetsBase: new URL("./", response.url).href,
+      signal,
+      onEvent(event) { if (event.type === "error" && current === generation) status.textContent = event.error.message; }
+    });
+    await handle.ready;
+    if (current !== generation) return;
+    controls(true); status.textContent = "已載入。點選播放，再點下一句。";
+  } catch (error) {
+    if (current === generation) {
+      const failed = handle; handle = undefined; await failed?.dispose().catch(() => {});
+      if (current === generation) status.textContent = `載入失敗：${error.message}。檢查檔案後重試。`;
+    }
+  } finally { button("load").disabled = false; }
+};
+button("play").onclick = () => handle?.play();
+button("pause").onclick = () => handle?.pause();
+button("next").onclick = () => handle?.next();
+button("close").onclick = async () => { await close(); status.textContent = "已退出。可再次點選載入。"; };
+window.addEventListener("pagehide", () => { void close(); }, { once: true });
+</script>
+</html>
+```
+
+</details>
+
+程式碼明確做了三步：
+
+```js
+const response = await fetch("./story.json"); // 請求剛儲存的檔案
+if (!response.ok) throw new Error(`HTTP ${response.status}`);
+const storyData = await response.json(); // 把 JSON 文字讀成 JavaScript 物件
+const player = mountStory(document.getElementById("stage"), {
+  document: storyData, // 將這個物件交給播放器
+  locale: "zh-CN",
+  assetsBase: new URL("./", response.url).href,
+});
+await player.ready; // 完成載入後，頁面才啟用播放按鈕
+```
+
+這段解釋的是完整 HTML 中的載入部分。檔名、網址和讀出來的物件是不同的輸入：
+
+| 你手上有什麼 | 怎麼交給播放器 |
+| --- | --- |
+| JavaScript 中已經建立好的劇情物件 | `mountStory(container, { document: storyData })` |
+| 指向完整劇情 JSON 的 HTTP 網址 | 如上先 fetch 再讀取 JSON；也可用第 6 步的 httpDataSource |
+| 透過檔案選擇框選中的 JSON 檔案 | 使用 fileDataSource，同時指定圖片、聲音從哪裡讀取 |
+| 本站遊戲劇情 ID | 使用第 7 步的 haneokaStorySource |
+
+## 4. 新增一張背景
+
+把 [garden.svg](/examples/garden.svg) 儲存到同一個資料夾。用[完整中文背景劇情](/examples/story-zh.json) 替換 `story.json`，或者在 `commands` 陣列**最前面**、第一句對白之前插入這條動作：
+
+```json
+{"command":25,"background":{"url":"garden.svg"}}
+```
+
+`25` 表示切換場景，`background.url` 是圖片檔名。這條動作與後面的對白之間需要一個逗號。現在資料夾裡有 `index.html`、`story.json`、`garden.svg` 三個檔案。重新載入後，庭園會出現在對白後面。入門 HTML 的 `assetsBase` 指向 JSON 所在資料夾，因此能找到旁邊的 `garden.svg`。
+
+## 5. 新增一個聲音，再集中填寫 cue 地址
+
+把 [cue-tone.wav](/examples/cue-tone.wav) 儲存到同一資料夾，用[完整中文聲音劇情](/examples/story-sound-zh.json) 替換 `story.json`。播放第一句時，會響起一小段音量較低的原創測試音。這是在第一條對白中新增的欄位：
+
+```json
+"voices": [{"soundId":10000001,"categoryName":"Voice","playableUrl":"cue-tone.wav","volume":0.5}]
+```
+
+要播放臺詞錄音，就換成自己的音訊檔案，並把 `playableUrl` 改為準確檔名。`soundId` 標識這個 cue，`playableUrl` 指向能播放的聲音。透過點選或觸控「播放」開始，讓瀏覽器允許聲音播放。SDK 會透過共用資源傳輸讀取宣告的音訊，自動準備播放網址。資源請求遵守所設定的位元組預算與載入期限；退出時釋放播放器擁有的播放網址。
+
+已有劇情裡已經寫了 cue ID 時，可以在 JavaScript 中集中維護地址，再於掛載前補入聲音記錄。在入門 HTML 的 `const storyData = await response.json();` 後面加入：
+
+```js
+const sounds = { 10000001: "./cue-tone.wav" };
+for (const command of storyData.commands) {
+  for (const voice of command.voices ?? []) {
+    const key = voice.soundId ?? voice.id;
+    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
+  }
+}
+```
+
+這是針對示例 `commands[].voices` 的網頁端預處理，`sounds` 還不是 `mountStory` 引數。背景音樂和音效分別使用動作裡的 `bgm.playableUrl`、`se.playableUrl`。本站介面卡已經能根據聲音資源表，把 `voiceRefs`、`bgmRef`、`seRef` 補成完整記錄。其他劇情格式需要介面卡轉換它們的 cue 欄位；時間軸、並行動作裡的 cue 也要處理。
+
+## 6. 換成網址或自己選擇的檔案
+
+[完整來源選擇 HTML](/examples/story-player.html) 提供四種讀取方式，幷包含可見錯誤、取消、播放和進度條。把它儲存為 `index.html`，與上述 JSON 和素材放在一起。選擇「Another JSON address」，填入完整網址再載入；選擇「A JSON file on my computer」則可以選擇儲存到電腦的 JSON。
+
+HTTP 也有更短的 SDK 寫法，替換入門 HTML 中 fetch、讀取 JSON 和掛載的部分：
+
+```js
+const { mountStory } = await import("https://haneoka.org/embed/vega.js");
+const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
+handle = mountStory(document.getElementById("stage"), {
+  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  locale: "zh-CN",
+  signal,
+});
+await handle.ready;
+```
+
+`httpDataSource` 會在內部請求、讀取 JSON。相對素材路徑以 JSON 所在目錄為基準，絕對網址保留自己的來源。只有素材放在其他目錄時才需要填寫 `assetsBase`。
+
+選擇一個 JSON，只授予網頁讀取這個檔案的許可權，不會同時選中旁邊的圖片、模型和音訊。完整 HTML 使用 `fileDataSource(file)` 讀所選 JSON，素材仍從 HTML 資料夾的 HTTP 地址讀取。要完全使用自己選擇的本地素材，見 [本地檔案與 fileResourceResolver 說明](../core/#自帶記憶體http-或檔案)。模型清單引用的其他檔案也必須能透過資源對映找到。
+
+## 7. 用一個入口載入 Our Notes 已釋出劇情
+
+手上有本站劇情 ID 時，使用 `mountHaneokaStory`。它從同一版本清單選擇播放器模組、主題和 Cubism 執行時；你填寫劇情 ID、伺服器與語言即可。
+
+[開啟完整短劇情 HTML](/examples/haneoka-story.html)，儲存為 `index.html`，按第 3 步用 HTTP 開啟。點「載入」，等「已就緒」，再點「播放」。示例使用短劇情 **afterlive_10109**；[完整公開 JSON](https://haneoka.org/api/v1/stories/afterlive_10109?server=intl)可檢視它的動作與素材引用。
+
+```js
+import { mountHaneokaStory } from "https://haneoka.org/embed/vega-haneoka.js";
+const player = mountHaneokaStory(document.getElementById("stage"), {
+  id: "afterlive_10109", server: "intl", locale: "zh-CN",
+});
+await player.ready;
+// 在按鈕點選時呼叫：
+player.play();
+```
+
+完整 HTML 提供元素、按鈕、載入階段、取消、錯誤提示與銷燬。播放器畫面也帶有自身控制；外部按鈕用於演示 handle 方法，自己接入網頁時可選用適合佈局的一套控制。
+
+<details>
+<summary>已釋出短劇情的完整 index.html</summary>
+
+```html
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Haneoka 劇情</title>
+<style>
+body{font:16px system-ui;margin:16px;background:Canvas;color:CanvasText}
+#stage{height:min(70vh,600px);position:relative;width:100%}
+button{font:inherit;margin:4px;min-height:48px;padding:8px 16px}
+output{display:block;margin:8px}
+</style>
+<h1>Haneoka 劇情</h1>
+<button id="load" disabled>載入</button>
+<button id="cancel" disabled>取消載入</button>
+<button id="play" disabled>播放</button>
+<button id="next" disabled>下一句</button>
+<button id="exit" disabled>銷燬</button>
+<output id="status" role="status">正在準備播放器</output>
+<div id="stage"></div>
+<script type="module">
+import {mountHaneokaStory} from "https://haneoka.org/embed/vega-haneoka.js";
+let player, generation=0;
+const by=id=>document.getElementById(id);
+const labels={manifest:"正在準備播放器",modules:"正在準備播放器",runtime:"正在準備播放器",data:"正在載入劇情",resources:"正在載入素材",ready:"已就緒"};
+const controls=ready=>{by("play").disabled=!ready;by("next").disabled=!ready;};
+by("load").onclick=async()=>{
+  const current=++generation;
+  by("load").disabled=true;controls(false);
+  try{
+    await player?.dispose();
+    if(current!==generation)return;
+    player=mountHaneokaStory(by("stage"),{
+      id:"afterlive_10109",server:"intl",locale:"zh-CN",
+      onEvent:event=>{
+        if(current!==generation)return;
+        if(event.type==="stage")by("status").textContent=labels[event.stage];
+        if(event.type==="error"){controls(false);by("status").textContent=String(event.error?.message??event.error);}
+      },
+    });
+    window.storyPlayer=player;
+    by("exit").disabled=false;by("cancel").disabled=false;
+    await player.ready;
+    if(current===generation){controls(true);by("status").textContent="已就緒";}
+  }catch(e){if(current===generation)by("status").textContent=player?.snapshot.phase==="cancelled"?"已取消":String(e.message??e);}
+  finally{if(current===generation){by("load").disabled=false;by("cancel").disabled=true;}}
+};
+by("cancel").onclick=()=>{player?.cancel();};
+by("play").onclick=()=>{player.play();by("status").textContent="播放中";};
+by("next").onclick=()=>{player.next();};
+by("exit").onclick=async()=>{
+  ++generation;controls(false);by("cancel").disabled=true;by("exit").disabled=true;
+  try{await player?.dispose();by("status").textContent="已銷燬";}
+  catch(e){by("status").textContent=String(e.message??e);}
+  finally{by("load").disabled=false;}
+};
+by("load").disabled=false;by("status").textContent="尚未載入";
+window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
+</script>
+</html>
+```
+
+</details>
+
+本頁「Our Notes 寶物」預設保留較長的 **millsage_004_1_02**。[它的完整公開 JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl)包含 728 條動作。兩個預設使用相同的短 API；換劇情時，將 `id` 改為資料目錄實際返回的編號。
+
+遊戲目錄中的 JSON 帶有素材引用，本站介面卡會準備執行資料、模型資訊與聲音記錄。自己創作的完整 Vega JSON 則繼續使用第 3–6 步的 `fetch → response.json() → mountStory({ document })`。本站助手已提供素材來源，只有主動覆蓋素材時才在高階 playerOptions 中設定資源目錄。
+
+## 8. 準備標準 Live2D 模型
+
+Cubism provider 已能讀取標準 `*.model3.json` 與舊版 `*.model.json`。標準模型的角色描述可以只指向模型清單：
+
+```json
+{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```
+
+保留匯出時的目錄結構：
+
+```text
+models/Mira/
+  Mira.model3.json
+  Mira.moc3
+  Mira.2048/texture_00.png
+  motions/...
+  expressions/...
+```
+
+| 檔案或元件 | 什麼時候需要 |
+| --- | --- |
+| model3.json、它引用的 moc3、所有引用的貼圖 | 基礎顯示所必需，檔名和相對路徑必須與清單一致 |
+| Cubism 外掛、Web runtime 模組及相容的 Cubism Core | 執行模型渲染；基礎劇情嵌入不會自動安裝模型 provider |
+| Physics、Pose、UserData JSON | 清單 FileReferences 宣告瞭它們時需要；提供檔案或刪除不用的宣告 |
+| 動作與表情檔案 | 劇情使用時需要；保留模型清單中的名稱與檔案路徑 |
+| 額外 shader JSON 或 shader 目錄 | 當前執行時內建渲染著色器，基礎模型無需外部 shader 配置 |
+
+檔案說明見 Live2D 的[匯出資料指南](https://docs.live2d.com/zh-CHS/cubism-editor-manual/export-moc3-motion3-files/)與 [model3.json 規範](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md)。Provider 按模型清單尋找其他檔案。
+
+接著把[完整模型劇情模板](/examples/story-model-zh.json)儲存為 `story.json`。模板裡的 `command: 0` 是入場，`targets` 指定小遙，`positionType: 5` 把角色放在中間，`characterModel` 指向模型。把自己的實際清單路徑填進 `runtime.model`，其餘模型檔案保持原名與目錄。使用第 6 步的完整 HTML，展開「Advanced: standard Live2D in my own story」，選中啟用 Cubism，再選原創 JSON、載入、播放。這個模板需要你自己的模型匯出檔案；下載模板並不包含示意目錄裡的模型。
+
+**目前還沒有直接載入 ZIP 的入口。** 先解壓、保留相對目錄、透過 HTTP 提供這些檔案，再把角色描述指向模型清單。已有的模型 ZIP 匯出用於下載，不能作為 ZIP 載入功能。公開引數也沒有 `shaders`、`shadersDir`；若要載入自定義 shader 包，需要增加執行時擴充套件，給劇情新增這兩個欄位不會產生該效果。
+
+## 載入失敗時怎麼恢復
+
+| 頁面顯示什麼 | 下一步做什麼 |
+| --- | --- |
+| story.json: HTTP 404 | 開啟 [story.json](http://localhost:8000/story.json)，檢查目錄、檔名及大小寫 |
+| JSON 解析失敗 | 先換回完整示例，再一次只改一個文字值；JSON 使用雙引號、沒有末尾多餘逗號 |
+| Failed to fetch | 直接開啟 JSON 網址，確認頁面使用 HTTP，再檢視瀏覽器實際失敗的請求地址 |
+| 其他域名提示 CORS | 把素材與網頁放在同一來源，或由素材伺服器在回應中允許你的網頁來源；客戶端請求標頭不能授予跨域許可權 |
+| 對白能讀，圖片或聲音失敗 | 檢查素材路徑與 assetsBase；選擇一個 JSON 不會連帶選擇它的素材 |
+| 模型執行時失敗 | 分別檢查 runtime 模組、Core、模型清單、二進位制和貼圖請求；JSON 請求成功只說明劇情檔案可讀取 |
+| 已取消或已退出 | await player.dispose() 完成後建立新例項重試；完整示例已處理此步驟 |
+
+## 播放、清理與進階整合
+
+`play()` 開始或恢復，`pause()` 暫停，`next()` 繼續對白。`await player.seek(0.5)` 跳到當前可達劇情路徑一半的動作邊界，包含選項路徑，返回實際恢復的動作序號。比例表示劇情進度。`player.snapshot` 提供狀態與進度；狀態事件約每 100 ms 更新，控制操作立即更新。
+
+`ready` 等待渲染器、所需資源、字型與跳轉索引。`cancel()` 停止載入；就緒後取消外部 signal 會銷燬播放器。`dispose()` 可重複呼叫。在同一元素中建立另一個播放器前，等待它完成。載入失敗透過 ready 拒絕與 error 事件報告；監聽器錯誤由 onListenerError 隔離處理。
+
+執行時解析已宣告的資源網址，保留對白、ID 與來源標籤。檔案對映按字面路徑匹配，也支援 Unicode。Core loader 釋放自己建立的 Blob URL，模型 provider 和渲染器釋放解碼及 GPU 資源。預設傳輸為 CORS、omit credentials、每項回應 64 MiB、資源請求 30 秒期限。動態 runtime 模組與 Core 指令碼使用瀏覽器自己的載入路徑。
+
+播放器預設在左上角懸浮半透明 Haneoka 原圖示，連結[主站](https://haneoka.org/)。`brandingCorner: "top-right"` 可放到右上角，浮層保留完整畫面面積。你的劇情和素材保留各自作者與許可。
+
+構建工程使用的包名是 `@haneoka/embed-vega`，主題與本站助手另有 package 子入口。公眾 npm 安裝入口尚未釋出，本教程直接使用託管瀏覽器模組。從[原始碼倉庫](https://github.com/haneoka-gakuen/haneoka/tree/main/packages/embed-vega)構建時，先安裝 workspace 依賴並構建，再打包。主題模組需保留它的字型和圖片素材。下面的參考表繼續逐項說明全部引數。
+
+Engine 應用自帶檔案或原生資源埠時，見[宿主資源教程](../host-resources/)，包含完整型別、取消和租約所有權。
+
+## mountHaneokaStory 全部引數
+
+瀏覽器入口為 `https://haneoka.org/embed/vega-haneoka.js`，構建工程中的包子入口為 `@haneoka/embed-vega/hosted`。託管模組預設選擇自身版本的 manifest；直接匯入包時，預設讀取 `https://haneoka.org/embed/manifest.json`。容器是具有有效寬高的瀏覽器 HTMLElement。缺少瀏覽器上下文、id 為空或非 string 時同步拋 TypeError；同一容器尚未銷燬就再次掛載時拋 Error。函式立即返回 handle，等待 ready 期間也保留它以便清理。
+
+| 引數 | 型別／必填／預設 | 作用與限制 |
+| --- | --- | --- |
+| id | 必填 string | 當前目錄實際返回的劇情 ID。空白或非 string 同步拒絕；不存在的 ID 透過來源錯誤拒絕 ready。 |
+| server | 可選 string，intl | 素材伺服器，與文字語言獨立。使用既有目錄的 slug 校驗和可用性規則。 |
+| locale | 可選 string，ja | 啟動時的內容與 UI 語言。公開劇情陣列順序為 ja/en/zh-TW/zh-CN/ko，選擇劇情實際提供的語言。 |
+| signal | 可選 AbortSignal | 取消準備；就緒後 abort 會銷燬播放器。已取消的 signal 會拒絕 ready。 |
+| manifestUrl | 可選絕對 HTTP(S) URL；託管 ESM 預設本版本 manifest，包匯入預設穩定根 manifest | 選擇相容的 SDK 清單。非法 URL 或協議同步拒絕；格式錯誤或混合版本 metadata 拒絕 ready。使用一份完整版本清單。 |
+| apiBase | 可選絕對 HTTP(S) 目錄，https://haneoka.org/api/v1/ | 其他相容的劇情目錄。遵守 core 目錄校驗，模型路徑繼續來自這個目錄的回應。 |
+| runtime | 可選 CubismEmbedOptions，預設版本內的 runtime descriptor | 高階執行時覆蓋。巢狀必填 moduleUrl 與 runtime.cubismCoreUrl；runtime.cubism2CoreUrl、runtime.motionSyncCoreUrl 可選。提供相互相容且有許可的 module/Core 地址；下方 factory 表保留完整契約。 |
+| playerOptions | 可選 object，{} | 傳給已組裝播放器的 mountStory 引數；完整允許欄位與排除項見下文。 |
+| fetcher | 可選 (Request)=&gt;Promise&lt;Response&gt;，原生 fetch | 清單、執行時描述、劇情及資源傳輸。預設本站請求使用 no-referrer；動態模組/Core 指令碼仍按瀏覽器原生路徑載入。 |
+| headers | 可選 HeadersInit，無 | Core 傳輸請求標頭，不配置瀏覽器 script/module 請求。 |
+| credentials | 可選 omit/same-origin/include，omit | 資源傳輸憑據。公開讀取使用 omit；帶憑據跨域需要伺服器提供對應許可。 |
+| maxBytes | 可選正 safe integer，67108864 | 準備階段與子播放器每個回應的編碼位元組上限。非法值 RangeError，超限拒絕讀取；與解碼或 GPU 記憶體預算獨立。 |
+| onEvent | 可選 (HaneokaStoryEvent)=&gt;void | 從構造開始接收 stage/load/state/seek/error。 |
+| onListenerError | 可選 (unknown)=&gt;void | 隔離並報告觀察者異常，監聽器失敗不變成播放失敗。 |
+
+`playerOptions` 允許 **theme、brandingCorner、shell、plugins、renderer、assetsBase、resolveResource、resourceTimeoutMs、resolveLocalizedText、onListenerError**。巢狀欄位、預設值、範圍和錯誤與下方 mountStory 表一致。助手預設 theme 為 haneoka，安裝主題/Cubism 外掛並追加傳入的 plugins；子播放器預設使用遊戲 shell，也可顯式設定 shell。常規使用保留目錄提供的素材根，只有主動替換素材時才覆蓋 assetsBase/resolveResource。子引數在準備過程中校驗，因此它們的錯誤會拒絕 ready；頂層 onListenerError 處理本站助手的觀察者，playerOptions.onListenerError 沿子播放器契約。
+
+`playerOptions` 排除 **source、document、server、locale、signal、onEvent、fetcher、headers、credentials、maxBytes**，共用上下文放在頂層。這個本站助手接收目錄 ID；作者物件、HTTP JSON 或所選 File 繼續按第 3–6 步使用 mountStory 與資料來源 factory。
+
+| handle 成員 | 型別／簽名 | 行為 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | 等待所選模組、執行時描述及子播放器的資料、模型、字型和跳轉準備；失敗保留原始準備／載入錯誤。 |
+| snapshot | StoryEmbedSnapshot | phase 為 loading/ready/cancelled/error/disposed，另含 playing/paused/finished/seeking、commandIndex/commandCount/progress。phase 描述本 handle。 |
+| player | VegaPlayerHandle 或 undefined | 子播放器高階訪問，生命週期由本站 handle 管理。 |
+| stage | manifest/modules/runtime/data/resources/ready | 當前準備階段，可對映為面向使用者的載入提示。 |
+| release | string 或 undefined | 清單讀取後確定的不可變 SDK 版本。 |
+| play/pause/next | ()=&gt;void | 需先 ready，否則 Error；播放非同步失敗沿子播放器 error 事件。 |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | finite 0–1 當前動作路徑比例，返回實際邊界；子播放器範圍和生命週期錯誤保持原義。 |
+| subscribe | listener=&gt;unsubscribe | 監聽後續 HaneokaStoryEvent；disposed 後呼叫會拋 Error。 |
+| cancel | ()=&gt;void | 終止載入中的準備；就緒後使用 dispose。 |
+| dispose | ()=&gt;Promise&lt;void&gt; | 冪等，取消、等待準備清理、銷燬子播放器與 loader 並釋放容器登記。清理失敗可拋 AggregateError；複用容器前等待它完成。 |
+
+stage 事件為 `{type:"stage",stage,release?}`；load/state/seek/error 結構與下方 mountStory 一致。模組清單與 runtime descriptor 來自同一版本；錯誤模組路徑、執行時描述的 hash／長度不匹配、越出分發來源的 runtime 路徑、匯入失敗和資源失敗都會拒絕 ready。準備失敗會清理子例項和登記，宿主可建立新 handle；仍應 dispose 舊 handle 完成自己的生命週期。
+
+## mountStory 全部引數
+
+container必填瀏覽器HTMLElement，有ownerDocument/defaultView和有效尺寸；非法TypeError，同容器未銷燬再次掛載Error。立即返回handle。TypeScript中document/source二選一；實際實現優先source，缺/壞commands會拒絕ready。
+
+| 欄位 | 型別/預設 | 作用與錯誤 |
+| --- | --- | --- |
+| document | AdvStory，source替代必填 | 記憶體劇情，commands需array，非法ready TypeError；作者資料可單語。 |
+| source | DataSource&lt;AdvStory&gt;，document替代必填 | memory/http/file/custom源返回engine檔案，source失敗傳遞ready。 |
+| server | string，undefined；本站intl | 來源registry，與語言獨立。 |
+| locale | string，en | 作者語言，啟動後同時設定player語言與shell UI語言。 |
+| assetsBase | 可選絕對HTTP(S)目錄，sourcebase | 不含query/fragment，非法TypeError。 |
+| resolveResource | (key,DataContext)=&gt;string/URL/Blob或Promise | 完整路徑對映，已解析URL只過一次；錯誤拒絕資源/ready。 |
+| fetcher | (Request)=&gt;Promise&lt;Response&gt;，fetch | 檔案/資源bytes；script/module有獨立載入路徑。 |
+| credentials | omit/same-origin/include，omit | core傳輸，憑據跨域需允許origin/credentials。 |
+| headers | HeadersInit，無 | core請求標頭，不配置Core指令碼/module。 |
+| maxBytes | 正safe integer，67108864 | 每檔案/bytes預算，非法RangeError，不是GPU總預算。 |
+| onListenerError | (unknown)=&gt;void，可選 | observer異常隔離。 |
+| theme | portable/haneoka，portable | Haneoka需對應plugins，缺contribution拒絕ready。 |
+| brandingCorner | top-left/top-right，top-left | 半透明角落懸浮，畫面全尺寸，無hide。 |
+| shell | false或VegaPlayerShellOptions | portable預設false，Haneoka預設initialScreen:game。 |
+| plugins | readonly VegaPlugin[]，[] | 加到已有richtext/portable/Three/resources後；setup/dependency失敗拒絕ready。 |
+| renderer | ThreeRendererPluginOptions，\{\} | 下表完整欄位。 |
+| resourceTimeoutMs | 正safe integer，30000 | 每資源總期限，非法RangeError，超時TimeoutError；不是整劇情期限。 |
+| signal | AbortSignal，可選 | boot取消，ready後abort銷燬。 |
+| onEvent | (StoryEmbedEvent)=&gt;void，可選 | boot前登記，事件同subscribe。 |
+| resolveLocalizedText | (unknown)=&gt;\{text:string,lang?:string\}，Vega預設 | 自定義文字resolver，保留返回shape；作者錯誤傳遞相應操作。 |
+
+core繼承引數的路徑、預算、transport規則見[core](../core/)；mount沒有autoplay/general loadTimeoutMs。整次期限用外部signal，音訊從使用者點選播放。
+
+## shell 完整巢狀欄位
+
+| 欄位 | 預設/型別 | 行為 |
+| --- | --- | --- |
+| storage | 可選VegaSaveStorage，memory | read(key)=&gt;Promise&lt;string/null&gt;、write(key,value)=&gt;Promise&lt;void&gt;、remove(key)=&gt;Promise&lt;void&gt;、list(prefix)=&gt;Promise&lt;readonly string[]&gt;；宿主儲存，壞save在相應load拒絕。 |
+| projectId | 可選string | explicit trim→vegaProject.id→story.id→vega-story，save namespace。 |
+| settingsId | string，projectId | preferences獨立key，已儲存settings優先initialSettings。 |
+| initialSettings | Partial&lt;VegaNarrativeSettings&gt; | 下表預設；mount隨後用外locale設定player/UI，初始語言用外層locale。 |
+| title | 可選string | explicit→本地化project/story title/name→projectId。 |
+| initialScreen | title/game | generic預設title，Haneoka隱式shell為game。 |
+| onExitRequest | ()=&gt;void/Promise&lt;void&gt; | 暫停回title後通知宿主退出，callback拒絕對應shell操作。 |
+
+| initialSettings | 型別/預設 | 範圍/作用 |
+| --- | --- | --- |
+| textSpeed | number/1 | .1–5 clamp。 |
+| autoDelay | number/1.5 | 秒，0–30。 |
+| masterVolume | number/1 | 0–1。 |
+| bgmVolume | number/.8 | 0–1。 |
+| voiceVolume | number/1 | 0–1。 |
+| seVolume | number/.9 | 0–1。 |
+| language | string/auto | 內容語言，儲存最多64字元。 |
+| uiLanguage | string/auto | UI語言，與server獨立。 |
+| reducedMotion | boolean/false | 支援的UI減少動畫。 |
+| highContrast | boolean/false | UI對比偏好。 |
+| instantText | boolean/false | 文字即時完成。 |
+| webText | boolean/false | Haneoka Reading UI瀏覽器文字模式，見版本條件。 |
+| textSize | number/1 | .5–2。 |
+| subtitlesEnabled | boolean/true | 可用字幕。 |
+| bgmEnabled | boolean/true | BGM開關。 |
+
+數字非finite用fallback，boolean規範化；set未知key RangeError。webText已進入engine1916c57/theme1d5b20e/shell436ade8原始碼，需匹配構建或含這些版本的後續CDN receipt；若主動固定舊r22，請使用該固定版已有引數。匹配版本可設定shell.initialSettings.webText，或ready後story.player.shell.setSetting("webText",true)。
+
+## renderer 完整巢狀欄位
+
+| 欄位 | 型別/預設 | 作用/組合 |
+| --- | --- | --- |
+| rendererId | vega-three-webgl2/haneoka-three-webgl2，前者 | provider route。 |
+| profile | vega/unity-adv，vega | scene profile。 |
+| staticPortraitFallback | boolean/true | 模型provider缺失時static portrait。 |
+| colorGradingMode | ldr/hdr，ldr | color pipeline。 |
+| contributionId | string/haneoka.renderer-three | 註冊identity。 |
+| contributionName | string/Vega Three WebGL2 | 顯示名。 |
+| backend | 兩個rendererID，vega-three-webgl2 | embed選擇vega backend，不匹配拒絕ready。 |
+| postTextureResolver | 可選ThreePostTextureResolver | 不與postTextureAssets同時提供，否則TypeError；plugin持有可選dispose。 |
+| postTextureAssets | 可選Readonly&lt;Record&lt;string,string&gt;&gt;或ReadonlyMap&lt;string,string&gt; | 授權素材stablekey到URL，單獨提供時建resolver。 |
+
+自定義resolver完整欄位：resolve(reference:unknown,usage)=&gt;Three.Texture/null必填；preload([\{reference,usage\}],signal?)=&gt;Promise&lt;void&gt;、dispose()可選。usage包括film-grain/color-lookup/lens-dirt，null沿pipelinefallback；Three例項應匹配，textures由provider回收。引數衝突同步TypeError，載入/provider/render失敗經ready/events。
+
+## 所有 source/Cubism/theme factory
+
+haneokaStorySource(\{id,apiBase?\})的id必填；apiBase 預設 `https://haneoka.org/api/v1/`，並遵core目錄校驗。讀取story/story-runtime/宣告的Live2D metadata，server/locale來自mount；缺資料/壞record拒絕load，無帳號/release欄位。
+
+cubismStoryPlugin(\{moduleUrl,runtime\})需合法供應的module絕對URL與runtime.cubismCoreUrl；runtime.cubism2CoreUrl/motionSyncCoreUrl可選。module需export createCubismWebRuntimeAdapter，缺export或renderer能力拒絕prepare。按模型需要lazy載入，Core不打入SDK；adapter/Core應版本匹配。
+
+haneokaStoryPlugins無引數，是theme/default-shell陣列。createHaneokaThemeAssetsPlugin(provider)接受可選assets()、resolveChatImage(value,kind:icon/stamp)、resolveSourceAsset(path)。assets()的全部可選URL鍵為arrow/auto/chatWindow/chatBackground/chatBackgroundFallback/chatLock/chatTextBox/chatComposerPlus/chatComposerPhoto/chatComposerPicture/chatComposerSmile/chatComposerMicrophone/chatIcons/fast/frame/fullscreen/subtitles/skip；缺值沿theme預設。HANEOKA_POST_TEXTURE_ASSETS為固定授權renderer對映，可放renderer.postTextureAssets。
+
+## 檔案、全部 handle 和 events
+
+AdvStory包含commands（mount要求）、可選runtime/localization及source擴充套件欄位。localization有locales:string[]、defaultLocale:string、arrayOrder:string[]，作者定義語言；runtime為engine Partial&lt;AdvRuntimeConfig&gt;。command/resource欄位由opcode/provider模型定義，示例使用公共Stage25/Talk2。
+
+| 成員 | 簽名 | 行為/錯誤 |
+| --- | --- | --- |
+| ready | Promise&lt;void&gt; | renderer/resources/fonts/seekindex。 |
+| snapshot | readonly object | phase/playing/paused/finished/seeking/commandIndex/commandCount/progress；phase為loading/ready/cancelled/error/disposed。 |
+| player | VegaPlayerHandle/undefined | id/player/lifetime/root/slots/shell?/dispose，高階訪問；由embed統一銷燬。 |
+| play/pause/next | ()=&gt;void | 需ready否則Error；play非同步錯誤經error事件，next請求下一句。 |
+| seek | (ratio:number)=&gt;Promise&lt;number&gt; | finite0–1否則RangeError，實際commandIndex，保持play/pause。 |
+| subscribe | listener=&gt;unsubscribe | 未來事件，disposed後Error。 |
+| cancel | ()=&gt;void | 僅boot，ready後無動作；retry先dispose。 |
+| dispose | 共用Promise&lt;void&gt; | 冪等，先engine後loader/URLs，移DOM/監聽並等待boot；清理失敗AggregateError。 |
+
+事件完整為load\{event:EmbedEvent\}、state\{snapshot\}、seek\{commandIndex\}、error\{error\}。core欄位按core表；state100ms+操作釋出變更，observer異常隔離。取消保留signal.reason，source/resource/plugin保留其錯誤，沒有額外第二套error code。
+
+本頁示例使用穩定 alias。顯式固定舊的 r22 時，該版仍採用預留署名行的佈局；固定版本應保持 engine、theme、shell 與 runtime 相互匹配。

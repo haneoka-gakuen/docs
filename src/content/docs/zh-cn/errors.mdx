@@ -2,6 +2,7 @@
 title: 错误和重试
 description: 读取结构化失败并选择安全的重试策略。
 ---
+import ApiTry from "../../../components/ApiTry.astro";
 
 ## 错误响应
 
@@ -18,6 +19,10 @@ JSON API 失败使用以下 envelope：
 ```
 
 根据 HTTP status 和稳定的 `code` 分支。`message` 适合开发者和日志，可随服务改进而更具体；`requestId` 是可选字段，报告服务故障时请保留。
+
+看一个真实错误：
+
+<ApiTry path="/api/v1/songs/{id}" params={[{ name: "id", value: "1" }]} locale="zh-CN" />
 
 ## Status 指南
 
