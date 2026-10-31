@@ -1,6 +1,6 @@
 ---
 title: 遊戲記錄
-description: 排行榜、激奏競技場榜單和玩家資料，來自 Haneoka 自己採集的官方資料。
+description: 排行榜、激奏舞台榜單和玩家資料，來自 Haneoka 自己採集的官方資料。
 ---
 import ApiTry from "../../../../components/ApiTry.astro";
 
@@ -72,7 +72,7 @@ GET /api/v1/game/records/{region}/events/{eventId}/challenges/{challengeId}/late
 
 <ApiTry locale="zh-TW" path="/api/v1/game/records/{region}/songs/{musicId}/ranking" params={[{ name: "region", value: "jp", options: ["jp", "tw", "en", "kr"] }, { name: "musicId", value: "100007" }]} />
 
-## 激奏競技場榜單
+## 激奏舞台榜單
 
 一個聯賽的榜單，每次 100 行。`bandId` 是聯賽對應的樂隊，`start` 是起始名次。
 
