@@ -9,11 +9,9 @@ import DemoPlayer from "../../../../components/DemoPlayer.astro";
 
 ## 1. 先在這裡播放一次
 
-保持選中「完整原創示例」，點選「載入所選內容」，等待就緒，再點「播放」。你會看見庭園背景和第一句對白。「下一句」繼續對白；「暫停」暫停播放；進度條可以跳轉。「換內容前退出」關閉當前播放器。
+載入預設的「Our Notes 寶物」，再點播放器內的「播放」。自己的劇情可以用「JSON 地址」或「自己的 JSON 檔案」開啟。
 
 <DemoPlayer kind="story" locale="zh-TW" />
-
-原創示例使用[這份完整中文 story.json](/examples/story-zh.json) 和 [garden.svg](/examples/garden.svg)。「Our Notes 寶物」讀取本站已釋出的遊戲劇情及它引用的模型、聲音素材。「高階引數」裡的設定在下次載入時生效。切換語言會選擇作者已有的對應文字；單語劇情不會自動翻譯。
 
 ## 2. 建立自己的劇情檔案
 
@@ -166,38 +164,31 @@ await player.ready; // 完成載入後，頁面才啟用播放按鈕
 
 要播放臺詞錄音，就換成自己的音訊檔案，並把 `playableUrl` 改為準確檔名。`soundId` 標識這個 cue，`playableUrl` 指向能播放的聲音。透過點選或觸控「播放」開始，讓瀏覽器允許聲音播放。SDK 會透過共用資源傳輸讀取宣告的音訊，自動準備播放網址。資源請求遵守所設定的位元組預算與載入期限；退出時釋放播放器擁有的播放網址。
 
-已有劇情裡已經寫了 cue ID 時，可以在 JavaScript 中集中維護地址，再於掛載前補入聲音記錄。在入門 HTML 的 `const storyData = await response.json();` 後面加入：
+劇情已有 cue 時，掛載時傳入 `sounds`。Vega 會依 `voiceIds`、`bgmId`、`seId` 或既有聲音紀錄配對音訊。
 
 ```js
-const sounds = { 10000001: "./cue-tone.wav" };
-for (const command of storyData.commands) {
-  for (const voice of command.voices ?? []) {
-    const key = voice.soundId ?? voice.id;
-    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
-  }
-}
+const player = mountStory(document.getElementById("stage"), {
+  source: "./story.json",
+  sounds: { 10000001: "./cue-tone.wav" },
+});
+await player.ready;
 ```
-
-這是針對示例 `commands[].voices` 的網頁端預處理，`sounds` 還不是 `mountStory` 引數。背景音樂和音效分別使用動作裡的 `bgm.playableUrl`、`se.playableUrl`。本站介面卡已經能根據聲音資源表，把 `voiceRefs`、`bgmRef`、`seRef` 補成完整記錄。其他劇情格式需要介面卡轉換它們的 cue 欄位；時間軸、並行動作裡的 cue 也要處理。
 
 ## 6. 換成網址或自己選擇的檔案
 
-[完整來源選擇 HTML](/examples/story-player.html) 提供四種讀取方式，幷包含可見錯誤、取消、播放和進度條。把它儲存為 `index.html`，與上述 JSON 和素材放在一起。選擇「Another JSON address」，填入完整網址再載入；選擇「A JSON file on my computer」則可以選擇儲存到電腦的 JSON。
-
-HTTP 也有更短的 SDK 寫法，替換入門 HTML 中 fetch、讀取 JSON 和掛載的部分：
+[完整來源選擇 HTML](/examples/story-player.html) 預設選取「Our Notes 寶物」，也支援 JSON 地址和本機 JSON 檔案。
 
 ```js
 const { mountStory } = await import("https://haneoka.org/embed/vega.js");
-const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
 handle = mountStory(document.getElementById("stage"), {
-  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  source: "./story.json",
   locale: "zh-CN",
   signal,
 });
 await handle.ready;
 ```
 
-`httpDataSource` 會在內部請求、讀取 JSON。相對素材路徑以 JSON 所在目錄為基準，絕對網址保留自己的來源。只有素材放在其他目錄時才需要填寫 `assetsBase`。
+相對素材路徑以 JSON 所在目錄為基準。使用 `assetsBase` 更換素材目錄，或用 `resources` 將個別資源鍵對應到網址或檔案。
 
 選擇一個 JSON，只授予網頁讀取這個檔案的許可權，不會同時選中旁邊的圖片、模型和音訊。完整 HTML 使用 `fileDataSource(file)` 讀所選 JSON，素材仍從 HTML 資料夾的 HTTP 地址讀取。要完全使用自己選擇的本地素材，見 [本地檔案與 fileResourceResolver 說明](../core/#自帶記憶體http-或檔案)。模型清單引用的其他檔案也必須能透過資源對映找到。
 
@@ -205,12 +196,12 @@ await handle.ready;
 
 手上有本站劇情 ID 時，使用 `mountHaneokaStory`。它從同一版本清單選擇播放器模組、主題和 Cubism 執行時；你填寫劇情 ID、伺服器與語言即可。
 
-[開啟完整短劇情 HTML](/examples/haneoka-story.html)，儲存為 `index.html`，按第 3 步用 HTTP 開啟。點「載入」，等「已就緒」，再點「播放」。示例使用短劇情 **afterlive_10109**；[完整公開 JSON](https://haneoka.org/api/v1/stories/afterlive_10109?server=intl)可檢視它的動作與素材引用。
+[開啟《寶物》的完整 HTML](/examples/haneoka-story.html)，也可以查看[目錄 JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl)。更換劇情時，用目錄傳回的劇情 ID 填寫 `id`。
 
 ```js
 import { mountHaneokaStory } from "https://haneoka.org/embed/vega-haneoka.js";
 const player = mountHaneokaStory(document.getElementById("stage"), {
-  id: "afterlive_10109", server: "intl", locale: "zh-CN",
+  id: "millsage_004_1_02", server: "intl", locale: "zh-CN",
 });
 await player.ready;
 // 在按鈕點選時呼叫：
@@ -220,7 +211,7 @@ player.play();
 完整 HTML 提供元素、按鈕、載入階段、取消、錯誤提示與銷燬。播放器畫面也帶有自身控制；外部按鈕用於演示 handle 方法，自己接入網頁時可選用適合佈局的一套控制。
 
 <details>
-<summary>已釋出短劇情的完整 index.html</summary>
+<summary>《寶物》的完整 index.html</summary>
 
 ```html
 <!doctype html>
@@ -255,7 +246,7 @@ by("load").onclick=async()=>{
     await player?.dispose();
     if(current!==generation)return;
     player=mountHaneokaStory(by("stage"),{
-      id:"afterlive_10109",server:"intl",locale:"zh-CN",
+      id:"millsage_004_1_02",server:"intl",locale:"zh-CN",
       onEvent:event=>{
         if(current!==generation)return;
         if(event.type==="stage")by("status").textContent=labels[event.stage];
@@ -286,42 +277,22 @@ window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
 
 </details>
 
-本頁「Our Notes 寶物」預設保留較長的 **millsage_004_1_02**。[它的完整公開 JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl)包含 728 條動作。兩個預設使用相同的短 API；換劇情時，將 `id` 改為資料目錄實際返回的編號。
-
-遊戲目錄中的 JSON 帶有素材引用，本站介面卡會準備執行資料、模型資訊與聲音記錄。自己創作的完整 Vega JSON 則繼續使用第 3–6 步的 `fetch → response.json() → mountStory({ document })`。本站助手已提供素材來源，只有主動覆蓋素材時才在高階 playerOptions 中設定資源目錄。
+Haneoka 轉接器會解析目錄中的模型和媒體參照。自行創作的 Vega JSON 可透過 `mountStory` 的 `source` 或 `document` 播放。
 
 ## 8. 準備標準 Live2D 模型
 
-Cubism provider 已能讀取標準 `*.model3.json` 與舊版 `*.model.json`。標準模型的角色描述可以只指向模型清單：
+提供 Cubism 3 描述檔或 ZIP。`FileReferences` 裡的 MOC3 和貼圖用於基本顯示。保留相對路徑，並提供已宣告的物理、姿勢、動作和表情檔案。
 
-```json
-{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```js
+import { ModelPlayer } from "https://haneoka.org/embed/vega.js";
+const viewer = await ModelPlayer.create(document.getElementById("stage"), {
+  src: "./models/hero.zip",
+});
 ```
 
-保留匯出時的目錄結構：
+在劇情中傳入 `models: { hero: "./models/hero.zip" }`，再於角色動作中使用 `characterModelRef: "hero"`。[模型劇情範本](/examples/story-model-zh.json)展示角色入場和對白。託管播放器會為標準模型載入 Cubism 執行環境。
 
-```text
-models/Mira/
-  Mira.model3.json
-  Mira.moc3
-  Mira.2048/texture_00.png
-  motions/...
-  expressions/...
-```
-
-| 檔案或元件 | 什麼時候需要 |
-| --- | --- |
-| model3.json、它引用的 moc3、所有引用的貼圖 | 基礎顯示所必需，檔名和相對路徑必須與清單一致 |
-| Cubism 外掛、Web runtime 模組及相容的 Cubism Core | 執行模型渲染；基礎劇情嵌入不會自動安裝模型 provider |
-| Physics、Pose、UserData JSON | 清單 FileReferences 宣告瞭它們時需要；提供檔案或刪除不用的宣告 |
-| 動作與表情檔案 | 劇情使用時需要；保留模型清單中的名稱與檔案路徑 |
-| 額外 shader JSON 或 shader 目錄 | 當前執行時內建渲染著色器，基礎模型無需外部 shader 配置 |
-
-檔案說明見 Live2D 的[匯出資料指南](https://docs.live2d.com/zh-CHS/cubism-editor-manual/export-moc3-motion3-files/)與 [model3.json 規範](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md)。Provider 按模型清單尋找其他檔案。
-
-接著把[完整模型劇情模板](/examples/story-model-zh.json)儲存為 `story.json`。模板裡的 `command: 0` 是入場，`targets` 指定小遙，`positionType: 5` 把角色放在中間，`characterModel` 指向模型。把自己的實際清單路徑填進 `runtime.model`，其餘模型檔案保持原名與目錄。使用第 6 步的完整 HTML，展開「Advanced: standard Live2D in my own story」，選中啟用 Cubism，再選原創 JSON、載入、播放。這個模板需要你自己的模型匯出檔案；下載模板並不包含示意目錄裡的模型。
-
-**目前還沒有直接載入 ZIP 的入口。** 先解壓、保留相對目錄、透過 HTTP 提供這些檔案，再把角色描述指向模型清單。已有的模型 ZIP 匯出用於下載，不能作為 ZIP 載入功能。公開引數也沒有 `shaders`、`shadersDir`；若要載入自定義 shader 包，需要增加執行時擴充套件，給劇情新增這兩個欄位不會產生該效果。
+獨立模型播放器可選用 `shaders` 指定一個 JSON 網址，其中列出 GLSL ES 3.00 片元著色器路徑。用 `shadersDir` 指定這些相對路徑的基準目錄。每一遍以 `v_uv` 取樣 `u_model`，輸出預乘 Alpha 的 RGBA。移除播放器時呼叫 `viewer.dispose()`。
 
 ## 載入失敗時怎麼恢復
 
@@ -396,7 +367,12 @@ container必填瀏覽器HTMLElement，有ownerDocument/defaultView和有效尺�
 | 欄位 | 型別/預設 | 作用與錯誤 |
 | --- | --- | --- |
 | document | AdvStory，source替代必填 | 記憶體劇情，commands需array，非法ready TypeError；作者資料可單語。 |
-| source | DataSource&lt;AdvStory&gt;，document替代必填 | memory/http/file/custom源返回engine檔案，source失敗傳遞ready。 |
+| source | string / URL / DataSource&lt;AdvStory&gt; | Vega JSON 地址，或提供 `load(context)` 的資料來源。 |
+| resources | Record&lt;string, string / URL / Blob&gt; | 將資源鍵對應到 URL、Blob 或 File。 |
+| sounds | Record&lt;string, string / URL / Blob&gt; | 將 cue ID 對應到音訊網址或檔案。 |
+| models | Record&lt;string, string / URL / AdvCharacterModelEntry&gt; | 將角色參照對應到 Cubism 3 JSON、ZIP 地址或可移植模型描述。 |
+| cubism | CubismEmbedOptions | 自訂 Cubism 模組與 Core 地址。 |
+| runtimeManifestUrl | string / URL | 用於選擇 Cubism 執行環境的託管 SDK 清單地址。 |
 | server | string，undefined；本站intl | 來源registry，與語言獨立。 |
 | locale | string，en | 作者語言，啟動後同時設定player語言與shell UI語言。 |
 | assetsBase | 可選絕對HTTP(S)目錄，sourcebase | 不含query/fragment，非法TypeError。 |

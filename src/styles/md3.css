@@ -312,7 +312,13 @@ mobile-starlight-toc .toggle {
   font: inherit;
 }
 .docs-demo textarea { resize: vertical; font-family: var(--sl-font-mono); font-size: var(--sl-text-sm); }
-.docs-demo :is(.docs-demo__presets, .docs-demo__actions, .docs-demo__languages) { display: flex; flex-wrap: wrap; gap: var(--md-sys-spacing-2); }
+.docs-demo :is(.docs-demo__presets, .docs-demo__actions, .docs-demo__languages) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--md-sys-spacing-2);
+}
+.docs-demo :is(.docs-demo__presets, .docs-demo__actions, .docs-demo__languages) > * { margin-block: 0; }
 .docs-demo fieldset { border: 0; padding: 0; }
 .docs-demo__languages label { display: flex; align-items: center; min-height: var(--md-comp-control-height-touch); }
 .docs-demo button {
@@ -336,7 +342,6 @@ mobile-starlight-toc .toggle {
   color: var(--md-sys-color-on-primary);
   background: var(--md-sys-color-primary);
 }
-.docs-demo :is(.docs-demo__presets, .docs-demo__actions, .docs-demo__languages) { align-items: center; }
 .docs-demo .docs-demo__presets button {
   border-radius: var(--md-sys-shape-corner-small);
   color: var(--md-sys-color-on-surface-variant);

@@ -9,11 +9,9 @@ Create a story in a text file and play it on your own web page. Start with two l
 
 ## 1. Try the player here
 
-Keep **Complete original example** selected, click **Load selected content**, then **Play**. You should see a garden and Mira's first line. **Next line** continues; **Pause** stops playback; the slider jumps within the story. **Exit this player** closes it before you load another story.
+Load **Our Notes: Treasure**, then press **Play** in the player. To try your own story, choose **JSON address** or **My JSON file**.
 
 <DemoPlayer kind="story" />
-
-The original example uses [this complete story.json](/examples/story.json) and [garden.svg](/examples/garden.svg). The **Our Notes: Treasure** option loads a published game story, including its model and sound resources. Settings in **Advanced parameters** take effect on the next load. Choosing a language selects available authored text; it does not translate a single-language story.
 
 ## 2. Save your first story
 
@@ -166,38 +164,31 @@ Save [cue-tone.wav](/examples/cue-tone.wav) beside `story.json` and replace the 
 
 To use spoken dialogue, replace the WAV with your recording and change `playableUrl` to its exact filename. `soundId` identifies the cue; `playableUrl` locates the playable audio. Use **Play** from a click or tap so the browser can allow sound. The SDK reads declared audio through the shared resource transport and prepares playback URLs automatically. Resource requests use the configured byte budget and deadline; disposal releases the owned playback URLs.
 
-When your existing story already contains cue IDs, put their addresses in one JavaScript map and fill the voice records before mounting. In the starter HTML, add this immediately after `const storyData = await response.json();`:
+If your story already declares cues, pass a `sounds` map when mounting. Vega matches `voiceIds`, `bgmId`, `seId` and existing sound records.
 
 ```js
-const sounds = { 10000001: "./cue-tone.wav" };
-for (const command of storyData.commands) {
-  for (const voice of command.voices ?? []) {
-    const key = voice.soundId ?? voice.id;
-    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
-  }
-}
+const player = mountStory(document.getElementById("stage"), {
+  source: "./story.json",
+  sounds: { 10000001: "./cue-tone.wav" },
+});
+await player.ready;
 ```
-
-This is host-side preparation for the sample's `commands[].voices`; `sounds` is not a `mountStory` option. BGM and sound-effect actions use their `bgm.playableUrl` and `se.playableUrl` records. Public Haneoka stories already resolve `voiceRefs`, `bgmRef` and `seRef` through their sound registry. Other formats need an adapter that translates their cue fields into these records, including cues inside timelines or command groups.
 
 ## 6. Load a different URL or a selected file
 
-The [complete source-selection HTML](/examples/story-player.html) includes all four methods, visible loading errors, cancellation, playback and a progress slider. Save it as `index.html` beside the same JSON and assets. Choose **Another JSON address**, paste the address, then Load. Choose **A JSON file on my computer** to select the saved JSON instead.
-
-For HTTP, the shorter SDK route replaces the starter's fetch/JSON/mount block with:
+The [complete source-selection HTML](/examples/story-player.html) starts with **Our Notes: Treasure** and also accepts a JSON address or a selected JSON file.
 
 ```js
 const { mountStory } = await import("https://haneoka.org/embed/vega.js");
-const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
 handle = mountStory(document.getElementById("stage"), {
-  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  source: "./story.json",
   locale: "en",
   signal,
 });
 await handle.ready;
 ```
 
-`httpDataSource` fetches and parses the JSON internally. Relative resource paths use the JSON address's directory; an absolute URL keeps its own origin. Set `assetsBase` only when your resources live in a different directory.
+Relative asset paths use the JSON directory. Use `assetsBase` for a different directory or `resources` to map individual keys to URLs or files.
 
 Selecting a JSON file grants access to that file alone. It does not grant access to neighbouring images, models or audio. The complete HTML uses `fileDataSource(file)` and serves those resources from the HTML folder. For fully local selected resources, see [local files and fileResourceResolver](../core/#local-files). Model sidecar paths also need to resolve through that resource map.
 
@@ -205,12 +196,12 @@ Selecting a JSON file grants access to that file alone. It does not grant access
 
 Use `mountHaneokaStory` when you have a Haneoka story ID. It selects matching player modules, the theme and Cubism runtime from one release manifest. You provide the story ID, server and language.
 
-[Open the complete short-story HTML](/examples/haneoka-story-en.html), save it as `index.html`, and serve it as in step 3. Click **Load**, wait for **Ready**, then **Play**. This example uses **afterlive_10109**. [Open its complete catalog JSON](https://haneoka.org/api/v1/stories/afterlive_10109?server=intl) to inspect the authored commands and asset references.
+[Open the complete Treasure example](/examples/haneoka-story-en.html) or [read its catalog JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl). Replace `id` with a story ID from the catalog.
 
 ```js
 import { mountHaneokaStory } from "https://haneoka.org/embed/vega-haneoka.js";
 const player = mountHaneokaStory(document.getElementById("stage"), {
-  id: "afterlive_10109", server: "intl", locale: "en",
+  id: "millsage_004_1_02", server: "intl", locale: "en",
 });
 await player.ready;
 // Call from a button click:
@@ -220,7 +211,7 @@ player.play();
 The complete HTML supplies the element, buttons, loading stages, cancellation, error display and disposal. Its native player also provides scene controls. The external buttons demonstrate the handle methods; your own page can keep the control set that fits its layout.
 
 <details>
-<summary>Complete index.html for the published short story</summary>
+<summary>Complete index.html for Treasure</summary>
 
 ```html
 <!doctype html>
@@ -255,7 +246,7 @@ by("load").onclick=async()=>{
     await player?.dispose();
     if(current!==generation)return;
     player=mountHaneokaStory(by("stage"),{
-      id:"afterlive_10109",server:"intl",locale:"en",
+      id:"millsage_004_1_02",server:"intl",locale:"en",
       onEvent:event=>{
         if(current!==generation)return;
         if(event.type==="stage")by("status").textContent=labels[event.stage];
@@ -286,42 +277,22 @@ window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
 
 </details>
 
-The in-page **Our Notes: Treasure** preset keeps the longer **millsage_004_1_02** story. [Its complete public JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl) contains 728 commands. Both presets use the same short API. Replace `id` with an ID returned by the story catalog.
-
-Catalog JSON contains references. The Haneoka adapter prepares its runtime, model metadata and media records. To play your own complete Vega story JSON, keep the `fetch → response.json() → mountStory({ document })` path in steps 3–6. The Haneoka helper supplies its resource origin; you only set a resource base when intentionally overriding its assets through advanced player options.
+The Haneoka adapter resolves the catalog's model and media references. For authored Vega JSON, use `mountStory` with `source` or `document`.
 
 ## 8. Prepare a standard Live2D model
 
-The Cubism provider accepts a standard `*.model3.json` and legacy `*.model.json`. For a standard model, its character descriptor can point to the manifest:
+Supply a Cubism 3 descriptor or ZIP. The descriptor names the MOC3 file and textures in `FileReferences`. Keep the relative paths and include any declared physics, poses, motions and expressions.
 
-```json
-{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```js
+import { ModelPlayer } from "https://haneoka.org/embed/vega.js";
+const viewer = await ModelPlayer.create(document.getElementById("stage"), {
+  src: "./models/hero.zip",
+});
 ```
 
-Keep the exported directory structure:
+In a story, set `models: { hero: "./models/hero.zip" }` and use `characterModelRef: "hero"` on the character command. The [model story template](/examples/story-model.json) shows how to place the character and start dialogue. The hosted player loads the Cubism runtime for standard models.
 
-```text
-models/Mira/
-  Mira.model3.json
-  Mira.moc3
-  Mira.2048/texture_00.png
-  motions/...
-  expressions/...
-```
-
-| Component | When it is needed |
-| --- | --- |
-| `model3.json`, its referenced `.moc3`, and every referenced texture | Basic model rendering; names and paths must match the manifest |
-| Cubism plugin, Web runtime module and compatible Cubism Core | Executing model rendering; the main story embed does not install a model provider automatically |
-| Physics, pose and user-data JSON | When declared in `FileReferences`; remove unused declarations or provide the referenced files |
-| Motion and expression files | When used by the story; preserve the manifest catalog and file paths |
-| Extra shader JSON or a shader directory | No external shader configuration is required by this runtime; its rendering shaders are bundled |
-
-See Live2D's [exported model file guide](https://docs.live2d.com/en/cubism-editor-manual/export-moc3-motion3-files/) and [model3.json specification](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md). The provider uses the manifest to locate sidecars.
-
-Save the [complete model story template](/examples/story-model.json) as `story.json`. Its `command: 0` is the entry action, `targets` identifies Mira, `positionType: 5` places her in the centre, and `characterModel` points to the model. Set `runtime.model` to your actual manifest path; keep the model sidecar filenames and directories intact. Use the complete HTML from step 6, expand **Advanced: standard Live2D in my own story**, enable the Cubism provider, choose the original JSON, Load, then Play. This template requires your own exported model files; its download does not contain the illustrated model directory.
-
-**ZIP input is not currently implemented.** Extract the model archive, preserve its paths, serve the extracted files, and point the descriptor to its manifest. The existing model export creates ZIP downloads; it does not load ZIPs. The public options also do not include `shaders` or `shadersDir`. A custom shader-pack loader would require an additional runtime extension; adding those keys to a story has no such effect.
+For the standalone viewer, optionally pass `shaders` as the URL of a JSON array of GLSL ES 3.00 fragment paths. Use `shadersDir` to set their base directory. Each pass reads `u_model` at `v_uv` and outputs premultiplied RGBA. Call `viewer.dispose()` when removing the viewer.
 
 ## Fix a failed load
 
@@ -396,7 +367,12 @@ Required positional `container` is a browser HTMLElement with an ownerDocument/d
 | Option | Type; required/default | Effect, constraints and failures |
 | --- | --- | --- |
 | document | AdvStory; required alternative to source | In-memory engine document. commands must be an array; malformed document rejects ready with TypeError. Objects are authored input, not a required five-language catalog. |
-| source | DataSource&lt;AdvStory&gt;; required alternative to document | `load(context)` returns the engine document; memory/http/file/custom factories are supported. Source failures reject ready. |
+| source | string / URL / DataSource&lt;AdvStory&gt; | Vega JSON address or a source with `load(context)`. |
+| resources | Record&lt;string, string / URL / Blob&gt; | Map resource keys to a URL, Blob or File. |
+| sounds | Record&lt;string, string / URL / Blob&gt; | Map cue IDs to audio URLs or files. |
+| models | Record&lt;string, string / URL / AdvCharacterModelEntry&gt; | Map character references to Cubism 3 JSON, ZIP URLs or portable descriptors. |
+| cubism | CubismEmbedOptions | Custom Cubism module and Core URLs. |
+| runtimeManifestUrl | string / URL | Hosted SDK manifest URL used for the Cubism runtime. |
 | server | optional string; undefined, public adapter intl | Asset registry passed to source, independent from locale. |
 | locale | optional string; en | Author/playback language; startup also sets the player's locale and shell UI language. |
 | assetsBase | optional absolute HTTP(S) directory; source base | No query/fragment; overrides source resource origin. Invalid base TypeError. |

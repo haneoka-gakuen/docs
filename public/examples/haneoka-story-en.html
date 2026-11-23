@@ -30,7 +30,7 @@ by("load").onclick=async()=>{
     await player?.dispose();
     if(current!==generation)return;
     player=mountHaneokaStory(by("stage"),{
-      id:"afterlive_10109",server:"intl",locale:"en",
+      id:"millsage_004_1_02",server:"intl",locale:"en",
       onEvent:event=>{
         if(current!==generation)return;
         if(event.type==="stage")by("status").textContent=labels[event.stage];

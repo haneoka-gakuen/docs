@@ -2,12 +2,6 @@ import { demoText } from "./demo-text.js";
 import { activate, release } from "./demo-lifecycle.js";
 const epoch = "https://haneoka.org/embed/";
 const exampleBase = new URL("./", import.meta.url).href;
-const ownStory = (zh = false) => ({ localization: { locales: [zh ? "zh-CN" : "en"], defaultLocale: zh ? "zh-CN" : "en" }, commands: [
-  { command: 25, background: { url: "garden.svg" } },
-  { command: 2, targetName: zh ? "小遥" : "Mira", text: zh ? "欢迎来到这个原创花园。" : "Welcome to this original garden." },
-  { command: 2, targetName: zh ? "小遥" : "Mira", text: zh ? "这份 JSON 就是完整剧情。修改 text 里的话，再重新加载试试。" : "Change locale, text, or resource paths in the document." },
-  { command: 2, targetName: zh ? "小遥" : "Mira", text: zh ? "你也可以拖动进度，回到前一句。" : "Seek backwards or exit to release the player." },
-] });
 const ownChart = () => ({ version: 1, bpmChanges: [{ tick: 0, beat: 0, timeMs: 0, bpm: 120 }], signatureChanges: [], timeScaleChanges: [], timeline: { skills: [], fever: [], callChanges: [] }, lines: [], durationMs: 8000, notes: Array.from({ length: 12 }, (_, i) => ({ id: i, tick: i * 240, timeMs: 500 + i * 500, beat: i, pos: i % 6 * 4, size: 4, laneX: (i % 6 * 4 + 2) / 12 - 1, width: 4 / 12, operateType: 1, judgementType: 1, judgementAreaOffsetType: 0, direction: 0, critical: false, judged: true, visible: true, lineIds: [], slideAlong: false, indexInLine: null, easeL: null, easeR: null })) });
 const tone = () => {
   const rate = 12000, length = rate * 8;
@@ -33,7 +27,7 @@ const authoredRenderer = { create({ element, chart }) {
   }, resize(w, h, r) { width = w; height = h; ratio = r; canvas.width = Math.round(w * r); canvas.height = Math.round(h * r); }, laneAtClientPoint(x, y) { const box = canvas.getBoundingClientRect(); return x < box.left || x > box.right || y < box.top || y > box.bottom ? -1 : Math.min(23, (x - box.left) / box.width * 24); }, dispose() { canvas.remove(); } };
 } };
 export function install(root) {
-  const kind = root.dataset.playerKind, zh = root.dataset.uiLocale === "zh-CN";
+  const kind = root.dataset.playerKind;
   const field = name => root.querySelector(`[data-player-${name}]`);
   const stage = field("stage"), status = field("status"), output = field("output");
   let handle, controller, generation = 0, records = [], renderFrame = 0, lastLogAt = 0, nativeControls = false;
@@ -76,15 +70,15 @@ export function install(root) {
     release(root);
   };
   const preset = input => {
-    const options = { locale: field("locale").value || (zh ? "zh-CN" : "en") };
+    const options = { locale: field("locale").value || root.dataset.uiLocale };
     const value = { input, options };
-    if (input === "author") options.document = kind === "story" ? ownStory(zh) : { chart: ownChart(), audio: "original-tone.wav" };
-    if (input === "http") value.url = new URL(kind === "story" ? (zh ? "story-zh.json" : "story.json") : "chart.json", exampleBase).href;
+    if (input === "author") options.document = { chart: ownChart(), audio: "original-tone.wav" };
+    if (input === "http") value.url = kind === "story" ? field("url").value : new URL("chart.json", exampleBase).href;
     if (input === "haneoka") {
       value.publicSource = kind === "story" ? { id: "millsage_004_1_02" } : { songId: "100070", difficulty: "expert" };
 
     }
-    if (kind === "story") { Object.assign(options, { theme: input === "haneoka" ? "haneoka" : "portable", brandingCorner: "top-left" }); if (input === "author" || input === "file") options.assetsBase = exampleBase; }
+    if (kind === "story") { Object.assign(options, { theme: input === "haneoka" ? "haneoka" : "portable", brandingCorner: "top-left" }); if (input === "file") options.assetsBase = exampleBase; }
     else Object.assign(options, { mode: "watch", volume: .3, rate: 1, noteSoundEnabled: false });
     write(value);
     for (const panel of root.querySelectorAll("[data-player-panel]")) panel.hidden = panel.dataset.playerPanel !== input;
@@ -165,5 +159,5 @@ export function install(root) {
   field("set-options")?.addEventListener("click", () => { void action("setOptions", player => player.setOptions(JSON.parse(field("options").value))); });
   field("set-skin")?.addEventListener("click", () => { void action("setSkin", player => player.setSkin(JSON.parse(field("skin").value))); });
   window.addEventListener("pagehide", () => { void exit().catch(() => {}); cancelAnimationFrame(renderFrame); }, { once: true });
-  preset("author");
+  preset(root.querySelector('[data-player-preset][aria-pressed="true"]').dataset.playerPreset);
 }

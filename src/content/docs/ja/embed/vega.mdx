@@ -9,11 +9,9 @@ import DemoPlayer from "../../../../components/DemoPlayer.astro";
 
 ## 1. ここでプレーヤーを試す
 
-**完全なオリジナル例** を選んだまま **選んだ内容を読み込む**、続けて **再生** を押します。庭とミラの最初の台詞が表示されます。**次の台詞** で進み、**一時停止** で再生を止め、スライダーでストーリー内を移動します。**プレーヤーを終了** はプレーヤーを閉じるので、その後別のストーリーを読み込めます。
+**Our Notes: Treasure** を読み込み、プレーヤー内の **再生** を押します。自分のストーリーを試すには、**JSON のアドレス** または **自分の JSON ファイル** を選びます。
 
 <DemoPlayer kind="story" locale="ja" />
-
-オリジナル例は[この完全な story.json](/examples/story.json) と [garden.svg](/examples/garden.svg) を使います。**Our Notes: Treasure** は、モデルとサウンドリソースを含む公開済みのゲームストーリーを読み込みます。**高度なパラメーター** の設定は次の読み込みで反映されます。言語の選択は作成済みのテキストから選ぶもので、単一言語のストーリーを翻訳するものではありません。
 
 ## 2. 最初のストーリーを保存する
 
@@ -166,38 +164,31 @@ await player.ready; // the page enables Play only when loading succeeds
 
 音声付きの台詞にするには、WAV を自分の録音に置き換え、`playableUrl` をそのファイル名どおりに変更します。`soundId` はキューの識別、`playableUrl` は再生可能な音声の場所です。ブラウザーが音声を許可できるよう、**Play** はクリックやタップで押してください。SDK は宣言された音声を共有リソース転送で読み込み、再生用 URL を自動で準備します。リソース要求には設定したバイト予算と期限が適用され、破棄すると所有する再生用 URL が解放されます。
 
-既存のストーリーにキュー ID があるなら、アドレスを JavaScript のマップ 1 つにまとめ、マウント前に音声レコードを埋めます。スターター HTML では `const storyData = await response.json();` の直後に次を加えます。
+ストーリーにキューが含まれる場合は、マウント時に `sounds` を渡します。Vega は `voiceIds`、`bgmId`、`seId` と既存の音声レコードを照合します。
 
 ```js
-const sounds = { 10000001: "./cue-tone.wav" };
-for (const command of storyData.commands) {
-  for (const voice of command.voices ?? []) {
-    const key = voice.soundId ?? voice.id;
-    if (Object.hasOwn(sounds, key)) voice.playableUrl = sounds[key];
-  }
-}
+const player = mountStory(document.getElementById("stage"), {
+  source: "./story.json",
+  sounds: { 10000001: "./cue-tone.wav" },
+});
+await player.ready;
 ```
-
-これはサンプルの `commands[].voices` に対するホスト側の準備で、`sounds` は `mountStory` のオプションではありません。BGM と効果音の動作は `bgm.playableUrl` と `se.playableUrl` レコードを使います。公開 Haneoka ストーリーでは `voiceRefs`、`bgmRef`、`seRef` がサウンドレジストリで解決済みです。ほかの形式には、タイムラインやコマンドグループ内のキューも含めて、キューフィールドをこれらのレコードに変換するアダプターが必要です。
 
 ## 6. 別の URL や選んだファイルを読み込む
 
-[ソース選択付きの完全な HTML](/examples/story-player.html) には、4 つの方法すべて、読み込みエラーの表示、キャンセル、再生、進行スライダーが含まれます。同じ JSON とアセットの隣に `index.html` として保存します。**Another JSON address** を選んでアドレスを貼り付け、Load を押します。保存した JSON を選ぶには **A JSON file on my computer** を選びます。
-
-HTTP の場合、より短い SDK の方法ではスターターの fetch/JSON/mount のブロックを次に置き換えます。
+[ソース選択付きの HTML](/examples/story-player.html) は **Our Notes: Treasure** を初期選択し、JSON のアドレスやローカルの JSON ファイルにも対応します。
 
 ```js
 const { mountStory } = await import("https://haneoka.org/embed/vega.js");
-const { httpDataSource } = await import("https://haneoka.org/embed/core.js");
 handle = mountStory(document.getElementById("stage"), {
-  source: httpDataSource({ url: new URL("./story.json", location.href).href }),
+  source: "./story.json",
   locale: "en",
   signal,
 });
 await handle.ready;
 ```
 
-`httpDataSource` は JSON の取得とパースを内部で行います。相対リソースパスは JSON アドレスのディレクトリを基準にし、絶対 URL は自身のオリジンを保ちます。`assetsBase` はリソースが別のディレクトリにあるときだけ設定します。
+アセットの相対パスは JSON のディレクトリを基準にします。別のディレクトリには `assetsBase`、個別のキーに URL やファイルを割り当てるには `resources` を使います。
 
 JSON ファイルの選択で許可されるのはそのファイルだけです。隣の画像、モデル、音声へのアクセスは許可されません。完全な HTML は `fileDataSource(file)` を使い、それらのリソースを HTML のフォルダーから配信します。すべてローカルで選んだリソースを使う場合は[ローカルファイルと fileResourceResolver](../core/#local-files) を参照してください。モデルの付属ファイルのパスも、そのリソースマップで解決できる必要があります。
 
@@ -205,12 +196,12 @@ JSON ファイルの選択で許可されるのはそのファイルだけです
 
 Haneoka のストーリー ID があるときは `mountHaneokaStory` を使います。1 つのリリースマニフェストから、対応するプレーヤーモジュール、テーマ、Cubism ランタイムを選びます。指定するのはストーリー ID、サーバー、言語です。
 
-[短編ストーリーの完全な HTML を開き](/examples/haneoka-story-en.html)、`index.html` として保存して、手順 3 と同様に配信します。**Load** を押して **Ready** を待ち、**Play** を押します。この例は **afterlive_10109** を使います。作成済みのコマンドとアセット参照は[完全なカタログ JSON](https://haneoka.org/api/v1/stories/afterlive_10109?server=intl) で確認できます。
+[Treasure の完全な例](/examples/haneoka-story-en.html) と[カタログ JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl)を確認できます。別のストーリーにはカタログの ID を `id` に指定します。
 
 ```js
 import { mountHaneokaStory } from "https://haneoka.org/embed/vega-haneoka.js";
 const player = mountHaneokaStory(document.getElementById("stage"), {
-  id: "afterlive_10109", server: "intl", locale: "en",
+  id: "millsage_004_1_02", server: "intl", locale: "en",
 });
 await player.ready;
 // Call from a button click:
@@ -220,7 +211,7 @@ player.play();
 完全な HTML は要素、ボタン、読み込み段階、キャンセル、エラー表示、破棄を備えています。ネイティブプレーヤーにはシーン操作もあります。外部ボタンはハンドルのメソッドを示すためのもので、自分のページではレイアウトに合う操作を残せます。
 
 <details>
-<summary>公開短編ストーリーの完全な index.html</summary>
+<summary>Treasure の完全な index.html</summary>
 
 ```html
 <!doctype html>
@@ -255,7 +246,7 @@ by("load").onclick=async()=>{
     await player?.dispose();
     if(current!==generation)return;
     player=mountHaneokaStory(by("stage"),{
-      id:"afterlive_10109",server:"intl",locale:"en",
+      id:"millsage_004_1_02",server:"intl",locale:"en",
       onEvent:event=>{
         if(current!==generation)return;
         if(event.type==="stage")by("status").textContent=labels[event.stage];
@@ -286,42 +277,22 @@ window.addEventListener("pagehide",()=>{void player?.dispose();},{once:true});
 
 </details>
 
-ページ内の **Our Notes: Treasure** プリセットは、より長い **millsage_004_1_02** ストーリーを使います。[完全な公開 JSON](https://haneoka.org/api/v1/stories/millsage_004_1_02?server=intl) には 728 個のコマンドがあります。どちらのプリセットも同じ短い API を使います。`id` はストーリーカタログが返す ID に置き換えてください。
-
-カタログ JSON には参照が含まれます。Haneoka アダプターがランタイム、モデルメタデータ、メディアレコードを準備します。自分の完全な Vega ストーリー JSON を再生するには、手順 3~6 の `fetch → response.json() → mountStory({ document })` の経路を保ちます。Haneoka ヘルパーがリソースオリジンを提供するので、リソースベースを設定するのは、高度なプレーヤーオプションで意図的にアセットを差し替えるときだけです。
+Haneoka アダプターはカタログのモデルやメディア参照を解決します。自作の Vega JSON には `mountStory` の `source` または `document` を使います。
 
 ## 8. 標準 Live2D モデルを準備する
 
-Cubism プロバイダーは標準の `*.model3.json` と旧式の `*.model.json` を受け付けます。標準モデルでは、キャラクター記述子がマニフェストを指せます。
+Cubism 3 の記述ファイルまたは ZIP を指定します。 `FileReferences` が参照する MOC3 とテクスチャを用意し、物理演算、ポーズ、モーション、表情が宣言されている場合はそのファイルも相対パスを保って同梱します。
 
-```json
-{"runtime":{"format":"cubism3","model":"models/Mira/Mira.model3.json"}}
+```js
+import { ModelPlayer } from "https://haneoka.org/embed/vega.js";
+const viewer = await ModelPlayer.create(document.getElementById("stage"), {
+  src: "./models/hero.zip",
+});
 ```
 
-書き出したディレクトリ構成を保ちます。
+ストーリーでは `models: { hero: "./models/hero.zip" }` を指定し、キャラクターのコマンドで `characterModelRef: "hero"` を使います。[モデル付きテンプレート](/examples/story-model.json)に配置と会話の例があります。ホスト版は標準モデルの Cubism ランタイムを読み込みます。
 
-```text
-models/Mira/
-  Mira.model3.json
-  Mira.moc3
-  Mira.2048/texture_00.png
-  motions/...
-  expressions/...
-```
-
-| コンポーネント | 必要なとき |
-| --- | --- |
-| `model3.json`、参照される `.moc3`、参照されるすべてのテクスチャ | 基本のモデル描画。名前とパスはマニフェストと一致させる |
-| Cubism プラグイン、Web ランタイムモジュール、互換の Cubism Core | モデル描画の実行。メインのストーリー埋め込みはモデルプロバイダーを自動でインストールしない |
-| 物理、ポーズ、ユーザーデータの JSON | `FileReferences` で宣言されているとき。未使用の宣言を削除するか、参照先のファイルを用意する |
-| モーションと表情のファイル | ストーリーが使うとき。マニフェストのカタログとファイルパスを保つ |
-| 追加のシェーダー JSON やシェーダーディレクトリ | このランタイムに外部シェーダー設定は不要。描画シェーダーは同梱されている |
-
-Live2D の[書き出しモデルファイルのガイド](https://docs.live2d.com/ja/cubism-editor-manual/export-moc3-motion3-files/)と [model3.json 仕様](https://github.com/Live2D/CubismSpecs/blob/master/FileFormats/model3.json.md)を参照してください。プロバイダーはマニフェストから付属ファイルを探します。
-
-[完全なモデルストーリーのテンプレート](/examples/story-model.json)を `story.json` として保存します。`command: 0` は入口の動作、`targets` はミラの識別、`positionType: 5` は中央への配置、`characterModel` はモデルの指定です。`runtime.model` を実際のマニフェストパスにし、モデルの付属ファイル名とディレクトリはそのままにします。手順 6 の完全な HTML を使い、**Advanced: standard Live2D in my own story** を開いて Cubism プロバイダーを有効にし、オリジナルの JSON を選んで Load、Play を押します。このテンプレートには自分で書き出したモデルファイルが必要で、ダウンロードには図のモデルディレクトリは含まれません。
-
-**ZIP 入力は現在実装されていません。** モデルのアーカイブを展開し、パスを保ったまま展開済みファイルを配信して、記述子をそのマニフェストに向けてください。既存のモデル書き出しは ZIP のダウンロードを作るもので、ZIP を読み込むものではありません。公開オプションには `shaders` や `shadersDir` もありません。独自のシェーダーパックローダーには別のランタイム拡張が必要で、これらのキーをストーリーに加えても効果はありません。
+単体ビューアーには、GLSL ES 3.00 のフラグメントパスを列挙した JSON の URL を `shaders` で指定できます。相対パスの基準は `shadersDir` で設定します。各パスは `v_uv` で `u_model` を読み、乗算済みアルファの RGBA を出力します。ビューアーを外す際は `viewer.dispose()` を呼びます。
 
 ## 読み込みの失敗を直す
 
@@ -396,7 +367,12 @@ stage イベントは `{type:"stage",stage,release?}` です。load/state/seek/e
 | オプション | 型;必須/既定値 | 効果、制約、失敗 |
 | --- | --- | --- |
 | document | AdvStory;source の代わりに必須 | メモリ上のエンジンドキュメント。commands は配列が必要で、不正なドキュメントは TypeError で ready を拒否する。作成された入力であり、5 言語カタログである必要はない。 |
-| source | DataSource&lt;AdvStory&gt;;document の代わりに必須 | `load(context)` がエンジンドキュメントを返す。memory/http/file/カスタムのファクトリーに対応。ソースの失敗は ready を拒否する。 |
+| source | string / URL / DataSource&lt;AdvStory&gt; | Vega JSON の URL、または `load(context)` を持つデータソース。 |
+| resources | Record&lt;string, string / URL / Blob&gt; | アセットキーを URL、Blob、File に対応付ける。 |
+| sounds | Record&lt;string, string / URL / Blob&gt; | キュー ID を音声 URL やファイルに対応付ける。 |
+| models | Record&lt;string, string / URL / AdvCharacterModelEntry&gt; | キャラクター参照を Cubism 3 JSON、ZIP の URL、またはポータブルな記述子に対応付ける。 |
+| cubism | CubismEmbedOptions | 独自の Cubism モジュールと Core の URL。 |
+| runtimeManifestUrl | string / URL | Cubism ランタイムを選ぶホスト版 SDK マニフェストの URL。 |
 | server | 任意の文字列;undefined、公開アダプターは intl | source に渡すアセットレジストリ。locale とは独立。 |
 | locale | 任意の文字列;en | 作成・再生の言語。起動時にプレーヤーのロケールとシェル UI の言語も設定する。 |
 | assetsBase | 任意の絶対 HTTP(S) ディレクトリ;ソースのベース | クエリ・フラグメントなし。ソースのリソースオリジンを上書きする。不正なベースは TypeError。 |
