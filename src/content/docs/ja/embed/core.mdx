@@ -123,11 +123,12 @@ const imageUrl = await loader.resourceUrl(song.jacketUrl);
 
 | フィールド | 型・必須・既定 | 効果、組み合わせ、エラー |
 | --- | --- | --- |
-| `source` | 必須の `DataSource<T>` | `load(context)` を持つ必要がある。ローダーは読み込みのたびに呼ぶ。任意の source の assetsBase がリソースのディレクトリを、任意の dispose が 1 回だけの後始末を担う。利用するホストの形式に合うソースを選ぶ。 |
+| `source` | string / URL / DataSource&lt;T&gt; | JSON の URL、または `load(context)` を持つデータソース。 |
 | `server` | 任意の文字列、既定は undefined | 独自のソースやリゾルバーにそのまま渡す。Haneoka アダプターは既定を intl にし、公開クライアントでレジストリのスラッグを検証する。言語がサーバーを選ぶことはない。 |
 | `locale` | 任意の文字列、既定は en | そのまま渡す。fr や pt-BR など作者側のロケールも有効。Haneoka は対応言語の交渉のために Accept-Language として送る。 |
-| `assetsBase` | 任意の文字列、既定は source.assetsBase、なければなし | ソースのベースを上書きする。クエリやフラグメントのない絶対 HTTP(S) のディレクトリで、末尾にスラッシュを補う。不正なベースは構築時に TypeError。ベースのない相対キーは URL の構築に失敗する。 |
-| `resolveResource` | 任意の `(key:string,context:DataContext)=>string\|URL\|Blob\|Promise<…>`、既定はキーそのまま | リソースキーの対応付けを完全に決める。相対の結果 URL には assetsBase を使う。リゾルバーが拒否するとそのリソース操作も拒否され、ローカルの Map にないエントリーが HTTP に流れることはない。 |
+| `assetsBase` | HTTP(S) directory URL | ソースのディレクトリを上書きします。ブラウザーではソースに基準がない場合、ページのディレクトリが既定値です。 |
+| `resources` | Record&lt;string, string / URL / Blob&gt; | キーに URL やファイルを割り当てます。コールバックの結果が優先されます。 |
+| `resolveResource` | ResourceResolver | URL、Blob または `undefined` を返します。未定義の場合はマップ、次にキー自体を使います。 |
 | `fetcher` | 任意の `(Request)=>Promise<Response>`、既定は fetch | cors の Request、呼び出し側のヘッダー、設定した資格情報、シグナルを受け取る。ドキュメントとリソースの読み取りの両方で使う。下流のメディア要素は独自の通信を使う。例外を投げると操作は拒否される。 |
 | `credentials` | 任意の omit/same-origin/include、既定は omit | ローダーの通信に適用する。資格情報付きのクロスオリジンのサービスは、埋め込み元のオリジンと資格情報を許可する必要がある。不正な値はネイティブの Request が拒否する。 |
 | `headers` | 任意の HeadersInit、既定はなし | 共通の通信ヘッダー。ソースのリクエストごとのヘッダーは同じ名前を上書きする。Haneoka アダプターは locale から Accept-Language を設定する。ヘッダーの検証は Fetch に従う。 |
@@ -163,7 +164,7 @@ Haneoka のファクトリーのフィールド: `resource` は公開クライ�
 | maxBytes | number | 有効なデコード後のバイト数の予算。独自の解析もこれに従う。 |
 | progress | (\{loaded:number,total?:number\})→void | 操作で実際に読んだバイト数を報告する。不明なら total を省く。 |
 
-`progress` の引数は独自の `loaded` と任意の `total` を持ちます。リゾルバーは文字列、URL、Blob を同期的にも非同期的にも返せます。絶対の HTTP/HTTPS/Blob/data の URL はオリジンを保ち、相対の文字列は有効な assetsBase を使い、`/` はそのオリジンのルートから始まります。ほかのプロトコルは TypeError を投げます。ローダーがブラウザーや SSR のページのベースを勝手に作ることはありません。
+相対 URL は有効な assetsBase を基準にします。先頭のスラッシュはオリジンのルートを指します。
 
 ```ts
 const source = {
@@ -189,6 +190,7 @@ const loader = createEmbedLoader({ source, locale: "pt-BR", resolveResource: key
 | `load(options={})` | 任意の `{signal?:AbortSignal}`、Promise&lt;T&gt; | 新しい独立したソースの操作。キーは $data。繰り返すとソースを再び呼ぶ。 |
 | `resourceUrl(key,options={})` | 必須の文字列と任意のシグナル、Promise&lt;string&gt; | キーを解決するが、バイト列は取得しない。所有する Blob ごとに URL を 1 つ、破棄までキャッシュする。 |
 | `resourceBytes(key,options={})` | 必須の文字列と任意のシグナル、Promise&lt;Uint8Array&gt; | キーを解決し、ステータス・予算・進捗を伴ってバイト列を読む。 |
+| `resourceBlob(key, options)` | Promise&lt;Blob&gt; | `resourceBytes` と同じステータス・容量の検査を行い、コンテンツタイプ付きの Blob を読み込みます。 |
 | `subscribe(listener)` | 必須の `(event:EmbedEvent)=>void`、購読解除の関数を返す | 以降のイベントを受け取る。状態は再送しない。破棄済みなら例外を投げる。 |
 | `cancel()` | 引数なし、void | 現在のすべての操作を中断する。ローダーは再利用できる。 |
 | `dispose()` | 引数なし、共有の Promise&lt;void&gt; | 直ちに処理を禁止し、進行中の呼び出しを中断し、所有する URL を破棄し、disposed を通知し、オブザーバーを消去し、ソースの後始末を 1 回呼ぶ。冪等。破棄したローダーは再利用できない。 |

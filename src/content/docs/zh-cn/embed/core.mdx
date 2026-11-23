@@ -123,11 +123,12 @@ const imageUrl = await loader.resourceUrl(song.jacketUrl);
 
 | 字段 | 类型/必填/默认 | 作用、组合和错误 |
 | --- | --- | --- |
-| source | 必填 DataSource&lt;T&gt; | 提供 load(context)，每次 load 调用；可选 source.assetsBase 为素材目录，dispose 清理一次。数据格式应符合消费宿主。 |
+| `source` | string / URL / DataSource&lt;T&gt; | JSON 地址，或提供 `load(context)` 的数据源。 |
 | server | 可选 string，undefined | 原样传给 source/resolver；本站 adapter 默认intl并用公开客户端校验 slug，与语言独立。 |
 | locale | 可选 string，en | 原样保留 fr/pt-BR 等作者语言；本站通过 Accept-Language 协商支持语言。 |
-| assetsBase | 可选 string，source.assetsBase→无 | 覆盖 source base，绝对 HTTP(S) 目录，不含 query/fragment，补斜线；构造时非法 TypeError，无base相对key URL构造失败。 |
-| resolveResource | 可选 (key,DataContext)=&gt;string/URL/Blob 或其Promise，默认原key | 完整映射key，相对结果基于base；拒绝即资源失败，Map缺key不回落网络。 |
+| `assetsBase` | HTTP(S) directory URL | 覆盖数据源目录。浏览器中，数据源没有指定目录时使用页面所在目录。 |
+| `resources` | Record&lt;string, string / URL / Blob&gt; | 将资源键映射到网址或文件。回调返回的值优先于映射表。 |
+| `resolveResource` | ResourceResolver | 返回 URL、Blob 或 `undefined`。未返回时查询映射表，再使用资源键本身。 |
 | fetcher | 可选 (Request)=&gt;Promise&lt;Response&gt;，默认fetch | 接收cors、配置headers/credentials/signal的Request，文档和资源共同使用；媒体元素有独立加载器。拒绝传递为操作失败。 |
 | credentials | omit/same-origin/include，omit | 跨域带cookie需服务允许origin与credentials；非法值由Request拒绝。 |
 | headers | 可选 HeadersInit，无 | 共用头，source逐次header覆盖同名值；本站以locale设Accept-Language，校验遵循Fetch。 |
@@ -161,7 +162,7 @@ DataSource&lt;T&gt; 包含 load(context):T|Promise&lt;T&gt;、可选 assetsBase?
 | maxBytes | number | 有效解码预算，自定义解析也应遵守。 |
 | progress | (\{loaded:number,total?:number\})=&gt;void | 实际字节，未知总量省略total。 |
 
-Resolver同步/异步返回string、URL、Blob。绝对HTTP/HTTPS/Blob/data保留origin，相对基于assetsBase，/开头用origin根；其他protocol TypeError，不猜SSR/页面base。
+相对 URL 以有效的 assetsBase 为基准。以斜线开头的路径从该来源的根目录解析。
 
 ```ts
 const source = {
@@ -187,6 +188,7 @@ const loader = createEmbedLoader({ source, locale: "pt-BR", resolveResource: key
 | load(options=\{\}) | 可选signal，Promise&lt;T&gt; | 每次独立source操作，key为$data。 |
 | resourceUrl(key,options=\{\}) | 必填string，可选signal；Promise&lt;string&gt; | 不下载，每个Blob复用一个URL直到销毁。 |
 | resourceBytes(key,options=\{\}) | key/可选signal；Promise&lt;Uint8Array&gt; | status/budget/progress真实读取。 |
+| `resourceBlob(key, options)` | Promise&lt;Blob&gt; | 应用与 `resourceBytes` 相同的状态和字节预算检查，读取带内容类型的 Blob。 |
 | subscribe(listener) | 必填(event)=&gt;void；返回unsubscribe | 后续事件，不重放；已销毁抛Error。 |
 | cancel() | void | 取消当前全部操作，loader可重用。 |
 | dispose() | 共用Promise&lt;void&gt; | 立即禁止新工作、abort、revoke、disposed事件、清监听、source清理一次；幂等，不能重用。 |

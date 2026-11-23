@@ -392,7 +392,7 @@ Required positional `container` is a browser HTMLElement with an ownerDocument/d
 | onEvent | optional (StoryEmbedEvent)→void | Attached before boot; same event shapes as subscribe. |
 | resolveLocalizedText | optional (value:unknown)→\{text:string,lang?:string\} | Custom text resolution; default Vega localization. Must produce the resolver shape; own exceptions can fail the active operation. |
 
-The nine common loader options use the detailed [core transport/resource contract](../core/). There is no mount autoplay or general loadTimeoutMs option. Use an external signal/deadline for whole loading; start playback from a user gesture.
+The common loader options use the detailed [core transport/resource contract](../core/). There is no mount autoplay or general loadTimeoutMs option. Use an external signal/deadline for whole loading; start playback from a user gesture.
 
 ## Nested shell options and settings
 

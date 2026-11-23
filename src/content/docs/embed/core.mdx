@@ -123,11 +123,12 @@ Public reads require no account or release. Server chooses the registry and loca
 
 | Field | Type/required/default | Effect, combinations and errors |
 | --- | --- | --- |
-| `source` | required `DataSource<T>` | Must supply `load(context)`; loader calls it for each load. Optional source assetsBase supplies the resource directory, optional dispose runs once. Choose the source appropriate to the consuming host's format. |
+| `source` | string / URL / DataSource&lt;T&gt; | A JSON URL or a data source with `load(context)`. |
 | `server` | optional string; undefined | Passed unchanged to custom sources/resolvers. Haneoka adapter defaults it to intl and validates the registry slug through the public client. Language never chooses a server. |
 | `locale` | optional string; en | Passed unchanged; author locales such as fr/pt-BR are valid. Haneoka sends it as Accept-Language for supported-language negotiation. |
-| `assetsBase` | optional string; source.assetsBase, then none | Overrides source base. Absolute HTTP(S) directory, no query/fragment; trailing slash added. Invalid base throws TypeError at construction. Relative keys without a base fail URL construction. |
-| `resolveResource` | optional `(key:string,context:DataContext)=>string\|URL\|Blob\|Promise<…>`; key unchanged | Completely maps a resource key. Result URL uses assetsBase when relative. Resolver rejection rejects that resource operation; missing local Map entry does not fall through to HTTP. |
+| `assetsBase` | HTTP(S) directory URL | Overrides the source directory. In a browser the page directory is the default when the source supplies no base. |
+| `resources` | Record&lt;string, string / URL / Blob&gt; | Maps a key to a URL or file. A callback result takes precedence over the map. |
+| `resolveResource` | ResourceResolver | Returns a URL, Blob or `undefined` to use the map, then the key itself. |
 | `fetcher` | optional `(Request)=>Promise<Response>`; fetch | Receives cors Request, caller headers, configured credentials and signal. Both document and resource reads use it. A downstream media element has its own transport. Throwing rejects the operation. |
 | `credentials` | optional omit/same-origin/include; omit | Applies to loader transport. Credentialed cross-origin services must allow the embedding origin and credentials. Invalid values are rejected by native Request. |
 | `headers` | optional HeadersInit; none | Shared transport headers; a source's per-request headers override matching names. Haneoka adapter sets Accept-Language from locale. Headers validation follows Fetch. |
@@ -163,7 +164,7 @@ A `DataSource<T>` declares `load(context): T|Promise<T>`, optional `assetsBase?:
 | maxBytes | number | Effective decoded-byte budget; custom parsing should honor it. |
 | progress | (\{loaded:number,total?:number\})→void | Reports actual operation bytes; omit total when unknown. |
 
-`progress`'s argument has its own `loaded`/optional `total` fields. The resolver returns a string, URL or Blob synchronously/asynchronously. Absolute HTTP/HTTPS/Blob/data URLs keep their origin; relative strings use the effective assetsBase and `/` starts at its origin root. Other protocols throw TypeError. The loader never invents a browser/SSR page base.
+Relative URL values use the effective assetsBase. A leading slash resolves from its origin root.
 
 ```ts
 const source = {
@@ -189,6 +190,7 @@ const loader = createEmbedLoader({ source, locale: "pt-BR", resolveResource: key
 | `load(options={})` | optional `{signal?:AbortSignal}`; Promise&lt;T&gt; | New independent source operation, key $data; repeated loads call source again. |
 | `resourceUrl(key,options={})` | required string + optional signal; Promise&lt;string&gt; | Resolves key, no byte fetch. One cached URL per owned Blob until dispose. |
 | `resourceBytes(key,options={})` | required string + optional signal; Promise&lt;Uint8Array&gt; | Resolves key and reads bytes with status/budget/progress. |
+| `resourceBlob(key, options)` | Promise&lt;Blob&gt; | Reads the resource as a Blob with its content type, using the same status and byte budget checks as `resourceBytes`. |
 | `subscribe(listener)` | required `(event:EmbedEvent)=>void`; returns unsubscribe function | Receives future events; does not replay state. Throws if already disposed. |
 | `cancel()` | no arguments; void | Aborts all current operations; leaves loader reusable. |
 | `dispose()` | no arguments; shared Promise&lt;void&gt; | Immediately disallows work, aborts active calls, revokes owned URLs, emits disposed, clears observers and invokes source cleanup once. Idempotent; disposed loader cannot be reused. |
